@@ -1,0 +1,37 @@
+
+      - name: Check version has not been released
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --tags --force
+
+          if git show-ref --verify --quiet \
+            "refs/tags/v${VERSION}"; then
+            echo "::error::Git tag v${VERSION} already exists"
+            exit 1
+          fi
+
+          echo "$GH_TOKEN" | docker login ghcr.io \
+            -u "${{ github.actor }}" --password-stdin
+
+          IMAGE="ghcr.io/shirishsaxena/showy-dashboard"
+
+          if docker buildx imagetools inspect \
+            "${IMAGE}:${VERSION}" > /tmp/image-check 2>&1; then
+            echo "::error::Docker image ${VERSION} already exists"
+            exit 1
+          fi
+
+          if ! grep -Eqi \
+            'not found|manifest unknown|name unknown|404' \
+            /tmp/image-check; then
+            cat /tmp/image-check
+            echo "::error::Unable to verify image availability"
+            exit 1
+          fi
+
+          echo "Version ${VERSION} is available"
