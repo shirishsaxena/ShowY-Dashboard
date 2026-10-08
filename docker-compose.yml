@@ -1,0 +1,68 @@
+services:
+  showy-dashboard:
+    build: .
+    container_name: showy-dashy
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Optional password. Empty = no password (fine on a trusted LAN).
+      # Put it here, DASHBOARD_PASSWORD: "your-password-here"
+      # DASHBOARD_PASSWORD: ""
+      # (in this file write a literal $ as $$).
+      DASHBOARD_PASSWORD: ""
+      # Only used when a password is set:
+      #   true  = everything is behind a lock screen (use on a public VPS)
+      #   false = anyone can view, only editing needs the password
+      DASHBOARD_LOCK_VIEW: true
+      # Seconds between host CPU / memory / disk / network / sensor updates (0 = off).
+      HOST_STATS_INTERVAL: 5
+      # Seconds between CPU / memory / network updates on Docker service cards (0 = off).
+      # The Refresh button always updates both straight away.
+      CONTAINER_STATS_INTERVAL: 30
+      # Timing values (all optional, whole numbers; also editable in Settings -> Monitoring).
+      # A value here wins and locks the field in Settings. Defaults are shown.
+      # Refresh timing, in seconds:
+      # DOCKER_REFRESH_INTERVAL: 30   # how often Docker container status is refreshed (5-3600)
+      # HEALTH_REFRESH_INTERVAL: 60   # how often service status and the shared clipboard are refreshed (10-3600)
+      # LOCAL_STALE_AFTER: 90         # "This machine" turns amber after this long without data (15-3600)
+      # REFRESH_MIN_GAP: 5            # shortest time between forced refreshes (1-60)
+      # Health checks:
+      # HEALTH_TIMEOUT: 6             # seconds to wait for each check (1-60)
+      # HEALTH_CACHE: 45              # seconds a result is kept before checking again (5-600)
+      # HEALTH_PARALLEL: 8            # checks run at the same time (1-32)
+      # Remote dashboards and Docker:
+      # REMOTE_TIMEOUT: 8             # seconds to wait for a remote dashboard (2-60)
+      # LOAD_TIMEOUT: 15              # seconds before the loading screen gives up (5-120)
+      # DOCKER_PARALLEL: 6            # container stats requests at the same time (1-16)
+      # Login protection (env only, not in Settings):
+      # SESSION_DAYS: 30              # how long a login lasts (1-365)
+      # LOGIN_MAX_FAILURES: 5         # wrong passwords before logins pause (1-100)
+      # LOGIN_LOCKOUT: 60             # seconds logins pause for (5-86400)
+      # Remote dashboards (optional - can also be set in Settings).
+      # Fixed share token so other dashboards can show this one (16+ characters,
+      # e.g. from: openssl rand -hex 24). Empty = set it in Settings instead.
+      SHARE_TOKEN: ""
+      # Seconds between updates of remote dashboards (5 / 10 / 15 / 30 / 60). Empty = set it in Settings (default 10).
+      # A value here locks the Settings choice.
+      REMOTE_REFRESH_INTERVAL: ""
+      # Other dashboards to show here, one per line: Name | URL | their SHARE_TOKEN
+      # REMOTE_DASHBOARDS: |
+      #   VPS | https://dash.example.com | token-of-the-vps
+      #   NAS | http://192.168.1.20:8011 | token-of-the-nas
+      REMOTE_DASHBOARDS: ""
+    # Safety caps - it normally idles around 50 MB RAM and ~0% CPU.
+    mem_limit: 128m
+    cpus: 0.5
+    volumes:
+      - ./data:/data
+      # Read-only access so the dashboard can list containers (only GET requests are made).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Disks to show in "This machine" stats: each folder under /disks becomes a tile (folder name = label).
+      - /:/disks/System:ro
+      # - /mnt/wd-hdd:/disks/WD-HDD:ro
+      # Host /proc (read-only) so "This machine" can show the host's network speed.
+      - /proc:/host/proc:ro
+    # Temperatures (CPU, NVMe SSDs, fans) are read from /sys automatically - nothing to mount.
+    # SATA SSD/HDD temps need the host kernel module once:
+    #   echo drivetemp | sudo tee /etc/modules-load.d/drivetemp.conf && sudo modprobe drivetemp
