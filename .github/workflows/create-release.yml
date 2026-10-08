@@ -1,0 +1,101 @@
+
+name: Create GitHub Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Read VERSION
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION=$(tr -d '[:space:]' < VERSION)
+
+          if [[ ! "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Invalid VERSION: $VERSION"
+            exit 1
+          fi
+
+          echo "number=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="v${VERSION}"
+
+          if ! git show-ref --verify --quiet "refs/tags/${TAG}"; then
+            echo "::error::Tag ${TAG} does not exist. Publish Docker image first."
+            exit 1
+          fi
+
+          if gh release view "$TAG" \
+            --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release ${TAG} already exists."
+            exit 1
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          TAG="v${VERSION}"
+          IMAGE="ghcr.io/shirishsaxena/showy-dashboard"
+
+          # Generate changelog
+          gh api \
+            "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="$TAG" \
+            --jq '.body' > changelog.md
+
+          # Create release notes
+          cat > release-notes.md <<EOF
+          ## Docker Installation
+
+          \`\`\`bash
+          docker pull ${IMAGE}:${VERSION}
+          \`\`\`
+
+          ## What's Changed
+
+          EOF
+
+          cat changelog.md >> release-notes.md
+
+          cat >> release-notes.md <<EOF
+
+          ## Available Images
+
+          - \`${IMAGE}:${VERSION}\`
+          - \`${IMAGE}:latest\`
+          EOF
+
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "ShowY Dashboard v${VERSION}" \
+            --notes-file release-notes.md \
+            --verify-tag

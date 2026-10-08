@@ -6,47 +6,40 @@
 
 A lightweight, self-hosted dashboard for organizing services, monitoring Docker containers, and keeping an eye on multiple servers — all from one place.
 
-![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=nodedotjs&logoColor=white) ![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white) ![No dependencies](https://img.shields.io/badge/npm_dependencies-0-brightgreen) ![Self-hosted](https://img.shields.io/badge/Self--hosted-Yes-blue)
+![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=nodedotjs&logoColor=white) [![Docker](https://img.shields.io/badge/GHCR-Docker%20Image-2496ED?logo=docker&logoColor=white)](https://github.com/shirishsaxena/ShowY-Dashboard/pkgs/container/showy-dashboard) ![No dependencies](https://img.shields.io/badge/npm_dependencies-0-brightgreen) ![Self-hosted](https://img.shields.io/badge/Self--hosted-Yes-blue)
 
 </div>
 
 ![ShowY Dashboard overview](screenshots/dashboard.png)
 
-## Why ShowY Dashboard?
-
-ShowY Dashboard is a small Node.js app with a plain HTML/CSS/JavaScript frontend. **No database, no frontend build step, and no npm packages.** Configure everything from your browser and keep your data in local JSON files. The original setup reports approximately **50 MB idle RAM usage**, although actual usage depends on your environment.
-
-- **One home for your services:** group, pin, search, and reorder links, with status checks and QR codes.
-- **Docker visibility:** automatically match services to containers and see their state, CPU, memory, and network activity.
-- **Host monitoring:** live CPU, memory, disk, network, temperature, fan, and uptime information on supported Linux hosts.
-- **Multiple machines:** connect remote dashboard instances to see their servers and stats together.
-- **Availability history:** track estimated host availability and past outages without an external monitoring service.
-- **Everyday shortcuts:** shared clipboard, quick links, and copyable commands.
-- **Personalized experience:** multiple layouts, themes, accent colors, and installable PWA support.
+ShowY Dashboard uses Node.js with a plain HTML/CSS/JavaScript frontend—**no database, frontend build step, or npm packages**. Manage services in your browser; settings and history are stored in local JSON files.
 
 ## Screenshots
 
-### Dashboard overview
+Click a preview to view the full-size screenshot.
 
-![ShowY Dashboard overview](screenshots/dashboard.png)
+<table>
+  <tr>
+    <td align="center" width="25%">
+      <a href="screenshots/server-monitoring.png"><img src="screenshots/server-monitoring.png" alt="Server monitoring and Docker containers" width="180"></a><br>
+      <sub>Server monitoring</sub>
+    </td>
+    <td align="center" width="25%">
+      <a href="screenshots/remote-dashboards.png"><img src="screenshots/remote-dashboards.png" alt="Remote dashboards" width="180"></a><br>
+      <sub>Remote dashboards</sub>
+    </td>
+    <td align="center" width="25%">
+      <a href="screenshots/shared-clipboard.png"><img src="screenshots/shared-clipboard.png" alt="Shared clipboard" width="180"></a><br>
+      <sub>Shared clipboard</sub>
+    </td>
+    <td align="center" width="25%">
+      <a href="screenshots/settings.png"><img src="screenshots/settings.png" alt="Settings and customization" width="180"></a><br>
+      <sub>Settings</sub>
+    </td>
+  </tr>
+</table>
 
-### Server monitoring and Docker containers
-
-![Server monitoring](screenshots/server-monitoring.png)
-
-### Remote dashboards
-
-![Remote dashboards](screenshots/remote-dashboards.png)
-
-### Shared clipboard
-
-![Shared clipboard](screenshots/shared-clipboard.png)
-
-### Settings and customization
-
-![Dashboard settings](screenshots/settings.png)
-
-## Features in detail
+## Features
 
 | Area | What you get |
 | --- | --- |
@@ -66,39 +59,72 @@ Icons can come from [dashboard-icons](https://github.com/homarr-labs/dashboard-i
 
 ## Quick start (Docker)
 
-**Requirements:** Linux, Docker, and Docker Compose.
+**Requirements:** Linux, Docker, and Docker Compose. The recommended installation uses the [prebuilt Docker image](https://github.com/shirishsaxena/ShowY-Dashboard/pkgs/container/showy-dashboard), so there is no need to clone the repository or build from source.
 
-1. Clone the repository:
-
-   ```bash
-   git clone https://github.com/shirishsaxena/ShowY-Dashboard.git
-   cd ShowY-Dashboard
-   ```
-
-2. Review `docker-compose.yml`. Change the published port if `8011` is in use; optionally set `DASHBOARD_PASSWORD` and add disk mounts.
-3. Build and start:
+1. Create a directory for your dashboard and a `compose.yaml` file:
 
    ```bash
-   docker compose up -d --build
+   mkdir -p showy-dashboard && cd showy-dashboard
+   nano compose.yaml
    ```
 
-4. Open **`http://YOUR-SERVER-IP:8011`**.
-5. Select **Edit**, add a server, mark the local host as **This machine**, then add services manually or from **Not on dashboard**.
+2. Add the following configuration:
 
-Your configuration is persisted in `./data` and survives container rebuilds, as long as that directory is retained.
+   ```yaml
+   services:
+     dashboard:
+       image: ghcr.io/shirishsaxena/showy-dashboard:latest
+       container_name: showy-dashboard
+       restart: unless-stopped
+       ports:
+         - "8011:8080"
+       environment:
+         TZ: Asia/Kolkata
+         # DASHBOARD_PASSWORD: "set-a-strong-password"
+       volumes:
+         - ./data:/data
+         - /var/run/docker.sock:/var/run/docker.sock:ro
+         - /:/disks/System:ro
+   ```
+
+3. Pull and start the dashboard:
+
+   ```bash
+   docker compose up -d
+   ```
+
+4. Open **`http://YOUR-SERVER-IP:8011`**. Select **Edit**, add a server, mark the local host as **This machine**, and add services manually or from **Not on dashboard**.
+
+Your configuration is stored in `./data` and persists across container updates. Adjust the published port, password, and disk mounts for your setup. **Docker socket access is privileged even when mounted `:ro`**; deploy only on trusted hosts and protect access to the dashboard.
 
 ### Update
 
-Pull the latest code and rebuild, keeping your `data` directory:
+To pull the latest published image and recreate the container if needed:
 
 ```bash
-git pull
+docker compose pull
+docker compose up -d
+```
+
+### Use a specific version
+
+Replace `:latest` in `compose.yaml` with a numbered image tag, such as `:1.6.0`. Numbered tags are useful for predictable deployments and rollbacks. See [GitHub Releases](https://github.com/shirishsaxena/ShowY-Dashboard/releases) for published versions.
+
+### Build from source (optional)
+
+If you want to modify the dashboard or build locally:
+
+```bash
+git clone https://github.com/shirishsaxena/ShowY-Dashboard.git
+cd ShowY-Dashboard
 docker compose up -d --build
 ```
 
+The repository's `docker-compose.yml` uses the local build setup. To update a source-built installation, run `git pull` followed by `docker compose up -d --build`.
+
 ### Additional disk monitoring
 
-Add read-only disk mounts under `volumes` in `docker-compose.yml`, for example:
+Add read-only disk mounts under `volumes` in your Compose file (`compose.yaml` for the prebuilt image), for example:
 
 ```yaml
 volumes:
@@ -179,7 +205,7 @@ Use **full lock and HTTPS** when exposing the dashboard to the internet. Notes, 
 
 ## Configuration
 
-Set these in `docker-compose.yml` under `environment`. The full range of monitoring timings is also configurable in **Settings → Monitoring**; environment values override and lock the corresponding UI controls.
+Set these under `environment` in your Compose file. The full range of monitoring timings is also configurable in **Settings → Monitoring**; environment values override and lock the corresponding UI controls.
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
@@ -242,23 +268,6 @@ Use **Settings → Export JSON** to back up your dashboard configuration, or bac
 - Sharing tokens grant access to remote host and service information; rotate or disable them when no longer needed.
 - The included standard Compose configuration limits the container to **128 MB RAM and 0.5 CPU**.
 - Icon downloads are validated and cached; SVGs are served with protections against script execution.
-
-## Project structure
-
-```text
-ShowY-Dashboard/
-├── server.js                 # HTTP server and API routes
-├── lib/                      # Auth, Docker, host stats, health, remotes, etc.
-├── public/                   # Frontend, icons, service worker
-├── Dockerfile
-├── docker-compose.yml        # Local/LAN deployment
-├── docker-compose.vps.yml    # HTTPS VPS deployment with Caddy
-├── Caddyfile
-├── .env.example
-├── VERSION                   # Version displayed in Settings
-├── screenshots/              # Dashboard showcase images
-└── data/                     # Runtime data (do not commit)
-```
 
 ## License
 
