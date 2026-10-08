@@ -21,7 +21,11 @@ export const prefs = {
 
 export function setPref(key, value) {
   prefs[key] = value;
-  localStorage.setItem(`dash.${key}`, JSON.stringify(value instanceof Set ? [...value] : value));
+  try {
+    localStorage.setItem(`dash.${key}`, JSON.stringify(value instanceof Set ? [...value] : value));
+  } catch {
+    // Blocked or full storage must not prevent using preferences in this session.
+  }
 }
 
 export const state = {

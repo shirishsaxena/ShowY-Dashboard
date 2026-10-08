@@ -16,12 +16,29 @@ export async function api(method, url, body, signal) {
   return { res, data };
 }
 
+const pendingLoads = new Map();
+
+/** Share identical polls; serialize different variants so a manual fresh request is never lost. */
+function load(url, apply, local = false) {
+  const source = url.split('?')[0];
+  const pending = pendingLoads.get(source);
+  if (pending) {
+    return pending.url === url || !url.includes('?')
+      ? pending.promise
+      : pending.promise.then(() => load(url, apply, local));
+  }
+  const promise = performLoad(url, apply, local).finally(() => pendingLoads.delete(source));
+  pendingLoads.set(source, { url, promise });
+  return promise;
+}
+
 /** GET a JSON endpoint and store the result; failures keep the previous value. local = data about this machine (stamps state.localAt). */
-async function load(url, apply, local = false) {
+async function performLoad(url, apply, local) {
+  const started = Date.now();
   try {
     const { res, data } = await api('GET', url);
     if (res.ok) {
-      apply(data);
+      apply(data, started);
       if (local) state.localAt = Date.now();
     }
     return res.ok;
@@ -30,12 +47,14 @@ async function load(url, apply, local = false) {
   }
 }
 
-export async function loadAuth() {
-  await load('/api/auth', (data) => (state.auth = data));
+export async function loadAuth(signal) {
+  const { res, data } = await api('GET', '/api/auth', undefined, signal);
+  if (!res.ok) throw new Error(`Failed to check access (${res.status})`);
+  state.auth = data;
 }
 
-export async function loadConfig() {
-  const { res, data } = await api('GET', '/api/config');
+export async function loadConfig(signal) {
+  const { res, data } = await api('GET', '/api/config', undefined, signal);
   if (res.status === 401) throw new LockedError('Locked');
   if (!res.ok) throw new Error(`Failed to load config (${res.status})`);
   state.config = normalizeConfig(data.config);
@@ -73,8 +92,7 @@ export const loadHealth = (fresh = false) =>
 /** Remote dashboards. Their live data only counts while they answer; otherwise just the last known servers show.
  *  fresh = id of a remote to fetch fresh (Refresh button while viewing it). */
 export async function loadRemotes(fresh = '') {
-  const started = Date.now();
-  return load(`/api/remotes${fresh ? `?fresh=${encodeURIComponent(fresh)}` : ''}`, (data) => {
+  return load(`/api/remotes${fresh ? `?fresh=${encodeURIComponent(fresh)}` : ''}`, (data, started) => {
     if (data.interval) state.remotesInterval = data.interval;
     // A remote loaded on its own while this request was running is newer than what came back here.
     const current = new Map(state.remotes.map((r) => [r.id, r]));

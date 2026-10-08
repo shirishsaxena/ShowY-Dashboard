@@ -6,6 +6,13 @@ export const ICON_INDEX_URL = 'https://cdn.jsdelivr.net/gh/homarr-labs/dashboard
 export const $ = (sel, root = document) => root.querySelector(sel);
 
 const isContent = (k) => k != null && k !== false && k !== '';
+const handlers = new WeakMap();
+const stableRoots = new WeakSet();
+
+/** Opt in display-only sections whose h() handlers do not capture their newly built nodes. */
+export function preserveEqualChildren(...roots) {
+  for (const root of roots) stableRoots.add(root);
+}
 
 /** Create an element: h('a', { class: 'x', href, onclick }, ...children). null/false children are skipped. */
 export function h(tag, attrs = {}, ...children) {
@@ -13,15 +20,41 @@ export function h(tag, attrs = {}, ...children) {
   for (const [k, v] of Object.entries(attrs)) {
     if (v == null || v === false) continue;
     if (k === 'class') el.className = v;
-    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k.startsWith('on')) {
+      const events = handlers.get(el) || new Map();
+      events.set(k.slice(2), v);
+      handlers.set(el, events);
+      el.addEventListener(k.slice(2), v);
+    }
     else el.setAttribute(k, v === true ? '' : v);
   }
   el.append(...children.flat(Infinity).filter(isContent));
   return el;
 }
 
-/** replaceChildren that skips null/false/empty values. */
-export const fill = (el, ...kids) => el.replaceChildren(...kids.flat(Infinity).filter(isContent));
+function refreshHandlers(current, next) {
+  // Equal markup can still have different closures (e.g. updated notes or copy text).
+  for (const [type, handler] of handlers.get(current) || []) current.removeEventListener(type, handler);
+  const events = handlers.get(next);
+  for (const [type, handler] of events || []) current.addEventListener(type, handler);
+  if (events) handlers.set(current, events);
+  else handlers.delete(current);
+  for (let i = 0; i < current.childNodes.length; i++) refreshHandlers(current.childNodes[i], next.childNodes[i]);
+}
+
+/** replaceChildren that skips null/false/empty values; opted-in equal sections keep focus. */
+export function fill(el, ...kids) {
+  const children = kids.flat(Infinity).filter(isContent);
+  if (stableRoots.has(el)) {
+    const next = children.map((child) => child instanceof Node ? child : document.createTextNode(String(child)));
+    const current = [...el.childNodes];
+    if (current.length === next.length && current.every((child, i) => child.isEqualNode(next[i]))) {
+      current.forEach((child, i) => refreshHandlers(child, next[i]));
+      return;
+    }
+  }
+  el.replaceChildren(...children);
+}
 
 // ---------- SVG icons ----------
 

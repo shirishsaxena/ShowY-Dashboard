@@ -13,6 +13,7 @@ import { openNote } from './notes.js';
 function linkChips(svc, dupes) {
   const local = safeUrl(svc.url);
   const alt = safeUrl(svc.altUrl);
+  const primary = primaryUrl(svc);
   const shared = dupes.has(hostPort(svc.url));
   const tools = state.editing
     ? []
@@ -21,8 +22,8 @@ function linkChips(svc, dupes) {
         local || alt ? iconBtn('qr', 'Show QR code', () => openQr(svc)) : null,
       ].filter(Boolean);
   return [
-    local ? h('a', { class: 'chip', href: local, title: local, ...external }, svg('home'), hostLabel(local)) : null,
-    alt ? h('a', { class: 'chip', href: alt, title: alt, ...external }, svg('globe'), hostOf(alt)) : null,
+    local ? h('a', { class: `chip${local === primary ? ' primary-link' : ''}`, href: local, title: local, ...external }, svg('home'), hostLabel(local)) : null,
+    alt ? h('a', { class: `chip${alt === primary ? ' primary-link' : ''}`, href: alt, title: alt, ...external }, svg('globe'), hostOf(alt)) : null,
     shared ? h('span', { class: 'chip amber', title: 'Another service uses the same host:port' }, svg('warn'), 'port shared') : null,
     tools.length ? [h('span', { class: 'grow' }), tools] : null,
   ];
@@ -65,9 +66,10 @@ export function serviceCard(svc, server, { showServer = false, dupes = new Set()
         { class: 'text' },
         showServer ? h('div', { class: 'server-tag' }, server.name) : null,
         h('h3', { class: 'name' }, svc.name),
-        svc.description ? h('p', { class: 'description' }, svc.description) : null
+        svc.description ? h('p', { class: 'description' }, svc.description) : null,
+        st ? statusNode(st) : null
       ),
-      editing ? editTools(svc, server) : st ? statusNode(st) : null
+      editing ? editTools(svc, server) : null
     ),
     editing ? null : usageNode(containerFor(svc, server), server),
     links.childElementCount ? links : null

@@ -16,6 +16,7 @@ export function makeSortable(root, { item, handle, list, onSort }) {
   const snapshot = () => lists().map((l) => ({ list: l, ids: itemsOf(l).map((n) => n.dataset.id) }));
 
   root.addEventListener('pointerdown', (e) => {
+    if (dragging) return;
     const grip = e.target.closest(handle);
     if (!grip || !root.contains(grip) || (e.pointerType === 'mouse' && e.button !== 0)) return;
     const el = grip.closest(item);
@@ -45,6 +46,7 @@ export function makeSortable(root, { item, handle, list, onSort }) {
     raf = requestAnimationFrame(autoScroll);
 
     const move = (ev) => {
+      if (ev.pointerId !== e.pointerId) return;
       pointerY = ev.clientY;
       ghost.style.left = `${ev.clientX - dx}px`;
       ghost.style.top = `${ev.clientY - dy}px`;
@@ -66,7 +68,8 @@ export function makeSortable(root, { item, handle, list, onSort }) {
       }
     };
 
-    const end = () => {
+    const end = (ev) => {
+      if (ev.pointerId !== e.pointerId) return;
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', end);
       window.removeEventListener('pointercancel', end);

@@ -187,20 +187,39 @@ function sensorsCard({ temps = [], fans = [] }) {
   );
 }
 
+const disclosureOpen = new Map();
+
 export function renderStats(server) {
   const section = $('#stats');
+  // Snapshot the live property before replacement; toggle events may still be queued.
+  const previous = section.querySelector('details.stats-details');
+  if (previous) disclosureOpen.set(previous.dataset.statsKey, previous.open);
+  const focused = previous?.contains(document.activeElement) ? document.activeElement.tagName.toLowerCase() : null;
   const s = sourceOf(server).stats;
   if (!server?.local || state.query || !s) {
     section.hidden = true;
     return;
   }
   const points = s.net ? recordNet(server.remote || '', s) : null;
+  const key = JSON.stringify([server.remote || '', server.id]);
+  const cards = [
+    s.net ? networkCard(s.net, s.interval, points) : null,
+    s.availability ? availabilityCard(s, server) : null,
+    s.temps?.length || s.fans?.length ? sensorsCard(s) : null,
+  ].filter(Boolean);
+  const labels = [s.net && 'Network', s.availability && 'availability', (s.temps?.length || s.fans?.length) && 'sensors'].filter(Boolean);
   fill(
     section,
     systemCard(s),
-    s.net ? networkCard(s.net, s.interval, points) : null,
-    s.availability ? availabilityCard(s, server) : null,
-    s.temps?.length || s.fans?.length ? sensorsCard(s) : null
+    cards.length ? h(
+      'details',
+      { class: 'stats-details', 'data-stats-key': key, open: disclosureOpen.get(key) ?? !window.matchMedia('(max-width: 720px)').matches },
+      h('summary', {}, labels.join(', ')),
+      h('div', { class: 'stats-details-content' }, cards)
+    ) : null
   );
   section.hidden = false;
+  if (previous?.dataset.statsKey === key && (focused === 'summary' || focused === 'button')) {
+    section.querySelector(`.stats-details ${focused}`)?.focus({ preventScroll: true });
+  }
 }

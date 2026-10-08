@@ -91,6 +91,9 @@ function entryRow(entry) {
 
 function renderList(force = false) {
   const list = entries();
+  $('#clipCount').textContent = list.length ? `${list.length} / ${state.clip.max || 10}` : '';
+  $('#clipClearAll').disabled = !list.length;
+  if (!list.length) stopConfirm();
   const key = list.map((e) => e.id + (expanded.has(e.id) ? '+' : '')).join();
   if (!force && key === listKey) return;
   listKey = key;
@@ -100,9 +103,6 @@ function renderList(force = false) {
   fill(box, list.map(entryRow));
   box.scrollTop = top;
   box.hidden = !list.length;
-  $('#clipCount').textContent = list.length ? `${list.length} / ${state.clip.max || 10}` : '';
-  $('#clipClearAll').disabled = !list.length;
-  if (!list.length) stopConfirm();
 }
 
 function showClip() {
@@ -156,12 +156,21 @@ export async function copyText(text) {
     await navigator.clipboard.writeText(text);
   } catch {
     // The Clipboard API needs HTTPS; on a plain-http LAN address fall back to the old way.
+    const focused = document.activeElement;
     const temp = h('textarea', { readonly: true, 'aria-hidden': 'true', style: 'position:fixed;opacity:0;pointer-events:none' });
     temp.value = text;
-    (document.querySelector('dialog[open]') || $('#clipMenu')).append(temp); // inside the open modal, or it would be inert
-    temp.select();
-    const ok = document.execCommand('copy');
-    temp.remove();
+    let ok = false;
+    try {
+      // A closed popover cannot host a selectable textarea; a modal must host it to avoid inertness.
+      (document.querySelector('dialog[open]') || (isOpen() ? $('#clipMenu') : document.body)).append(temp);
+      temp.select();
+      ok = document.execCommand('copy');
+    } catch {
+      // Some browsers throw instead of returning false when copying is denied.
+    } finally {
+      temp.remove();
+      focused?.focus({ preventScroll: true });
+    }
     if (!ok) return toast('Copy failed - select the text and copy it manually', true);
   }
   toast('Copied');

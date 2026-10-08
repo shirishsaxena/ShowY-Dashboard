@@ -76,12 +76,14 @@ function finish() {
   clearTimeout(timer);
   state.loading = null;
   render();
+  document.dispatchEvent(new Event('initial-load-settled'));
 }
 
 function fail(loading, error) {
   clearTimeout(timer);
   Object.assign(loading, { stage: 'failed', error, progress: null, failedAt: Date.now(), blocking: !isKnown(loading.serverId) });
   render();
+  document.dispatchEvent(new Event('initial-load-settled'));
 }
 
 /** This machine's data arrived: 'info' (host stats) or 'services' (Docker). */

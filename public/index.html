@@ -8,16 +8,39 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Home Lab" />
-  <title>Home Lab</title>
+  <title>Dashboard</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="manifest" href="/manifest.webmanifest" />
+  <style>
+    [hidden] { display: none !important; }
+    body.booting { margin: 0; background: var(--bg, #0b0f17); color: var(--text, #e8ecf4); }
+    body.booting #appShell { display: none !important; }
+    .boot-screen { min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: 24px; }
+    .boot-card { text-align: center; font-family: system-ui, sans-serif; }
+    .boot-spinner { display: inline-block; width: 36px; height: 36px; border: 3px solid #394052; border-top-color: #7c5cff; border-radius: 50%; animation: boot-spin .8s linear infinite; }
+    @keyframes boot-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .boot-spinner { animation: none; } }
+  </style>
   <link rel="stylesheet" href="/app.css" />
   <script type="module" src="/js/main.js"></script>
 </head>
 <body class="booting">
   <div class="bg-glow" aria-hidden="true"></div>
 
+  <section id="bootScreen" class="boot-screen" aria-labelledby="bootTitle" aria-busy="true">
+    <div class="boot-card">
+      <span class="boot-spinner" aria-hidden="true"></span>
+      <h1 id="bootTitle">Loading dashboard</h1>
+      <p id="bootMessage" class="boot-message" role="status">Connecting to your dashboard.</p>
+      <div class="boot-actions">
+        <button id="bootRetry" type="button" class="btn" hidden>Retry</button>
+      </div>
+      <noscript><p>JavaScript is required to open this dashboard.</p></noscript>
+    </div>
+  </section>
+
+  <div id="appShell" hidden inert>
   <header class="topbar">
     <button id="serverBtn" class="brand" type="button" popovertarget="serverMenu" aria-haspopup="true" aria-expanded="false" disabled>
       <span id="brandIcon" class="brand-icon"><img src="/favicon.svg" alt="" /></span>
@@ -129,6 +152,7 @@
     <button type="button" class="btn sm" id="dockAddServer"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Server</button>
     <button type="button" class="btn sm" id="dockSettings" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4"/></svg><span class="dock-label">Settings</span></button>
     <button type="button" class="btn sm primary" id="dockDone">Done</button>
+  </div>
   </div>
 
   <!-- Full-page lock screen (when "require password to view" is on) -->

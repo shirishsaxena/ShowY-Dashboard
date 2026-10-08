@@ -164,16 +164,25 @@ async function serveStatic(req, res, pathname) {
     res.writeHead(304, headers);
     return res.end();
   }
+  if (req.method === 'HEAD') {
+    res.writeHead(200, headers);
+    return res.end();
+  }
   const data = await fsp.readFile(file);
   res.writeHead(200, headers);
-  res.end(req.method === 'HEAD' ? undefined : data);
+  res.end(data);
 }
 
 // ---------- Server ----------
 
 const server = http.createServer(async (req, res) => {
-  const { pathname } = new URL(req.url, 'http://localhost');
   try {
+    let pathname;
+    try {
+      ({ pathname } = new URL(req.url, 'http://localhost'));
+    } catch {
+      return send(res, 400, 'Bad request');
+    }
     if (pathname.startsWith('/api/')) return await handleApi(req, res, pathname);
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Method not allowed');
     if (pathname === '/manifest.webmanifest') return await serveManifest(req, res);

@@ -1,7 +1,7 @@
 // Main render: top bar state, then server switcher, favourites and either the server page or search results.
 
 import { state, activeServer, allServers } from '../state.js';
-import { $ } from '../dom.js';
+import { $, preserveEqualChildren } from '../dom.js';
 import { plural } from '../utils.js';
 import { serviceStatus } from '../status.js';
 import { renderSwitcher } from './switcher.js';
@@ -10,8 +10,43 @@ import { renderServer } from './server.js';
 import { renderSearch } from './search.js';
 import { renderLinks } from './links.js';
 import { settleLoad } from '../loading.js';
+import { isDragging } from '../sortable.js';
+
+let renderFrame = null;
+let waitingForDrag = false;
+
+/** Coalesce background updates; render() remains synchronous for user actions. */
+export function requestRender() {
+  if (renderFrame !== null || waitingForDrag) return;
+  renderFrame = requestAnimationFrame(() => {
+    renderFrame = null;
+    render();
+  });
+}
+
+function resumeAfterDrag() {
+  window.removeEventListener('pointerup', resumeAfterDrag);
+  window.removeEventListener('pointercancel', resumeAfterDrag);
+  waitingForDrag = false;
+  // The sortable's end handler must finish before reading its state or touching its nodes.
+  requestRender();
+}
 
 export function render() {
+  if (isDragging()) {
+    if (!waitingForDrag) {
+      waitingForDrag = true;
+      window.addEventListener('pointerup', resumeAfterDrag);
+      window.addEventListener('pointercancel', resumeAfterDrag);
+    }
+    return;
+  }
+  if (renderFrame !== null) {
+    cancelAnimationFrame(renderFrame);
+    renderFrame = null;
+  }
+  if (state.locked) return;
+  preserveEqualChildren($('#serverList'), $('#favs'), $('#services'), $('#links'));
   settleLoad();
   const { settings } = state.config;
   document.title = settings.title;

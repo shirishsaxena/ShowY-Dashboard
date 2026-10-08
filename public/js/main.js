@@ -3,9 +3,9 @@
 import { state, prefs, activeServer } from './state.js';
 import { $, h, fill, svg, toast } from './dom.js';
 import { logout, login, LockedError, loadAuth, loadConfig, loadDocker, loadHealth, loadStats, loadUsage, loadRemotes } from './api.js';
-import { render } from './view/render.js';
+import { render, requestRender } from './view/render.js';
 import { renderStats } from './view/stats.js';
-import { makeSortable, isDragging } from './sortable.js';
+import { makeSortable } from './sortable.js';
 import { initDialogs } from './dialogs/common.js';
 import { openServiceEditor, initServiceForm } from './dialogs/service.js';
 import { openServerEditor, initServerForm } from './dialogs/server.js';
@@ -24,8 +24,8 @@ import { applyTheme, applyLayout, applyAccent, setTheme, setLayout, syncAccent, 
 const hasLocalServer = () => state.config.servers.some((s) => s.local);
 const canRefresh = () => !state.locked && !document.hidden;
 
-/** Re-render unless the user is in the middle of a drag. */
-const rerender = () => !isDragging() && render();
+/** Coalesce background updates, preserving active drag operations. */
+const rerender = () => requestRender();
 
 async function refreshDocker() {
   if (!canRefresh() || !hasLocalServer()) return;
@@ -293,6 +293,10 @@ function showLockScreen() {
   state.locked = true;
   state.editing = false;
   document.body.classList.remove('booting');
+  document.body.classList.add('locked');
+  $('#appShell').hidden = true;
+  $('#appShell').inert = true;
+  $('#bootScreen').hidden = true;
   $('#lockScreen').hidden = false;
   $('#summary').textContent = 'Locked';
   $('#lockForm').elements.password.focus();
@@ -303,34 +307,84 @@ function initLockScreen() {
     e.preventDefault();
     const form = e.target;
     const error = $('#lockError');
-    const msg = await login(form.elements.password.value);
-    error.textContent = msg || '';
-    error.hidden = !msg;
-    if (msg) return;
-    form.reset();
-    start();
+    const button = form.querySelector('button[type="submit"]');
+    if (button.disabled) return;
+    button.disabled = true;
+    try {
+      const msg = await login(form.elements.password.value);
+      error.textContent = msg || '';
+      error.hidden = !msg;
+      if (msg) return;
+      form.reset();
+      await start();
+    } catch {
+      error.textContent = 'Unable to connect. Please try again.';
+      error.hidden = false;
+    } finally {
+      button.disabled = false;
+    }
   });
 }
 
 // ---------- Start ----------
 
-async function start() {
-  try {
-    await loadConfig();
-  } catch (err) {
-    document.body.classList.remove('booting');
-    if (err instanceof LockedError) return showLockScreen();
-    $('#summary').textContent = err.message;
-    toast(err.message, true);
-    return;
-  }
-  state.locked = false;
+function showBoot(error = '') {
+  document.body.classList.add('booting');
+  document.body.classList.remove('locked');
+  $('#appShell').hidden = true;
+  $('#appShell').inert = true;
   $('#lockScreen').hidden = true;
-  syncAccent();
-  startLoad({ initial: true }); // the selected server shows a loading state instead of empty default values
-  render();
-  document.body.classList.remove('booting');
-  await refreshAll();
+  const screen = $('#bootScreen');
+  screen.hidden = false;
+  screen.setAttribute('aria-busy', String(!error));
+  screen.classList.toggle('boot-error', Boolean(error));
+  $('.boot-spinner', screen).hidden = Boolean(error);
+  $('#bootTitle').textContent = error ? 'Unable to load dashboard' : 'Loading dashboard';
+  $('#bootMessage').textContent = error || 'Connecting to your dashboard.';
+  $('#bootRetry').hidden = !error;
+}
+
+function revealDashboard() {
+  if (state.locked || (state.loading?.blocking && state.loading.stage !== 'failed')) return;
+  $('#appShell').hidden = false;
+  $('#appShell').inert = false;
+  $('#bootScreen').hidden = true;
+  document.body.classList.remove('booting', 'locked');
+}
+
+let starting = false;
+let timersStarted = false;
+
+async function start() {
+  if (starting) return;
+  starting = true;
+  state.locked = true;
+  showBoot();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    await loadAuth(controller.signal);
+    await loadConfig(controller.signal);
+    clearTimeout(timeout);
+    state.locked = false;
+    syncAccent();
+    startLoad({ initial: true });
+    render();
+    $('#bootMessage').textContent = 'Loading services and server information.';
+    revealDashboard();
+    if (!timersStarted) {
+      startTimers();
+      timersStarted = true;
+    }
+    await refreshAll();
+  } catch (err) {
+    if (err instanceof LockedError) return showLockScreen();
+    state.locked = true;
+    showBoot(controller.signal.aborted ? 'The dashboard took too long to respond. Check your connection and retry.' : err.message || 'Check your connection and retry.');
+  } finally {
+    clearTimeout(timeout);
+    starting = false;
+  }
 }
 
 async function init() {
@@ -352,10 +406,15 @@ async function init() {
   initEditDock();
   initSortables();
   initLockScreen();
+  $('#bootRetry').onclick = start;
+  document.addEventListener('initial-load-settled', revealDashboard);
   initPwa();
-  startTimers();
-  await loadAuth(); // an unreachable server is reported by start()
-  start();
+  await start();
 }
 
-init();
+init().catch((err) => {
+  state.locked = true;
+  showBoot(err.message || 'Unable to initialize the dashboard. Reload to try again.');
+  $('#bootRetry').textContent = 'Reload';
+  $('#bootRetry').onclick = () => location.reload();
+});

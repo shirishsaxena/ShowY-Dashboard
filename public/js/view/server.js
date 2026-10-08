@@ -22,7 +22,7 @@ function staleness(server) {
   if (!server.remote) {
     if (!server.local || !state.localAt) return null;
     const old = Date.now() - state.localAt > localStaleMs();
-    return { level: old ? 'amber' : '', label: old ? 'Stale ·' : '', since: state.localAt, local: true, dim: false, title: 'When this page last received data from the dashboard server' };
+    return { level: old ? 'amber' : '', label: old ? 'Stale ·' : 'Updated', since: state.localAt, local: true, dim: false, title: 'When this page last received data from the dashboard server' };
   }
   const src = sourceOf(server);
   if (!src.ok) return { level: 'red', label: 'Unreachable · last seen', since: src.lastOk, dim: true, title: src.error || '' };
@@ -30,7 +30,7 @@ function staleness(server) {
   if (failed || Date.now() - src.at > staleMs()) {
     return { level: 'amber', label: 'Stale ·', since: src.at, dim: true, title: failed ? state.loading.error : 'No recent update from this dashboard' };
   }
-  return { level: '', label: '', since: src.lastOk || src.at, dim: false, title: 'When this dashboard last answered' };
+  return { level: '', label: 'Updated', since: src.lastOk || src.at, dim: false, title: 'When this dashboard last answered' };
 }
 
 /** Re-write the age in every age chip (no re-render). This machine's chip follows state.localAt, which changes between renders. */
