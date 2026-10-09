@@ -1,538 +1,1074 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b0f17" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Home Lab" />
-  <title>Home Lab</title>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="manifest" href="/manifest.webmanifest" />
-  <link rel="stylesheet" href="/app.css" />
-  <script type="module" src="/js/main.js"></script>
-</head>
-<body class="booting">
-  <div class="bg-glow" aria-hidden="true"></div>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#0b0f17" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="apple-mobile-web-app-title" content="Home Lab" />
+    <title>Dashboard</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <style>
+      [hidden] {
+        display: none !important;
+      }
+      body.booting {
+        margin: 0;
+        background: var(--bg, #0b0f17);
+        color: var(--text, #e8ecf4);
+      }
+      body.booting #appShell {
+        display: none !important;
+      }
+      .boot-screen {
+        min-height: 100vh;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      .boot-card {
+        text-align: center;
+        font-family: system-ui, sans-serif;
+      }
+      .boot-spinner {
+        display: inline-block;
+        width: 36px;
+        height: 36px;
+        border: 3px solid #394052;
+        border-top-color: #7c5cff;
+        border-radius: 50%;
+        animation: boot-spin 0.8s linear infinite;
+      }
+      @keyframes boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-spinner {
+          animation: none;
+        }
+      }
+    </style>
+    <link rel="stylesheet" href="/app.css" />
+    <script type="module" src="/js/main.js"></script>
+  </head>
+  <body class="booting">
+    <div class="bg-glow" aria-hidden="true"></div>
 
-  <header class="topbar">
-    <button id="serverBtn" class="brand" type="button" popovertarget="serverMenu" aria-haspopup="true" aria-expanded="false" disabled>
-      <span id="brandIcon" class="brand-icon"><img src="/favicon.svg" alt="" /></span>
-      <span class="brand-text">
-        <span class="brand-title">
-          <span id="title">Home Lab</span>
-          <svg class="brand-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-        </span>
-        <span id="summary" class="muted">Loading…</span>
-      </span>
-      <span class="brand-bar" aria-hidden="true"><span></span></span>
-    </button>
+    <section
+      id="bootScreen"
+      class="boot-screen"
+      aria-labelledby="bootTitle"
+      aria-busy="true"
+    >
+      <div class="boot-card">
+        <span class="boot-spinner" aria-hidden="true"></span>
+        <h1 id="bootTitle">Loading dashboard</h1>
+        <p id="bootMessage" class="boot-message" role="status">
+          Connecting to your dashboard.
+        </p>
+        <div class="boot-actions">
+          <button id="bootRetry" type="button" class="btn" hidden>Retry</button>
+        </div>
+        <noscript
+          ><p>JavaScript is required to open this dashboard.</p></noscript
+        >
+      </div>
+    </section>
 
-    <label class="search">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 21l-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z"/></svg>
-      <input id="search" type="search" placeholder="Search services…" autocomplete="off" aria-label="Search services" />
-      <kbd>/</kbd>
-    </label>
+    <div id="appShell" hidden inert>
+      <header class="topbar">
+        <button
+          id="serverBtn"
+          class="brand"
+          type="button"
+          popovertarget="serverMenu"
+          aria-haspopup="true"
+          aria-expanded="false"
+          disabled
+        >
+          <span id="brandIcon" class="brand-icon"
+            ><img src="/favicon.svg" alt=""
+          /></span>
+          <span class="brand-text">
+            <span class="brand-title">
+              <span id="title">Home Lab</span>
+              <svg class="brand-chevron" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </span>
+            <span id="summary" class="muted">Loading…</span>
+          </span>
+          <span class="brand-bar" aria-hidden="true"><span></span></span>
+        </button>
 
-    <div class="actions">
-      <button id="clipBtn" class="icon-btn" popovertarget="clipMenu" title="Shared clipboard" aria-label="Shared clipboard" aria-expanded="false">
-        <svg viewBox="0 0 24 24"><path d="M9 3h6v4H9zM9 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-3M9 12h6M9 16h4"/></svg>
-        <span class="badge-dot" hidden></span>
-      </button>
-      <button id="lockBtn" class="icon-btn" title="Lock (log out)" aria-label="Lock" hidden>
-        <svg viewBox="0 0 24 24"><path d="M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4"/></svg>
-      </button>
-      <button id="refreshBtn" class="icon-btn" title="Refresh status" aria-label="Refresh status">
-        <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/></svg>
-      </button>
-      <button id="viewBtn" class="icon-btn" popovertarget="viewMenu" title="View options" aria-label="View options" aria-expanded="false">
-        <svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M10 10v10"/></svg>
-      </button>
-      <button id="editBtn" class="btn" aria-pressed="false">
-        <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>
-        <span>Edit</span>
-      </button>
+        <label class="search">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M21 21l-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z"
+            />
+          </svg>
+          <input
+            id="search"
+            type="search"
+            placeholder="Search services…"
+            autocomplete="off"
+            aria-label="Search services"
+          />
+          <kbd>/</kbd>
+        </label>
+
+        <div class="actions">
+          <button
+            id="clipBtn"
+            class="icon-btn"
+            popovertarget="clipMenu"
+            title="Shared clipboard"
+            aria-label="Shared clipboard"
+            aria-expanded="false"
+          >
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M9 3h6v4H9zM9 5H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1h-3M9 12h6M9 16h4"
+              />
+            </svg>
+            <span class="badge-dot" hidden></span>
+          </button>
+          <button
+            id="lockBtn"
+            class="icon-btn"
+            title="Lock (log out)"
+            aria-label="Lock"
+            hidden
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M6 11h12v10H6zM8 11V7a4 4 0 0 1 8 0v4" />
+            </svg>
+          </button>
+          <button
+            id="refreshBtn"
+            class="icon-btn"
+            title="Refresh status"
+            aria-label="Refresh status"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" />
+            </svg>
+          </button>
+          <button id="editBtn" class="btn" aria-pressed="false">
+            <svg viewBox="0 0 24 24">
+              <path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" />
+            </svg>
+            <span>Edit</span>
+          </button>
+        </div>
+      </header>
+
+      <!-- Server switcher -->
+      <div id="serverMenu" class="menu server-menu" popover>
+        <div class="menu-label">Servers</div>
+        <div id="serverList" class="server-list"></div>
+        <p id="serverHint" class="menu-hint" hidden>
+          Drag <b>⠿</b> to reorder.
+        </p>
+      </div>
+
+      <!-- Shared clipboard (text / links between devices) -->
+      <div id="clipMenu" class="menu clip-menu" popover>
+        <div class="clip-head">
+          <span class="menu-label">Shared clipboard</span>
+          <span id="clipAge" class="clip-age"></span>
+        </div>
+        <textarea
+          id="clipText"
+          rows="5"
+          maxlength="10000"
+          placeholder="Paste text or a link, then open it on another device."
+          aria-label="Shared clipboard text"
+        ></textarea>
+        <div class="clip-actions">
+          <button type="button" id="clipClear" class="btn sm ghost">
+            Clear
+          </button>
+          <span class="grow"></span>
+          <a
+            id="clipOpen"
+            class="btn sm"
+            target="_blank"
+            rel="noopener noreferrer"
+            hidden
+            >Open link</a
+          >
+          <button type="button" id="clipCopy" class="btn sm">Copy</button>
+          <button
+            type="button"
+            id="clipSave"
+            class="btn sm primary"
+            title="Ctrl+Enter"
+          >
+            Share
+          </button>
+        </div>
+        <div class="clip-head clip-history-head">
+          <span class="menu-label"
+            >History <span id="clipCount" class="clip-age"></span
+          ></span>
+          <span class="clip-actions">
+            <button
+              type="button"
+              id="clipClearCancel"
+              class="btn sm ghost"
+              hidden
+            >
+              Cancel
+            </button>
+            <button type="button" id="clipClearAll" class="btn sm ghost">
+              Clear History
+            </button>
+          </span>
+        </div>
+        <div id="clipList" class="clip-list" hidden></div>
+      </div>
+
+      <!-- Service notes -->
+      <div id="notePop" class="menu note-pop" popover>
+        <div id="noteTitle" class="menu-label"></div>
+        <div id="noteText" class="note-text"></div>
+      </div>
+
+      <section id="favs" class="favs" aria-label="Favourites" hidden></section>
+
+      <main>
+        <div class="server-top">
+          <section id="serverHead" class="server-head"></section>
+          <section id="stats" class="stats" aria-label="Host statistics" hidden></section>
+        </div>
+        <section
+          id="loadState"
+          class="load-state"
+          role="status"
+          aria-live="polite"
+          hidden
+        ></section>
+        <section
+          id="links"
+          class="links-section"
+          aria-label="Quick actions"
+          hidden
+        ></section>
+        <div id="services" class="services"></div>
+        <p id="empty" class="empty" hidden></p>
+        <section id="unlisted" class="unlisted" hidden></section>
+      </main>
+
+      <!-- Floating toolbar shown in edit mode -->
+      <div id="editDock" class="edit-dock" hidden>
+        <span class="dock-hint"
+          >Drag <b>⠿</b> to reorder · tap a card to edit</span
+        >
+        <button type="button" class="btn sm" id="dockAddService">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>Service
+        </button>
+        <button type="button" class="btn sm" id="dockAddGroup">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+            /></svg
+          >Group
+        </button>
+        <button type="button" class="btn sm" id="dockAddServer">
+          <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>Server
+        </button>
+        <button
+          type="button"
+          class="btn sm"
+          id="dockSettings"
+          aria-label="Settings"
+        >
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4"
+            /></svg
+          ><span class="dock-label">Settings</span>
+        </button>
+        <button type="button" class="btn sm primary" id="dockDone">Done</button>
+      </div>
     </div>
-  </header>
 
-  <!-- View options (per device) -->
-  <div id="viewMenu" class="menu" popover>
-    <div class="menu-label">Layout</div>
-    <div id="layoutSeg" class="seg" role="group" aria-label="Layout"></div>
-    <div class="menu-label">Theme</div>
-    <div id="themeSeg" class="seg" role="group" aria-label="Theme"></div>
-    <button type="button" id="installBtn" class="btn sm primary" hidden>
-      <svg viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Install app
-    </button>
-    <p id="installHint" class="menu-hint">Install: browser menu → <b>Add to Home screen</b> / <b>Install app</b>.</p>
-  </div>
-
-  <!-- Server switcher -->
-  <div id="serverMenu" class="menu server-menu" popover>
-    <div class="menu-label">Servers</div>
-    <div id="serverList" class="server-list"></div>
-    <p id="serverHint" class="menu-hint" hidden>Drag <b>⠿</b> to reorder.</p>
-  </div>
-
-  <!-- Shared clipboard (text / links between devices) -->
-  <div id="clipMenu" class="menu clip-menu" popover>
-    <div class="clip-head">
-      <span class="menu-label">Shared clipboard</span>
-      <span id="clipAge" class="clip-age"></span>
-    </div>
-    <textarea id="clipText" rows="5" maxlength="10000" placeholder="Paste text or a link, then open it on another device." aria-label="Shared clipboard text"></textarea>
-    <div class="clip-actions">
-      <button type="button" id="clipClear" class="btn sm ghost">Clear</button>
-      <span class="grow"></span>
-      <a id="clipOpen" class="btn sm" target="_blank" rel="noopener noreferrer" hidden>Open link</a>
-      <button type="button" id="clipCopy" class="btn sm">Copy</button>
-      <button type="button" id="clipSave" class="btn sm primary" title="Ctrl+Enter">Share</button>
-    </div>
-    <div class="clip-head clip-history-head">
-      <span class="menu-label">History <span id="clipCount" class="clip-age"></span></span>
-      <span class="clip-actions">
-        <button type="button" id="clipClearCancel" class="btn sm ghost" hidden>Cancel</button>
-        <button type="button" id="clipClearAll" class="btn sm ghost">Clear History</button>
-      </span>
-    </div>
-    <div id="clipList" class="clip-list" hidden></div>
-  </div>
-
-  <!-- Service notes -->
-  <div id="notePop" class="menu note-pop" popover>
-    <div id="noteTitle" class="menu-label"></div>
-    <div id="noteText" class="note-text"></div>
-  </div>
-
-  <section id="favs" class="favs" aria-label="Favourites" hidden></section>
-
-  <main>
-    <div class="server-top">
-      <section id="serverHead" class="server-head"></section>
-      <section id="stats" class="stats" hidden></section>
-    </div>
-    <section id="loadState" class="load-state" role="status" aria-live="polite" hidden></section>
-    <section id="links" class="links-section" aria-label="Quick actions" hidden></section>
-    <div id="services" class="services"></div>
-    <p id="empty" class="empty" hidden></p>
-    <section id="unlisted" class="unlisted" hidden></section>
-  </main>
-
-  <!-- Floating toolbar shown in edit mode -->
-  <div id="editDock" class="edit-dock" hidden>
-    <span class="dock-hint">Drag <b>⠿</b> to reorder · tap a card to edit</span>
-    <button type="button" class="btn sm" id="dockAddService"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Service</button>
-    <button type="button" class="btn sm" id="dockAddGroup"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Group</button>
-    <button type="button" class="btn sm" id="dockAddServer"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Server</button>
-    <button type="button" class="btn sm" id="dockSettings" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4"/></svg><span class="dock-label">Settings</span></button>
-    <button type="button" class="btn sm primary" id="dockDone">Done</button>
-  </div>
-
-  <!-- Full-page lock screen (when "require password to view" is on) -->
-  <section id="lockScreen" class="lock-screen" hidden>
-    <form id="lockForm" class="lock-card">
-      <img class="logo" src="/favicon.svg" alt="" />
-      <h2>Dashboard locked</h2>
-      <p class="muted">Enter your password to continue.</p>
-      <input name="password" type="password" required autocomplete="current-password" placeholder="Password" aria-label="Password" />
-      <p class="form-error" id="lockError" hidden></p>
-      <button type="submit" class="btn primary">Unlock</button>
-    </form>
-  </section>
-
-  <!-- Service editor -->
-  <dialog id="serviceDialog">
-    <form id="serviceForm" method="dialog">
-      <header class="dialog-head">
-        <h2 id="serviceDialogTitle">Add service</h2>
-        <button type="button" class="icon-btn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      </header>
-      <div class="dialog-body">
-        <div class="field-row">
-          <div class="icon-preview" id="serviceIconPreview"></div>
-          <label class="field grow">Name
-            <input name="name" required maxlength="100" placeholder="Jellyfin" />
-          </label>
-        </div>
-        <label class="field">Icon
-          <input name="icon" maxlength="2000" placeholder="jellyfin · 🎬 · https://…/icon.png" autocomplete="off" />
-          <div id="serviceIconSuggest" class="icon-suggest" hidden></div>
-          <small>Pick a suggestion, or type an emoji, image URL or <a href="https://dashboardicons.com" target="_blank" rel="noopener noreferrer">dashboard-icons</a> name.</small>
-        </label>
-        <label class="field">Description
-          <textarea name="description" maxlength="500" rows="3" placeholder="Movies &amp; TV"></textarea>
-        </label>
-        <label class="field">Notes <span class="muted">(optional)</span>
-          <textarea name="notes" maxlength="2000" rows="3" placeholder="Config in /opt/jellyfin · admin login in Bitwarden…"></textarea>
-          <small>Opened from the note button on the card. Anyone who can view the dashboard can read them — don't store passwords.</small>
-        </label>
-        <label class="field">Local URL
-          <input name="url" type="url" placeholder="http://192.168.1.150:8096" />
-        </label>
-        <label class="field">Public / alternate URL <span class="muted">(optional)</span>
-          <input name="altUrl" type="url" placeholder="https://jellyfin.example.com" />
-        </label>
-        <label class="field">Docker container <span class="muted">(optional)</span>
-          <input name="container" list="containerList" maxlength="200" placeholder="Auto-match by port or name" />
-          <datalist id="containerList"></datalist>
-          <small>Only used on servers marked "This machine". Leave blank to auto-match.</small>
-        </label>
-        <div class="field-row">
-          <label class="field grow">Server
-            <select name="serverId"></select>
-          </label>
-          <label class="field grow">Group <span class="muted">(optional)</span>
-            <input name="group" list="groupList" maxlength="60" placeholder="Ungrouped" autocomplete="off" />
-            <datalist id="groupList"></datalist>
-          </label>
-        </div>
-        <label class="check">
-          <input type="checkbox" name="favorite" />
-          <span><strong>Pin to favourites</strong><br /><small class="muted">Shows it in the favourites row at the top of every page.</small></span>
-        </label>
-      </div>
-      <footer class="dialog-foot">
-        <button type="button" class="btn danger ghost" id="serviceDelete">Delete</button>
-        <span class="grow"></span>
-        <button type="button" class="btn ghost" data-close>Cancel</button>
-        <button type="submit" class="btn primary">Save</button>
-      </footer>
-    </form>
-  </dialog>
-
-  <!-- Server editor -->
-  <dialog id="serverDialog">
-    <form id="serverForm" method="dialog">
-      <header class="dialog-head">
-        <h2 id="serverDialogTitle">Add server</h2>
-        <button type="button" class="icon-btn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      </header>
-      <div class="dialog-body">
-        <div class="field-row">
-          <div class="icon-preview" id="serverIconPreview"></div>
-          <label class="field grow">Name
-            <input name="name" required maxlength="100" placeholder="Home" />
-          </label>
-        </div>
-        <label class="field">Icon
-          <input name="icon" maxlength="2000" placeholder="proxmox · 🏠 · https://…/icon.png" autocomplete="off" />
-          <div id="serverIconSuggest" class="icon-suggest" hidden></div>
-          <small>Pick a suggestion, or type an emoji, image URL or <a href="https://dashboardicons.com" target="_blank" rel="noopener noreferrer">dashboard-icons</a> name (e.g. <code>ubuntu</code>, <code>proxmox</code>, <code>ovh</code>).</small>
-        </label>
-        <label class="field">Main URL <span class="muted">(optional)</span>
-          <input name="mainUrl" type="url" placeholder="http://192.168.1.150" />
-        </label>
-        <label class="field">Description
-          <textarea name="description" maxlength="500" rows="3"></textarea>
-        </label>
-        <div class="field-row">
-          <label class="field grow">Location
-            <input name="location" maxlength="100" />
-          </label>
-          <label class="field grow">Specs
-            <input name="specs" maxlength="200" />
-          </label>
-        </div>
-        <label class="check">
-          <input type="checkbox" name="local" />
-          <span><strong>This machine</strong><br /><small class="muted">Match services against Docker containers running where the dashboard runs.</small></span>
-        </label>
-      </div>
-      <footer class="dialog-foot">
-        <button type="button" class="btn danger ghost" id="serverDelete">Delete</button>
-        <span class="grow"></span>
-        <button type="button" class="btn ghost" data-close>Cancel</button>
-        <button type="submit" class="btn primary">Save</button>
-      </footer>
-    </form>
-  </dialog>
-
-  <!-- Plain link editor -->
-  <dialog id="linkDialog">
-    <form id="linkForm" method="dialog">
-      <header class="dialog-head">
-        <h2 id="linkDialogTitle">Add quick action</h2>
-        <button type="button" class="icon-btn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      </header>
-      <div class="dialog-body">
-        <div class="field-row">
-          <div class="icon-preview" id="linkIconPreview"></div>
-          <label class="field grow">Name
-            <input name="name" required maxlength="100" placeholder="Router" />
-          </label>
-        </div>
-        <label class="field">Type
-          <select name="type">
-            <option value="link">Link - opens a URL</option>
-            <option value="copy">Copy - copies a saved text</option>
-          </select>
-        </label>
-        <label class="field" id="linkUrlField">URL
-          <input name="url" type="url" required placeholder="http://192.168.1.1" />
-        </label>
-        <label class="field" id="linkTextField" hidden>Text to copy
-          <textarea name="text" rows="3" maxlength="2000" placeholder="ssh admin@192.168.1.10" spellcheck="false"></textarea>
-          <small>Anyone who can view the dashboard can see this text, so don't save passwords here.</small>
-        </label>
-        <label class="field">Icon <span class="muted">(optional)</span>
-          <input name="icon" maxlength="2000" placeholder="openwrt · 📡 · https://…/icon.png" autocomplete="off" />
-          <div id="linkIconSuggest" class="icon-suggest" hidden></div>
-          <small id="linkIconHint">Leave blank to use the site's own icon.</small>
-        </label>
-      </div>
-      <footer class="dialog-foot">
-        <button type="button" class="btn danger ghost" id="linkDelete">Delete</button>
-        <span class="grow"></span>
-        <button type="button" class="btn ghost" data-close>Cancel</button>
-        <button type="submit" class="btn primary">Save</button>
-      </footer>
-    </form>
-  </dialog>
-
-  <!-- Settings / password -->
-  <dialog id="settingsDialog">
-    <form id="settingsForm" method="dialog">
-      <header class="dialog-head">
-        <h2>Settings</h2>
-        <button type="button" class="icon-btn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      </header>
-      <div class="settings-tabs">
-        <div class="seg" id="settingsTabs" role="group" aria-label="Settings sections">
-          <button type="button" data-tab="general" aria-pressed="true">General</button>
-          <button type="button" data-tab="sharing" aria-pressed="false">Sharing</button>
-          <button type="button" data-tab="monitoring" aria-pressed="false">Monitoring</button>
-          <button type="button" data-tab="data" aria-pressed="false">Data</button>
-        </div>
-      </div>
-      <div class="dialog-body">
-        <div class="settings-panel" data-panel="general">
-        <div class="field set-group"><h3>Dashboard title</h3>
-          <input name="title" maxlength="100" aria-label="Dashboard title" />
-        </div>
-        <div class="field set-group"><h3>Accent colour</h3>
-          <div id="accentPicker" class="swatches" role="group" aria-label="Accent colour"></div>
-        </div>
-        <div class="field set-group"><h3>Hidden containers</h3>
-          <div id="hiddenList" class="chips"></div>
-          <small>Hidden from the "Not on dashboard" list. Click ✕ to show again.</small>
-        </div>
-        <div class="field set-group"><h3>Password</h3>
-          <small id="securityInfo"></small>
-        </div>
-        </div>
-        <div class="settings-panel" data-panel="sharing" hidden>
-        <div class="field set-group"><h3>Share this dashboard</h3>
-          <div class="field-row cache-row">
-            <input id="shareToken" class="grow" readonly placeholder="Off" aria-label="Share token" />
-            <button type="button" class="btn ghost" id="shareCopyBtn">Copy</button>
-            <button type="button" class="btn ghost" id="shareNewBtn">New token</button>
-            <button type="button" class="btn ghost" id="shareOffBtn">Turn off</button>
-          </div>
-          <small>Lets other dashboards show this one's servers, read-only. A new token stops the old one.</small>
-          <small id="shareFixedNote" hidden>Set by SHARE_TOKEN in docker-compose - change it there.</small>
-        </div>
-        <div class="field set-group"><h3>Remote dashboards</h3>
-          <div id="remoteList" class="remote-list"></div>
-          <div class="field-row cache-row">
-            <input id="remoteName" placeholder="Name" maxlength="100" aria-label="Remote dashboard name" />
-            <input id="remoteUrl" class="grow" placeholder="http://192.168.1.20:8011" aria-label="Remote dashboard URL" />
-            <input id="remoteToken" placeholder="Share token" autocomplete="off" aria-label="Remote share token" />
-            <button type="button" class="btn ghost" id="remoteAddBtn">Add</button>
-          </div>
-          <small>Show the servers of other dashboards here, using their URL and share token. Can also be set with REMOTE_DASHBOARDS in docker-compose.</small>
-          <label class="field remote-interval">Update remote dashboards every
-            <select id="remoteInterval">
-              <option value="5">5 seconds</option>
-              <option value="10">10 seconds</option>
-              <option value="15">15 seconds</option>
-              <option value="30">30 seconds</option>
-              <option value="60">1 minute</option>
-            </select>
-          </label>
-          <small id="remoteIntervalNote">Saved right away. Can also be set with REMOTE_REFRESH_INTERVAL in docker-compose.</small>
-        </div>
-        </div>
-        <div class="settings-panel" data-panel="monitoring" hidden>
-        <div class="field set-group"><h3>Outage tracking <span class="auto-badge">Saves automatically</span></h3>
-          <label class="check">
-            <input type="checkbox" id="availEnabled" />
-            <span><strong>Track approximate outages</strong><br /><small class="muted">A long gap before the next start is recorded as an outage. A reboot or power cut counts; the dashboard alone being stopped does not.</small></span>
-          </label>
-          <div class="field-row">
-            <label class="field grow">Heartbeat every
-              <select id="availInterval">
-                <option value="1">1 minute</option>
-                <option value="5">5 minutes</option>
-                <option value="10">10 minutes</option>
-              </select>
-            </label>
-            <label class="field grow">Outage if the gap exceeds
-              <select id="availThreshold">
-                <option value="5">5 minutes</option>
-                <option value="10">10 minutes</option>
-                <option value="15">15 minutes</option>
-                <option value="30">30 minutes</option>
-              </select>
-            </label>
-          </div>
-          <small id="availLimitNote" hidden></small>
-          <div class="field-row cache-row">
-            <small id="availInfo" class="grow"></small>
-            <button type="button" class="btn ghost" id="availViewBtn">View history</button>
-            <button type="button" class="btn ghost" id="availClearBtn">Clear history</button>
-          </div>
-          <small>Applies to this dashboard only.</small>
-        </div>
-        <div class="field set-group"><h3>Server info <span class="auto-badge">Saves automatically</span></h3>
-          <label class="field">Public IP
-            <select id="publicIpMode">
-              <option value="off">Don't show</option>
-              <option value="lookup">Look it up automatically</option>
-              <option value="manual">Enter it manually</option>
-            </select>
-          </label>
-          <input id="publicIpManual" placeholder="203.0.113.10" maxlength="45" autocomplete="off" spellcheck="false" aria-label="Public IP address" hidden />
-          <small id="publicIpNote"></small>
-        </div>
-        <div id="tunableList"></div>
-        </div>
-        <div class="settings-panel" data-panel="data" hidden>
-        <div class="field set-group"><h3>Shared clipboard <span class="auto-badge">Saves automatically</span></h3>
-          <label class="field">Maximum entries
-            <select id="clipMax">
-              <option value="5">5</option>
-              <option value="10">10</option>
-              <option value="25">25</option>
-              <option value="50">50</option>
-            </select>
-          </label>
-          <div class="field-row cache-row">
-            <small id="clipInfo" class="grow"></small>
-            <button type="button" class="btn ghost" id="clipClearSettingsBtn">Clear history</button>
-          </div>
-          <small>The oldest entries are removed when the limit is reached; lowering it removes them right away.</small>
-        </div>
-        <div class="field set-group"><h3>Icon cache</h3>
-          <div class="field-row cache-row">
-            <small id="iconCacheInfo" class="grow"></small>
-            <button type="button" class="btn ghost" id="clearIconsBtn">Clear cache</button>
-          </div>
-          <small>Icons are downloaded once by the server. Clear to fetch fresh copies.</small>
-        </div>
-        <div class="field set-group"><h3>Storage</h3>
-          <small id="storageTotal"></small>
-          <div id="storageList" class="storage-list"></div>
-          <small>Everything the dashboard keeps in its data folder. Health check results are only held in memory, never stored.</small>
-        </div>
-        <div class="field set-group"><h3>Backup</h3>
-          <div class="field-row">
-            <button type="button" class="btn ghost" id="exportBtn">Export JSON</button>
-            <label class="btn ghost file-btn">Import JSON<input type="file" id="importFile" accept="application/json,.json" hidden /></label>
-          </div>
-        </div>
-        </div>
-      </div>
-      <footer class="dialog-foot">
-        <span class="app-version" id="appVersion"></span>
-        <span class="grow"></span>
-        <button type="button" class="btn ghost" data-close>Cancel</button>
-        <button type="submit" class="btn primary">Save</button>
-      </footer>
-    </form>
-  </dialog>
-
-  <!-- Outage history -->
-  <dialog id="availabilityDialog" class="avail-dialog">
-    <form method="dialog">
-      <header class="dialog-head">
-        <h2>Outage history</h2>
-        <button type="button" class="icon-btn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      </header>
-      <div class="dialog-body">
-        <div id="availPeriod" class="seg" role="group" aria-label="Period"></div>
-        <div id="availSummary" class="avail-tiles"></div>
-        <small id="availObserved" class="muted"></small>
-        <div id="availTimeline"></div>
-        <div id="availList" class="avail-list"></div>
-        <small class="muted">Estimated from gaps between saved heartbeats, so times can be off by a few minutes. The host's boot time ends an outage when the machine came back; gaps where the host kept running are shown separately and not counted.</small>
-      </div>
-      <footer class="dialog-foot">
-        <button type="button" class="btn danger ghost" id="availClear">Clear history</button>
-        <span class="grow"></span>
-        <button type="button" class="btn ghost" data-close>Close</button>
-      </footer>
-    </form>
-  </dialog>
-
-  <!-- Server info -->
-  <dialog id="serverInfoDialog" class="info-dialog">
-    <form method="dialog">
-      <header class="dialog-head">
-        <h2 id="serverInfoTitle">Server info</h2>
-        <button type="button" class="icon-btn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      </header>
-      <div class="dialog-body" id="serverInfoBody"></div>
-      <footer class="dialog-foot">
-        <small class="muted">Hostname, OS and CPU are cached for a few minutes.</small>
-        <span class="grow"></span>
-        <button type="button" class="btn ghost" data-close>Close</button>
-      </footer>
-    </form>
-  </dialog>
-
-  <dialog id="loginDialog">
-    <form id="loginForm" method="dialog">
-      <header class="dialog-head"><h2>Password required</h2></header>
-      <div class="dialog-body">
-        <label class="field">Enter the dashboard password to make changes
-          <input name="password" type="password" required autocomplete="current-password" />
-        </label>
-        <p class="form-error" id="loginError" hidden></p>
-      </div>
-      <footer class="dialog-foot">
-        <span class="grow"></span>
-        <button type="button" class="btn ghost" data-close>Cancel</button>
+    <!-- Full-page lock screen (when "require password to view" is on) -->
+    <section id="lockScreen" class="lock-screen" hidden>
+      <form id="lockForm" class="lock-card">
+        <img class="logo" src="/favicon.svg" alt="" />
+        <h2>Dashboard locked</h2>
+        <p class="muted">Enter your password to continue.</p>
+        <input
+          name="password"
+          type="password"
+          required
+          autocomplete="current-password"
+          placeholder="Password"
+          aria-label="Password"
+        />
+        <p class="form-error" id="lockError" hidden></p>
         <button type="submit" class="btn primary">Unlock</button>
-      </footer>
-    </form>
-  </dialog>
+      </form>
+    </section>
 
-  <!-- QR code -->
-  <dialog id="qrDialog" class="qr-dialog">
-    <form method="dialog">
-      <header class="dialog-head">
-        <h2 id="qrTitle">Scan to open</h2>
-        <button type="button" class="icon-btn" data-close aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
-      </header>
-      <div class="dialog-body qr-body">
-        <div id="qrSwitch" class="seg" role="group" aria-label="Which URL"></div>
-        <div id="qrCode" class="qr-box"></div>
-        <a id="qrUrl" class="qr-url" target="_blank" rel="noopener noreferrer"></a>
-      </div>
-    </form>
-  </dialog>
+    <!-- Service editor -->
+    <dialog id="serviceDialog">
+      <form id="serviceForm" method="dialog">
+        <header class="dialog-head">
+          <h2 id="serviceDialogTitle">Add service</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+        <div class="dialog-body">
+          <div class="field-row">
+            <div class="icon-preview" id="serviceIconPreview"></div>
+            <label class="field grow"
+              >Name
+              <input
+                name="name"
+                required
+                maxlength="100"
+                placeholder="Jellyfin"
+              />
+            </label>
+          </div>
+          <label class="field"
+            >Icon
+            <input
+              name="icon"
+              maxlength="2000"
+              placeholder="jellyfin · 🎬 · https://…/icon.png"
+              autocomplete="off"
+            />
+            <div id="serviceIconSuggest" class="icon-suggest" hidden></div>
+            <small
+              >Pick a suggestion, or type an emoji, image URL or
+              <a
+                href="https://dashboardicons.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                >dashboard-icons</a
+              >
+              name.</small
+            >
+          </label>
+          <label class="field"
+            >Description
+            <textarea
+              name="description"
+              maxlength="500"
+              rows="3"
+              placeholder="Movies &amp; TV"
+            ></textarea>
+          </label>
+          <label class="field"
+            >Notes <span class="muted">(optional)</span>
+            <textarea
+              name="notes"
+              maxlength="2000"
+              rows="3"
+              placeholder="Config in /opt/jellyfin · admin login in Bitwarden…"
+            ></textarea>
+            <small
+              >Opened from the note button on the card. Anyone who can view the
+              dashboard can read them — don't store passwords.</small
+            >
+          </label>
+          <label class="field"
+            >Local URL
+            <input
+              name="url"
+              type="url"
+              placeholder="http://192.168.1.150:8096"
+            />
+          </label>
+          <label class="field"
+            >Public / alternate URL <span class="muted">(optional)</span>
+            <input
+              name="altUrl"
+              type="url"
+              placeholder="https://jellyfin.example.com"
+            />
+          </label>
+          <label class="field"
+            >Docker container <span class="muted">(optional)</span>
+            <input
+              name="container"
+              list="containerList"
+              maxlength="200"
+              placeholder="Auto-match by port or name"
+            />
+            <datalist id="containerList"></datalist>
+            <small
+              >Only used on servers marked "This machine". Leave blank to
+              auto-match.</small
+            >
+          </label>
+          <div class="field-row">
+            <label class="field grow"
+              >Server
+              <select name="serverId"></select>
+            </label>
+            <label class="field grow"
+              >Group <span class="muted">(optional)</span>
+              <input
+                name="group"
+                list="groupList"
+                maxlength="60"
+                placeholder="Ungrouped"
+                autocomplete="off"
+              />
+              <datalist id="groupList"></datalist>
+            </label>
+          </div>
+          <label class="check">
+            <input type="checkbox" name="favorite" />
+            <span
+              ><strong>Pin to favourites</strong><br /><small class="muted"
+                >Shows it in the favourites row at the top of every page.</small
+              ></span
+            >
+          </label>
+        </div>
+        <footer class="dialog-foot">
+          <button type="button" class="btn danger ghost" id="serviceDelete">
+            Delete
+          </button>
+          <span class="grow"></span>
+          <button type="button" class="btn ghost" data-close>Cancel</button>
+          <button type="submit" class="btn primary">Save</button>
+        </footer>
+      </form>
+    </dialog>
 
-  <!-- Generic text prompt / confirmation -->
-  <dialog id="askDialog" class="ask-dialog">
-    <form id="askForm" method="dialog">
-      <header class="dialog-head"><h2 id="askTitle"></h2></header>
-      <div class="dialog-body">
-        <p id="askMessage" class="muted ask-message"></p>
-        <label class="field" id="askField"><span id="askLabel"></span>
-          <input name="value" maxlength="60" autocomplete="off" />
-        </label>
-      </div>
-      <footer class="dialog-foot">
-        <span class="grow"></span>
-        <button type="button" class="btn ghost" data-close>Cancel</button>
-        <button type="submit" class="btn primary" id="askOk">OK</button>
-      </footer>
-    </form>
-  </dialog>
+    <!-- Server editor -->
+    <dialog id="serverDialog">
+      <form id="serverForm" method="dialog">
+        <header class="dialog-head">
+          <h2 id="serverDialogTitle">Add server</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+        <div class="dialog-body">
+          <div class="field-row">
+            <div class="icon-preview" id="serverIconPreview"></div>
+            <label class="field grow"
+              >Name
+              <input name="name" required maxlength="100" placeholder="Home" />
+            </label>
+          </div>
+          <label class="field"
+            >Icon
+            <input
+              name="icon"
+              maxlength="2000"
+              placeholder="proxmox · 🏠 · https://…/icon.png"
+              autocomplete="off"
+            />
+            <div id="serverIconSuggest" class="icon-suggest" hidden></div>
+            <small
+              >Pick a suggestion, or type an emoji, image URL or
+              <a
+                href="https://dashboardicons.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                >dashboard-icons</a
+              >
+              name (e.g. <code>ubuntu</code>, <code>proxmox</code>,
+              <code>ovh</code>).</small
+            >
+          </label>
+          <label class="field"
+            >Main URL <span class="muted">(optional)</span>
+            <input
+              name="mainUrl"
+              type="url"
+              placeholder="http://192.168.1.150"
+            />
+          </label>
+          <label class="field"
+            >Description
+            <textarea name="description" maxlength="500" rows="3"></textarea>
+          </label>
+          <div class="field-row">
+            <label class="field grow"
+              >Location
+              <input name="location" maxlength="100" />
+            </label>
+            <label class="field grow"
+              >Specs
+              <input name="specs" maxlength="200" />
+            </label>
+          </div>
+          <label class="check">
+            <input type="checkbox" name="local" />
+            <span
+              ><strong>This machine</strong><br /><small class="muted"
+                >Match services against Docker containers running where the
+                dashboard runs.</small
+              ></span
+            >
+          </label>
+        </div>
+        <footer class="dialog-foot">
+          <button type="button" class="btn danger ghost" id="serverDelete">
+            Delete
+          </button>
+          <span class="grow"></span>
+          <button type="button" class="btn ghost" data-close>Cancel</button>
+          <button type="submit" class="btn primary">Save</button>
+        </footer>
+      </form>
+    </dialog>
 
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
-</body>
+    <!-- Plain link editor -->
+    <dialog id="linkDialog">
+      <form id="linkForm" method="dialog">
+        <header class="dialog-head">
+          <h2 id="linkDialogTitle">Add quick action</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+        <div class="dialog-body">
+          <div class="field-row">
+            <div class="icon-preview" id="linkIconPreview"></div>
+            <label class="field grow"
+              >Name
+              <input
+                name="name"
+                required
+                maxlength="100"
+                placeholder="Router"
+              />
+            </label>
+          </div>
+          <label class="field"
+            >Type
+            <select name="type">
+              <option value="link">Link - opens a URL</option>
+              <option value="copy">Copy - copies a saved text</option>
+            </select>
+          </label>
+          <label class="field" id="linkUrlField"
+            >URL
+            <input
+              name="url"
+              type="url"
+              required
+              placeholder="http://192.168.1.1"
+            />
+          </label>
+          <label class="field" id="linkTextField" hidden
+            >Text to copy
+            <textarea
+              name="text"
+              rows="3"
+              maxlength="2000"
+              placeholder="ssh admin@192.168.1.10"
+              spellcheck="false"
+            ></textarea>
+            <small
+              >Anyone who can view the dashboard can see this text, so don't
+              save passwords here.</small
+            >
+          </label>
+          <label class="field"
+            >Icon <span class="muted">(optional)</span>
+            <input
+              name="icon"
+              maxlength="2000"
+              placeholder="openwrt · 📡 · https://…/icon.png"
+              autocomplete="off"
+            />
+            <div id="linkIconSuggest" class="icon-suggest" hidden></div>
+            <small id="linkIconHint"
+              >Leave blank to use the site's own icon.</small
+            >
+          </label>
+        </div>
+        <footer class="dialog-foot">
+          <button type="button" class="btn danger ghost" id="linkDelete">
+            Delete
+          </button>
+          <span class="grow"></span>
+          <button type="button" class="btn ghost" data-close>Cancel</button>
+          <button type="submit" class="btn primary">Save</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <!-- Settings / password -->
+    <dialog id="settingsDialog" aria-labelledby="settingsTitle">
+      <form id="settingsForm" method="dialog">
+        <header class="dialog-head">
+          <h2 id="settingsTitle">Settings</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+        <div class="settings-tabs">
+          <div
+            class="seg"
+            id="settingsTabs"
+            role="group"
+            aria-label="Settings sections"
+          >
+            <button type="button" data-tab="general" aria-pressed="true">
+              General
+            </button>
+            <button type="button" data-tab="sharing" aria-pressed="false">
+              Sharing
+            </button>
+            <button type="button" data-tab="monitoring" aria-pressed="false">
+              Monitoring
+            </button>
+            <button type="button" data-tab="data" aria-pressed="false">
+              Data
+            </button>
+          </div>
+        </div>
+        <div class="dialog-body">
+          <div class="settings-panel" data-panel="general">
+            <div class="field set-group">
+              <h3>
+                Display <span class="auto-badge">Saves automatically</span>
+              </h3>
+              <div class="field">
+                <span id="settingsLayoutLabel">Layout</span>
+                <div id="layoutSeg" class="seg settings-display-seg" role="group" aria-labelledby="settingsLayoutLabel"></div>
+              </div>
+              <div class="field">
+                <span id="settingsThemeLabel">Theme</span>
+                <div id="themeSeg" class="seg settings-display-seg" role="group" aria-labelledby="settingsThemeLabel"></div>
+              </div>
+              <small>Applies immediately on this device only. Cancel does not revert display preferences.</small>
+            </div>
+            <div class="field set-group">
+              <h3><label for="settingsDashboardTitle">Dashboard title</label></h3>
+              <input
+                name="title"
+                id="settingsDashboardTitle"
+                maxlength="100"
+                aria-label="Dashboard title"
+              />
+            </div>
+            <div class="field set-group">
+              <h3>Accent colour</h3>
+              <small>Preview an accent below. Save to apply it to your dashboard.</small>
+              <div
+                id="accentPicker"
+                class="swatches"
+                role="group"
+                aria-label="Accent colour"
+              ></div>
+            </div>
+            <div class="field set-group">
+              <h3>Hidden containers</h3>
+              <div id="hiddenList" class="chips"></div>
+              <small
+                >Hidden from the "Not on dashboard" list. Click ✕ to show
+                again.</small
+              >
+            </div>
+            <div class="field set-group">
+              <h3>Password</h3>
+              <small id="securityInfo"></small>
+            </div>
+            <div class="field set-group">
+              <h3>Install app</h3>
+              <button type="button" id="installBtn" class="btn sm primary" hidden>
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+                </svg>
+                Install app
+              </button>
+              <p id="installHint" class="menu-hint">
+                Install: browser menu → <b>Add to Home screen</b> /
+                <b>Install app</b>.
+              </p>
+            </div>
+          </div>
+          <div class="settings-panel" data-panel="sharing" hidden>
+            <div class="field set-group">
+              <h3>Share this dashboard</h3>
+              <div class="field-row cache-row settings-share-row">
+                <input
+                  id="shareToken"
+                  class="grow"
+                  readonly
+                  placeholder="Off"
+                  aria-label="Share token"
+                />
+                <button type="button" class="btn ghost" id="shareCopyBtn">
+                  Copy
+                </button>
+                <button type="button" class="btn ghost" id="shareNewBtn">
+                  New token
+                </button>
+                <button type="button" class="btn ghost" id="shareOffBtn">
+                  Turn off
+                </button>
+              </div>
+              <small
+                >Lets other dashboards show this one's servers, read-only. A new
+                token stops the old one.</small
+              >
+              <small id="shareFixedNote" hidden
+                >Set by SHARE_TOKEN in docker-compose - change it there.</small
+              >
+            </div>
+            <div class="field set-group">
+              <h3>Remote dashboards</h3>
+              <div id="remoteList" class="remote-list"></div>
+              <div class="settings-remote-fields">
+                <label class="field">Name (optional)
+<input
+                  id="remoteName"
+                  placeholder="Name"
+                  maxlength="100"
+                  aria-label="Remote dashboard name"
+                />
+                <label class="field">Dashboard URL
+<input
+                  id="remoteUrl" inputmode="url"
+                  placeholder="http://192.168.1.20:8011"
+                  aria-label="Remote dashboard URL"
+                />
+                <label class="field">Share token
+<input
+                  id="remoteToken" spellcheck="false"
+                  placeholder="Share token"
+                  autocomplete="off"
+                  aria-label="Remote share token"
+                />
+                <button type="button" class="btn ghost" id="remoteAddBtn">
+                  Add
+                </button>
+              </div>
+              <small
+                >Show the servers of other dashboards here, using their URL and
+                share token. Can also be set with REMOTE_DASHBOARDS in
+                docker-compose.</small
+              >
+              <label class="field remote-interval"
+                >Update remote dashboards every
+                <select id="remoteInterval">
+                  <option value="5">5 seconds</option>
+                  <option value="10">10 seconds</option>
+                  <option value="15">15 seconds</option>
+                  <option value="30">30 seconds</option>
+                  <option value="60">1 minute</option>
+                </select>
+              </label>
+              <small id="remoteIntervalNote"
+                >Saved right away. Can also be set with REMOTE_REFRESH_INTERVAL
+                in docker-compose.</small
+              >
+            </div>
+          </div>
+          <div class="settings-panel" data-panel="monitoring" hidden>
+            <div class="field set-group">
+              <h3>
+                Outage tracking
+                <span class="auto-badge">Saves automatically</span>
+              </h3>
+              <label class="check">
+                <input type="checkbox" id="availEnabled" />
+                <span
+                  ><strong>Track approximate outages</strong><br /><small
+                    class="muted"
+                    >A long gap before the next start is recorded as an outage.
+                    A reboot or power cut counts; the dashboard alone being
+                    stopped does not.</small
+                  ></span
+                >
+              </label>
+              <div class="field-row">
+                <label class="field grow"
+                  >Heartbeat every
+                  <select id="availInterval">
+                    <option value="1">1 minute</option>
+                    <option value="5">5 minutes</option>
+                    <option value="10">10 minutes</option>
+                  </select>
+                </label>
+                <label class="field grow"
+                  >Outage if the gap exceeds
+                  <select id="availThreshold">
+                    <option value="5">5 minutes</option>
+                    <option value="10">10 minutes</option>
+                    <option value="15">15 minutes</option>
+                    <option value="30">30 minutes</option>
+                  </select>
+                </label>
+              </div>
+              <small id="availLimitNote" hidden></small>
+              <div class="field-row cache-row">
+                <small id="availInfo" class="grow"></small>
+                <button type="button" class="btn ghost" id="availViewBtn">
+                  View history
+                </button>
+                <button type="button" class="btn ghost" id="availClearBtn">
+                  Clear history
+                </button>
+              </div>
+              <small>Applies to this dashboard only.</small>
+            </div>
+            <div class="field set-group">
+              <h3>
+                Server info <span class="auto-badge">Saves automatically</span>
+              </h3>
+              <label class="field"
+                >Public IP
+                <select id="publicIpMode">
+                  <option value="off">Don't show</option>
+                  <option value="lookup">Look it up automatically</option>
+                  <option value="manual">Enter it manually</option>
+                </select>
+              </label>
+              <input
+                id="publicIpManual"
+                placeholder="203.0.113.10"
+                maxlength="45"
+                autocomplete="off"
+                spellcheck="false"
+                aria-label="Public IP address"
+                hidden
+              />
+              <small id="publicIpNote"></small>
+            </div>
+            <div id="tunableList"></div>
+          </div>
+          <div class="settings-panel" data-panel="data" hidden>
+            <div class="field set-group">
+              <h3>
+                Shared clipboard
+                <span class="auto-badge">Saves automatically</span>
+              </h3>
+              <label class="field"
+                >Maximum entries
+                <select id="clipMax">
+                  <option value="5">5</option>
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                </select>
+              </label>
+              <div class="field-row cache-row">
+                <small id="clipInfo" class="grow"></small>
+                <button
+                  type="button"
+                  class="btn ghost"
+                  id="clipClearSettingsBtn"
+                >
+                  Clear history
+                </button>
+              </div>
+              <small
+                >The oldest entries are removed when the limit is reached;
+                lowering it removes them right away.</small
+              >
+            </div>
+            <div class="field set-group">
+              <h3>Icon cache</h3>
+              <div class="field-row cache-row">
+                <small id="iconCacheInfo" class="grow"></small>
+                <button type="button" class="btn ghost" id="clearIconsBtn">
+                  Clear cache
+                </button>
+              </div>
+              <small
+                >Icons are downloaded once by the server. Clear to fetch fresh
+                copies.</small
+              >
+            </div>
+            <div class="field set-group">
+              <h3>Storage</h3>
+              <small id="storageTotal"></small>
+              <div id="storageList" class="storage-list"></div>
+              <small
+                >Everything the dashboard keeps in its data folder. Health check
+                results are only held in memory, never stored.</small
+              >
+            </div>
+            <div class="field set-group">
+              <h3>Backend Logs</h3>
+              <div class="field-row">
+                <button type="button" class="btn ghost" id="downloadLogsBtn">Download Logs</button>
+                <button type="button" class="btn danger ghost" id="clearLogsBtn">Clear Logs</button>
+              </div>
+              <small>Download the current log and previous backup together. Clearing removes both; logging continues. Edit access is required.</small>
+              <small id="logsFeedback" role="status" aria-live="polite"></small>
+            </div>
+            <div class="field set-group">
+              <h3>Backup</h3><small>Export your saved dashboard configuration or import a configuration backup.</small>
+              <div class="field-row">
+                <button type="button" class="btn ghost" id="exportBtn">
+                  Export JSON
+                </button>
+                <button type="button" class="btn ghost" id="importBtn">Import JSON</button><input
+                    type="file"
+                    id="importFile"
+                    accept="application/json,.json"
+                    hidden
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <footer class="dialog-foot">
+          <span class="app-version" id="appVersion"></span>
+          <small id="settingsFeedback" class="grow settings-save-note" role="status" aria-live="polite">Save applies title, accent, and hidden containers. Other preferences save automatically.</small>
+          <button type="button" class="btn ghost" data-close>Cancel</button>
+          <button type="submit" class="btn primary" id="settingsSaveBtn">Save</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <!-- Outage history -->
+    <dialog id="availabilityDialog" class="avail-dialog">
+      <form method="dialog">
+        <header class="dialog-head">
+          <h2>Outage history</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+        <div class="dialog-body">
+          <div
+            id="availPeriod"
+            class="seg"
+            role="group"
+            aria-label="Period"
+          ></div>
+          <div id="availSummary" class="avail-tiles"></div>
+          <small id="availObserved" class="muted"></small>
+          <div id="availTimeline"></div>
+          <div id="availList" class="avail-list"></div>
+          <small class="muted"
+            >Estimated from gaps between saved heartbeats, so times can be off
+            by a few minutes. The host's boot time ends an outage when the
+            machine came back; gaps where the host kept running are shown
+            separately and not counted.</small
+          >
+        </div>
+        <footer class="dialog-foot">
+          <button type="button" class="btn danger ghost" id="availClear">
+            Clear history
+          </button>
+          <span class="grow"></span>
+          <button type="button" class="btn ghost" data-close>Close</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <!-- Server info -->
+    <dialog id="serverInfoDialog" class="info-dialog">
+      <form method="dialog">
+        <header class="dialog-head">
+          <h2 id="serverInfoTitle">Server info</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+        <div class="dialog-body" id="serverInfoBody"></div>
+        <footer class="dialog-foot">
+          <small class="muted"
+            >Hostname, OS and CPU are cached for a few minutes.</small
+          >
+          <span class="grow"></span>
+          <button type="button" class="btn ghost" data-close>Close</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="loginDialog">
+      <form id="loginForm" method="dialog">
+        <header class="dialog-head"><h2>Password required</h2></header>
+        <div class="dialog-body">
+          <label class="field"
+            >Enter the dashboard password to make changes
+            <input
+              name="password"
+              type="password"
+              required
+              autocomplete="current-password"
+            />
+          </label>
+          <p class="form-error" id="loginError" hidden></p>
+        </div>
+        <footer class="dialog-foot">
+          <span class="grow"></span>
+          <button type="button" class="btn ghost" data-close>Cancel</button>
+          <button type="submit" class="btn primary">Unlock</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <!-- QR code -->
+    <dialog id="qrDialog" class="qr-dialog">
+      <form method="dialog">
+        <header class="dialog-head">
+          <h2 id="qrTitle">Scan to open</h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+        <div class="dialog-body qr-body">
+          <div
+            id="qrSwitch"
+            class="seg"
+            role="group"
+            aria-label="Which URL"
+          ></div>
+          <div id="qrCode" class="qr-box"></div>
+          <a
+            id="qrUrl"
+            class="qr-url"
+            target="_blank"
+            rel="noopener noreferrer"
+          ></a>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Generic text prompt / confirmation -->
+    <dialog id="askDialog" class="ask-dialog">
+      <form id="askForm" method="dialog">
+        <header class="dialog-head"><h2 id="askTitle"></h2></header>
+        <div class="dialog-body">
+          <p id="askMessage" class="muted ask-message"></p>
+          <label class="field" id="askField"
+            ><span id="askLabel"></span>
+            <input name="value" maxlength="60" autocomplete="off" />
+          </label>
+        </div>
+        <footer class="dialog-foot">
+          <span class="grow"></span>
+          <button type="button" class="btn ghost" data-close>Cancel</button>
+          <button type="submit" class="btn primary" id="askOk">OK</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
 </html>

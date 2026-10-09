@@ -1,20 +1,42 @@
 // Service status: Docker container state (local servers) combined with HTTP up/down checks.
 
-import { sourceOf } from './state.js';
-import { h } from './dom.js';
-import { norm, portOf } from './utils.js';
+import { sourceOf } from "./state.js";
+import { h } from "./dom.js";
+import { norm, portOf } from "./utils.js";
+
+// API loads replace container arrays. Cache indexes for each snapshot, including remotes,
+// and let old snapshots be collected. Preserve the first match in Docker's list order.
+const containerIndexes = new WeakMap();
+
+function indexContainers(list) {
+  let index = containerIndexes.get(list);
+  if (index) return index;
+  index = { names: new Map(), ports: new Map(), normalized: new Map() };
+  for (const container of list) {
+    const name = container.name.toLowerCase();
+    const normalized = norm(container.name);
+    if (!index.names.has(name)) index.names.set(name, container);
+    if (!index.normalized.has(normalized))
+      index.normalized.set(normalized, container);
+    for (const port of container.ports) {
+      if (!index.ports.has(port)) index.ports.set(port, container);
+    }
+  }
+  containerIndexes.set(list, index);
+  return index;
+}
 
 /** undefined = not applicable, null = no matching container, object = the container. */
 export function containerFor(svc, server) {
   const { docker } = sourceOf(server);
   if (!server.local || !docker.available) return undefined;
-  const list = docker.containers;
-  if (svc.container) return list.find((c) => c.name.toLowerCase() === svc.container.toLowerCase()) || null;
+  const index = indexContainers(docker.containers);
+  if (svc.container)
+    return index.names.get(svc.container.toLowerCase()) || null;
   const port = portOf(svc.url);
-  const byPort = port && list.find((c) => c.ports.includes(port));
+  const byPort = port && index.ports.get(port);
   if (byPort) return byPort;
-  const name = norm(svc.name);
-  return list.find((c) => norm(c.name) === name) || null;
+  return index.normalized.get(norm(svc.name)) || null;
 }
 
 const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -22,14 +44,17 @@ const capitalize = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 /** Status of a bare container (used for the "not on dashboard" list). */
 export function containerStatus(c) {
   const title = `${c.name} · ${c.status}`;
-  if (c.state === 'running') return { level: 'up', label: 'Running', title };
-  if (c.state === 'restarting' || c.state === 'paused') return { level: 'warn', label: capitalize(c.state), title };
-  return { level: 'down', label: 'Stopped', title };
+  if (c.state === "running") return { level: "up", label: "Running", title };
+  if (c.state === "restarting" || c.state === "paused")
+    return { level: "warn", label: capitalize(c.state), title };
+  return { level: "down", label: "Stopped", title };
 }
 
 function describeCheck(check) {
-  if (!check) return '';
-  return check.state === 'down' ? `Unreachable (${check.error || 'no response'})` : `HTTP ${check.code} · ${check.ms} ms`;
+  if (!check) return "";
+  return check.state === "down"
+    ? `Unreachable (${check.error || "no response"})`
+    : `HTTP ${check.code} · ${check.ms} ms`;
 }
 
 /**
@@ -43,20 +68,27 @@ export function serviceStatus(svc, server) {
 
   if (container) {
     const st = containerStatus(container);
-    st.title = [`Container ${st.title}`, http].filter(Boolean).join('\n');
-    if (st.level === 'up' && check?.state === 'down') return { ...st, level: 'warn', label: 'No response' };
+    st.title = [`Container ${st.title}`, http].filter(Boolean).join("\n");
+    if (st.level === "up" && check?.state === "down")
+      return { ...st, level: "warn", label: "No response" };
     return st;
   }
   if (check) {
-    const note = container === null ? '\nNo matching Docker container' : '';
-    if (check.state === 'up') return { level: 'up', label: 'Online', title: http + note };
-    if (check.state === 'error') {
-      const label = check.code === 404 ? 'Not found' : `HTTP ${check.code}`;
-      return { level: 'warn', label, title: http + note };
+    const note = container === null ? "\nNo matching Docker container" : "";
+    if (check.state === "up")
+      return { level: "up", label: "Online", title: http + note };
+    if (check.state === "error") {
+      const label = check.code === 404 ? "Not found" : `HTTP ${check.code}`;
+      return { level: "warn", label, title: http + note };
     }
-    return { level: 'down', label: 'Offline', title: http + note };
+    return { level: "down", label: "Offline", title: http + note };
   }
-  if (container === null) return { level: 'unknown', label: 'Not in Docker', title: 'No matching container' };
+  if (container === null)
+    return {
+      level: "unknown",
+      label: "Not in Docker",
+      title: "No matching container",
+    };
   return null;
 }
 
@@ -71,10 +103,10 @@ export function serverCounts(server) {
 
 export function statusNode(st) {
   return h(
-    'span',
-    { class: `status ${st.level}`, title: st.title, 'aria-label': st.label },
-    h('span', { class: 'dot' }),
-    h('span', { class: 'status-label' }, st.label)
+    "span",
+    { class: `status ${st.level}`, title: st.title, "aria-label": st.label },
+    h("span", { class: "dot" }),
+    h("span", { class: "status-label" }, st.label),
   );
 }
 
