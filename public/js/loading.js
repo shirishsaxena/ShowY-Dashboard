@@ -1,9 +1,9 @@
 // Loading state of the selected server, shown while its data is first fetched (page open, or switching to
 // a remote dashboard) so default or old values are not mistaken for current ones. The state is state.loading.
 
-import { state, prefs, allServers } from './state.js';
-import { loadRemote } from './api.js';
-import { render } from './view/render.js';
+import { state, prefs, allServers } from "./state.js";
+import { loadRemote } from "./api.js";
+import { render } from "./view/render.js";
 
 const TIMEOUT_MS = () => state.tunables.loadTimeout * 1000; // Settings / LOAD_TIMEOUT
 
@@ -19,13 +19,33 @@ function targetOf(initial) {
   const id = state.activeId;
   const servers = allServers();
   const known = servers.find((s) => s.id === id);
-  if (known?.remote) return { kind: 'remote', serverId: id, remoteId: known.remote, name: known.name, icon: known.icon || '' };
+  if (known?.remote)
+    return {
+      kind: "remote",
+      serverId: id,
+      remoteId: known.remote,
+      name: known.name,
+      icon: known.icon || "",
+    };
   // Remote server ids are "<dashboard id>:<server id>"; a saved one can't be resolved before its dashboard answered.
-  if (!known && typeof id === 'string' && id.includes(':')) {
-    return { kind: 'remote', serverId: id, remoteId: id.slice(0, id.indexOf(':')), name: prefs.tabName || 'remote server', icon: '' };
+  if (!known && typeof id === "string" && id.includes(":")) {
+    return {
+      kind: "remote",
+      serverId: id,
+      remoteId: id.slice(0, id.indexOf(":")),
+      name: prefs.tabName || "remote server",
+      icon: "",
+    };
   }
   const server = known || servers[0];
-  return initial && server?.local && !server.remote ? { kind: 'local', serverId: server.id, name: server.name, icon: server.icon || '' } : null;
+  return initial && server?.local && !server.remote
+    ? {
+        kind: "local",
+        serverId: server.id,
+        name: server.name,
+        icon: server.icon || "",
+      }
+    : null;
 }
 
 /** Begin loading for the current selection, cancelling any load still running. The caller renders afterwards;
@@ -40,17 +60,18 @@ export function startLoad({ initial = false, fresh = false } = {}) {
     return;
   }
 
-  const remote = target.kind === 'remote';
+  const remote = target.kind === "remote";
   const loading = (state.loading = {
     ...target,
-    stage: remote ? 'connecting' : 'info',
+    stage: remote ? "connecting" : "info",
     progress: remote ? null : 0, // one request = no real percentage; this machine reports finished steps
-    error: '',
-    pending: remote ? null : new Set(['info', 'services']),
+    error: "",
+    pending: remote ? null : new Set(["info", "services"]),
     // Nothing to show yet: a panel replaces the page. Known remote servers keep their last data on screen instead.
     blocking: !remote || !isKnown(target.serverId),
   });
-  const alive = () => mine === seq && state.loading === loading && loading.stage !== 'failed';
+  const alive = () =>
+    mine === seq && state.loading === loading && loading.stage !== "failed";
 
   if (!remote) {
     timer = setTimeout(() => alive() && finish(), TIMEOUT_MS()); // never hold the page forever
@@ -60,15 +81,20 @@ export function startLoad({ initial = false, fresh = false } = {}) {
   timer = setTimeout(() => {
     if (!alive()) return;
     controller.abort();
-    fail(loading, 'Timed out waiting for the dashboard');
+    fail(loading, "Timed out waiting for the dashboard");
   }, TIMEOUT_MS());
   return loadRemote(target.remoteId, { fresh, signal: controller.signal }).then(
     (data) => {
       if (!alive()) return;
-      if (data?.ok === false) fail(loading, data.error || 'No response');
+      if (data?.ok === false) fail(loading, data.error || "No response");
       else finish(); // answered (or no longer configured: the page falls back to the first server)
     },
-    (err) => alive() && fail(loading, err instanceof TypeError ? 'Dashboard server unreachable' : err.message)
+    (err) =>
+      alive() &&
+      fail(
+        loading,
+        err instanceof TypeError ? "Dashboard server unreachable" : err.message,
+      ),
   );
 }
 
@@ -76,20 +102,26 @@ function finish() {
   clearTimeout(timer);
   state.loading = null;
   render();
-  document.dispatchEvent(new Event('initial-load-settled'));
+  document.dispatchEvent(new Event("initial-load-settled"));
 }
 
 function fail(loading, error) {
   clearTimeout(timer);
-  Object.assign(loading, { stage: 'failed', error, progress: null, failedAt: Date.now(), blocking: !isKnown(loading.serverId) });
+  Object.assign(loading, {
+    stage: "failed",
+    error,
+    progress: null,
+    failedAt: Date.now(),
+    blocking: !isKnown(loading.serverId),
+  });
   render();
-  document.dispatchEvent(new Event('initial-load-settled'));
+  document.dispatchEvent(new Event("initial-load-settled"));
 }
 
 /** This machine's data arrived: 'info' (host stats) or 'services' (Docker). */
 export function loaded(task) {
   const loading = state.loading;
-  if (loading?.kind !== 'local') return;
+  if (loading?.kind !== "local") return;
   loading.pending.delete(task);
   if (!loading.pending.size) return finish();
   loading.stage = [...loading.pending][0];
@@ -105,7 +137,7 @@ export function retryLoad() {
 /** A failed load ends by itself once a regular refresh got the dashboard's data after it. */
 export function settleLoad() {
   const loading = state.loading;
-  if (loading?.stage !== 'failed') return;
+  if (loading?.stage !== "failed") return;
   const remote = state.remotes.find((r) => r.id === loading.remoteId);
   if (remote?.ok && remote.at > loading.failedAt) state.loading = null;
 }

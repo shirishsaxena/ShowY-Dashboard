@@ -2,8 +2,15 @@
 // Follows the algorithm of Project Nayuki's QR Code generator (MIT).
 
 export const QR = (() => {
-  const ECC_PER_BLOCK = [-1, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28];
-  const NUM_BLOCKS = [-1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10, 10, 11, 13, 14, 16, 17, 17, 18, 20, 21, 23, 25, 26, 28, 29, 31, 33, 35, 37, 38, 40, 43, 45, 47, 49];
+  const ECC_PER_BLOCK = [
+    -1, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26,
+    26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28,
+    28, 28, 28,
+  ];
+  const NUM_BLOCKS = [
+    -1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10, 10, 11, 13, 14, 16, 17,
+    17, 18, 20, 21, 23, 25, 26, 28, 29, 31, 33, 35, 37, 38, 40, 43, 45, 47, 49,
+  ];
   const ECL_FORMAT_BITS = 0; // level M
 
   const bit = (x, i) => ((x >>> i) & 1) !== 0;
@@ -17,7 +24,8 @@ export const QR = (() => {
     }
     return r;
   }
-  const dataCodewords = (ver) => Math.floor(rawModules(ver) / 8) - ECC_PER_BLOCK[ver] * NUM_BLOCKS[ver];
+  const dataCodewords = (ver) =>
+    Math.floor(rawModules(ver) / 8) - ECC_PER_BLOCK[ver] * NUM_BLOCKS[ver];
 
   function gfMul(x, y) {
     let z = 0;
@@ -68,8 +76,9 @@ export const QR = (() => {
     const bytes = new TextEncoder().encode(text);
     let ver = 1;
     for (; ; ver++) {
-      if (ver > 40) throw new Error('Text too long for a QR code');
-      if (4 + (ver < 10 ? 8 : 16) + bytes.length * 8 <= dataCodewords(ver) * 8) break;
+      if (ver > 40) throw new Error("Text too long for a QR code");
+      if (4 + (ver < 10 ? 8 : 16) + bytes.length * 8 <= dataCodewords(ver) * 8)
+        break;
     }
 
     // Data bits: mode, length, payload, terminator, padding
@@ -85,7 +94,8 @@ export const QR = (() => {
     push(0, (8 - (bits.length % 8)) % 8);
     for (let pad = 0xec; bits.length < cap; pad ^= 0xec ^ 0x11) push(pad, 8);
     const data = [];
-    for (let i = 0; i < bits.length; i += 8) data.push(bits.slice(i, i + 8).reduce((a, b) => (a << 1) | b, 0));
+    for (let i = 0; i < bits.length; i += 8)
+      data.push(bits.slice(i, i + 8).reduce((a, b) => (a << 1) | b, 0));
 
     // Error correction + interleaving
     const numBlocks = NUM_BLOCKS[ver];
@@ -111,7 +121,9 @@ export const QR = (() => {
 
     // Function patterns
     const size = ver * 4 + 17;
-    const mods = Array.from({ length: size }, () => new Array(size).fill(false));
+    const mods = Array.from({ length: size }, () =>
+      new Array(size).fill(false),
+    );
     const fn = Array.from({ length: size }, () => new Array(size).fill(false));
     const set = (x, y, dark) => {
       mods[y][x] = dark;
@@ -128,7 +140,8 @@ export const QR = (() => {
           const x = cx + dx;
           const y = cy + dy;
           const d = Math.max(Math.abs(dx), Math.abs(dy));
-          if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, d !== 2 && d !== 4);
+          if (x >= 0 && x < size && y >= 0 && y < size)
+            set(x, y, d !== 2 && d !== 4);
         }
       }
     };
@@ -143,9 +156,19 @@ export const QR = (() => {
       for (let p = size - 7; pos.length < n; p -= step) pos.splice(1, 0, p);
       for (let i = 0; i < n; i++) {
         for (let j = 0; j < n; j++) {
-          if ((i === 0 && j === 0) || (i === 0 && j === n - 1) || (i === n - 1 && j === 0)) continue;
+          if (
+            (i === 0 && j === 0) ||
+            (i === 0 && j === n - 1) ||
+            (i === n - 1 && j === 0)
+          )
+            continue;
           for (let dy = -2; dy <= 2; dy++) {
-            for (let dx = -2; dx <= 2; dx++) set(pos[i] + dx, pos[j] + dy, Math.max(Math.abs(dx), Math.abs(dy)) !== 1);
+            for (let dx = -2; dx <= 2; dx++)
+              set(
+                pos[i] + dx,
+                pos[j] + dy,
+                Math.max(Math.abs(dx), Math.abs(dy)) !== 1,
+              );
           }
         }
       }
@@ -197,7 +220,8 @@ export const QR = (() => {
 
     const applyMask = (m) => {
       for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) if (!fn[y][x] && MASKS[m](x, y)) mods[y][x] = !mods[y][x];
+        for (let x = 0; x < size; x++)
+          if (!fn[y][x] && MASKS[m](x, y)) mods[y][x] = !mods[y][x];
       }
     };
 
@@ -205,10 +229,10 @@ export const QR = (() => {
       let p = 0;
       const line = (get) => {
         let run = 1;
-        let s = '';
+        let s = "";
         for (let k = 0; k < size; k++) {
           const v = get(k);
-          s += v ? '1' : '0';
+          s += v ? "1" : "0";
           if (k > 0 && v === get(k - 1)) {
             run++;
             if (run === 5) p += 3;
@@ -216,8 +240,13 @@ export const QR = (() => {
           } else run = 1;
         }
         const padded = `0000${s}0000`;
-        for (const pat of ['00001011101', '10111010000']) {
-          for (let idx = padded.indexOf(pat); idx !== -1; idx = padded.indexOf(pat, idx + 1)) p += 40;
+        for (const pat of ["00001011101", "10111010000"]) {
+          for (
+            let idx = padded.indexOf(pat);
+            idx !== -1;
+            idx = padded.indexOf(pat, idx + 1)
+          )
+            p += 40;
         }
       };
       for (let y = 0; y < size; y++) line((x) => mods[y][x]);
@@ -228,7 +257,12 @@ export const QR = (() => {
           if (mods[y][x]) dark++;
           if (y < size - 1 && x < size - 1) {
             const c = mods[y][x];
-            if (c === mods[y][x + 1] && c === mods[y + 1][x] && c === mods[y + 1][x + 1]) p += 3;
+            if (
+              c === mods[y][x + 1] &&
+              c === mods[y + 1][x] &&
+              c === mods[y + 1][x + 1]
+            )
+              p += 3;
           }
         }
       }
@@ -258,23 +292,27 @@ export const QR = (() => {
   function toSvg(text, border = 4) {
     const m = encode(text);
     const n = m.length + border * 2;
-    let d = '';
-    m.forEach((row, y) => row.forEach((dark, x) => dark && (d += `M${x + border},${y + border}h1v1h-1z`)));
-    const NS = 'http://www.w3.org/2000/svg';
-    const el = document.createElementNS(NS, 'svg');
-    el.setAttribute('viewBox', `0 0 ${n} ${n}`);
-    el.setAttribute('shape-rendering', 'crispEdges');
-    el.setAttribute('class', 'qr');
-    el.setAttribute('role', 'img');
-    el.setAttribute('aria-label', `QR code for ${text}`);
-    const bg = document.createElementNS(NS, 'rect');
-    bg.setAttribute('width', n);
-    bg.setAttribute('height', n);
-    bg.setAttribute('fill', '#fff');
-    const path = document.createElementNS(NS, 'path');
-    path.setAttribute('d', d);
-    path.setAttribute('fill', '#000');
-    path.setAttribute('stroke', 'none');
+    let d = "";
+    m.forEach((row, y) =>
+      row.forEach(
+        (dark, x) => dark && (d += `M${x + border},${y + border}h1v1h-1z`),
+      ),
+    );
+    const NS = "http://www.w3.org/2000/svg";
+    const el = document.createElementNS(NS, "svg");
+    el.setAttribute("viewBox", `0 0 ${n} ${n}`);
+    el.setAttribute("shape-rendering", "crispEdges");
+    el.setAttribute("class", "qr");
+    el.setAttribute("role", "img");
+    el.setAttribute("aria-label", `QR code for ${text}`);
+    const bg = document.createElementNS(NS, "rect");
+    bg.setAttribute("width", n);
+    bg.setAttribute("height", n);
+    bg.setAttribute("fill", "#fff");
+    const path = document.createElementNS(NS, "path");
+    path.setAttribute("d", d);
+    path.setAttribute("fill", "#000");
+    path.setAttribute("stroke", "none");
     el.append(bg, path);
     return el;
   }

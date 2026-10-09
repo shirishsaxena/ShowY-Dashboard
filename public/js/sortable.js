@@ -12,13 +12,20 @@ export const isDragging = () => dragging;
  */
 export function makeSortable(root, { item, handle, list, onSort }) {
   const lists = () => (list ? [...root.querySelectorAll(list)] : [root]);
-  const itemsOf = (parent) => [...parent.children].filter((n) => n.matches(item));
-  const snapshot = () => lists().map((l) => ({ list: l, ids: itemsOf(l).map((n) => n.dataset.id) }));
+  const itemsOf = (parent) =>
+    [...parent.children].filter((n) => n.matches(item));
+  const snapshot = () =>
+    lists().map((l) => ({ list: l, ids: itemsOf(l).map((n) => n.dataset.id) }));
 
-  root.addEventListener('pointerdown', (e) => {
+  root.addEventListener("pointerdown", (e) => {
     if (dragging) return;
     const grip = e.target.closest(handle);
-    if (!grip || !root.contains(grip) || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    if (
+      !grip ||
+      !root.contains(grip) ||
+      (e.pointerType === "mouse" && e.button !== 0)
+    )
+      return;
     const el = grip.closest(item);
     if (!el || !lists().includes(el.parentElement)) return;
     e.preventDefault();
@@ -28,11 +35,16 @@ export function makeSortable(root, { item, handle, list, onSort }) {
     const dx = e.clientX - rect.left;
     const dy = e.clientY - rect.top;
     const ghost = el.cloneNode(true);
-    ghost.classList.add('drag-ghost');
-    Object.assign(ghost.style, { width: `${rect.width}px`, height: `${rect.height}px`, left: `${rect.left}px`, top: `${rect.top}px` });
+    ghost.classList.add("drag-ghost");
+    Object.assign(ghost.style, {
+      width: `${rect.width}px`,
+      height: `${rect.height}px`,
+      left: `${rect.left}px`,
+      top: `${rect.top}px`,
+    });
     // Inside a popover the ghost must live in it too, or it renders underneath (top layer).
-    (el.closest('[popover]') || document.body).append(ghost);
-    el.classList.add('drag-placeholder');
+    (el.closest("[popover]") || document.body).append(ghost);
+    el.classList.add("drag-placeholder");
     dragging = true;
 
     // Scroll the page while dragging near the top/bottom edge.
@@ -56,7 +68,9 @@ export function makeSortable(root, { item, handle, list, onSort }) {
       if (target && target !== el && valid.includes(target.parentElement)) {
         const parent = target.parentElement;
         const siblings = itemsOf(parent);
-        const after = parent === el.parentElement && siblings.indexOf(el) < siblings.indexOf(target);
+        const after =
+          parent === el.parentElement &&
+          siblings.indexOf(el) < siblings.indexOf(target);
         parent.insertBefore(el, after ? target.nextSibling : target);
         return;
       }
@@ -64,24 +78,27 @@ export function makeSortable(root, { item, handle, list, onSort }) {
       const area = list && under?.closest(list);
       if (area && area !== el.parentElement && valid.includes(area)) {
         const items = itemsOf(area);
-        area.insertBefore(el, items.length ? items[items.length - 1].nextSibling : area.firstChild);
+        area.insertBefore(
+          el,
+          items.length ? items[items.length - 1].nextSibling : area.firstChild,
+        );
       }
     };
 
     const end = (ev) => {
       if (ev.pointerId !== e.pointerId) return;
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', end);
-      window.removeEventListener('pointercancel', end);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
       cancelAnimationFrame(raf);
       ghost.remove();
-      el.classList.remove('drag-placeholder');
+      el.classList.remove("drag-placeholder");
       dragging = false;
       const after = snapshot();
       if (JSON.stringify(after.map((s) => s.ids)) !== before) onSort(after);
     };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', end);
-    window.addEventListener('pointercancel', end);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
   });
 }

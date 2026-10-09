@@ -1,16 +1,16 @@
 // Main render: top bar state, then server switcher, favourites and either the server page or search results.
 
-import { state, activeServer, allServers } from '../state.js';
-import { $, preserveEqualChildren } from '../dom.js';
-import { plural } from '../utils.js';
-import { serviceStatus } from '../status.js';
-import { renderSwitcher } from './switcher.js';
-import { renderFavorites } from './favorites.js';
-import { renderServer } from './server.js';
-import { renderSearch } from './search.js';
-import { renderLinks } from './links.js';
-import { settleLoad } from '../loading.js';
-import { isDragging } from '../sortable.js';
+import { state, activeServer, allServers } from "../state.js";
+import { $, preserveEqualChildren } from "../dom.js";
+import { plural } from "../utils.js";
+import { serviceStatus } from "../status.js";
+import { renderSwitcher } from "./switcher.js";
+import { renderFavorites } from "./favorites.js";
+import { renderServer } from "./server.js";
+import { renderSearch } from "./search.js";
+import { renderLinks } from "./links.js";
+import { settleLoad } from "../loading.js";
+import { isDragging } from "../sortable.js";
 
 let renderFrame = null;
 let waitingForDrag = false;
@@ -25,8 +25,8 @@ export function requestRender() {
 }
 
 function resumeAfterDrag() {
-  window.removeEventListener('pointerup', resumeAfterDrag);
-  window.removeEventListener('pointercancel', resumeAfterDrag);
+  window.removeEventListener("pointerup", resumeAfterDrag);
+  window.removeEventListener("pointercancel", resumeAfterDrag);
   waitingForDrag = false;
   // The sortable's end handler must finish before reading its state or touching its nodes.
   requestRender();
@@ -36,8 +36,8 @@ export function render() {
   if (isDragging()) {
     if (!waitingForDrag) {
       waitingForDrag = true;
-      window.addEventListener('pointerup', resumeAfterDrag);
-      window.addEventListener('pointercancel', resumeAfterDrag);
+      window.addEventListener("pointerup", resumeAfterDrag);
+      window.addEventListener("pointercancel", resumeAfterDrag);
     }
     return;
   }
@@ -46,19 +46,25 @@ export function render() {
     renderFrame = null;
   }
   if (state.locked) return;
-  preserveEqualChildren($('#serverList'), $('#favs'), $('#services'), $('#links'));
+  preserveEqualChildren(
+    $("#serverList"),
+    $("#favs"),
+    $("#services"),
+    $("#links"),
+  );
   settleLoad();
   const { settings } = state.config;
   document.title = settings.title;
-  $('#summary').textContent = summary();
+  $("#summary").textContent = summary();
 
-  const editBtn = $('#editBtn');
-  editBtn.setAttribute('aria-pressed', String(state.editing));
-  editBtn.querySelector('span').textContent = state.editing ? 'Done' : 'Edit';
-  document.body.classList.toggle('editing', state.editing);
-  $('#editDock').hidden = !state.editing;
-  $('#dockAddService').hidden = $('#dockAddGroup').hidden = !activeServer() || Boolean(activeServer().remote);
-  $('#lockBtn').hidden = !(state.auth.passwordSet && state.auth.authenticated);
+  const editBtn = $("#editBtn");
+  editBtn.setAttribute("aria-pressed", String(state.editing));
+  editBtn.querySelector("span").textContent = state.editing ? "Done" : "Edit";
+  document.body.classList.toggle("editing", state.editing);
+  $("#editDock").hidden = !state.editing;
+  $("#dockAddService").hidden = $("#dockAddGroup").hidden =
+    !activeServer() || Boolean(activeServer().remote);
+  $("#lockBtn").hidden = !(state.auth.passwordSet && state.auth.authenticated);
 
   renderSwitcher();
   renderFavorites();
@@ -78,13 +84,13 @@ function summary() {
     for (const svc of server.services) {
       total++;
       const level = serviceStatus(svc, server)?.level;
-      if (level && level !== 'unknown') known++;
-      if (level === 'up') up++;
+      if (level && level !== "unknown") known++;
+      if (level === "up") up++;
     }
   }
   // Shown under the server name: dashboard title plus totals across all servers.
   const parts = [state.config.settings.title];
-  if (servers.length > 1) parts.push(plural(servers.length, 'server'));
-  parts.push(known ? `${up}/${known} online` : plural(total, 'service'));
-  return parts.join(' · ');
+  if (servers.length > 1) parts.push(plural(servers.length, "server"));
+  parts.push(known ? `${up}/${known} online` : plural(total, "service"));
+  return parts.join(" · ");
 }
