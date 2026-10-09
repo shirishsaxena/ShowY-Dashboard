@@ -37,11 +37,12 @@ async function start(t, overrides = {}) {
     clearTimeout(timer);
     fs.rmSync(dir, { recursive: true, force: true });
   });
-  for (let i = 0; i < 150 && !output.includes("running on"); i++) {
+  const ready = new RegExp(`INFO \\[HTTP\\] Dashboard v\\S+ listening on port ${port}\\b`);
+  for (let i = 0; i < 150 && !ready.test(output); i++) {
     if (child.exitCode !== null) throw new Error(output);
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
-  assert.match(output, /running on/);
+  assert.match(output, ready);
   return {
     child, dir, port, exited,
     request: (url, options) => fetch(`http://127.0.0.1:${port}${url}`, {
@@ -171,7 +172,7 @@ test("unlocked APIs retain response shapes, persistence and HTTP errors", async 
     headers: { authorization: "Bearer test-share-token-123456" },
   });
   assert.equal(peer.status, 200);
-  assert.deepEqual(Object.keys(await peer.json()).sort(), ["availability", "docker", "health", "servers", "stats", "title", "usage", "version"]);
+  assert.deepEqual(Object.keys(await peer.json()).sort(), ["availability", "docker", "health", "refreshError", "servers", "stats", "title", "usage", "version"]);
   assert.equal((await app.request("/api/peer/info", {
     headers: { authorization: "Bearer test-share-token-123456" },
   })).status, 200);

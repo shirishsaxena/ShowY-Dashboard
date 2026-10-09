@@ -65,8 +65,8 @@ test("authentication initialization failure exits nonzero without accepting traf
     DASHBOARD_PASSWORD: "test-password",
   });
   assert.equal(result.code, 1);
-  assert.match(result.output, /Fatal startup error:/);
-  assert.doesNotMatch(result.output, /running on/);
+  assert.match(result.output, /ERROR \[Lifecycle\] Fatal startup error/);
+  assert.doesNotMatch(result.output, /listening on port/);
 });
 
 test("listen failure is reported as a fatal startup error", async (t) => {
@@ -77,7 +77,7 @@ test("listen failure is reported as a fatal startup error", async (t) => {
     PORT: String(listener.address().port),
   });
   assert.equal(result.code, 1);
-  assert.match(result.output, /Fatal startup error:/);
+  assert.match(result.output, /ERROR \[Lifecycle\] Fatal startup error/);
   assert.match(result.output, /EADDRINUSE/);
-  assert.doesNotMatch(result.output, /running on/);
+  assert.doesNotMatch(result.output, /listening on port/);
 });

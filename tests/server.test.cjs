@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const { Readable, Writable } = require("node:stream");
 const { test } = require("node:test");
 const { SECURITY_HEADERS, HttpError, send } = require("../lib/http");
 const { createContext } = require("../http/context");
@@ -40,9 +41,14 @@ function createServerFixture() {
         async stat() {
           return { isFile: () => true, size: 42, mtimeMs: 1000 };
         },
-        async readFile() {
-          reads++;
-          return Buffer.from("asset");
+        async open() {
+          return {
+            createReadStream() {
+              reads++;
+              return Readable.from([Buffer.from("asset")]);
+            },
+            async close() {},
+          };
         },
       },
     },
@@ -52,6 +58,7 @@ function createServerFixture() {
     "./lib/http": { SECURITY_HEADERS, HttpError, send },
     "./lib/auth": { async initAuth() {} },
     "./lib/availability": { async init() {} },
+    "./lib/logger": { debug() {}, info() {}, warn() {}, error() {} },
   };
   const root = path.resolve(__dirname, "..");
   const cache = new Map();
@@ -61,7 +68,7 @@ function createServerFixture() {
     cache.set(filename, module);
     vm.runInNewContext(
       `(function(require, module, exports, __dirname, __filename) {\n${fs.readFileSync(filename, "utf8")}\n})`,
-      { process: { on() {} }, console, URL, Buffer, setTimeout, clearTimeout },
+      { process: { on() {}, hrtime: process.hrtime }, console, URL, Buffer, setTimeout, clearTimeout },
       { filename },
     )((name) => {
       if (Object.hasOwn(modules, name)) return modules[name];
@@ -82,16 +89,19 @@ function createServerFixture() {
       return reads;
     },
     async request(url, method = "GET", headers = {}) {
-      const response = {
+      const response = Object.assign(new Writable({
+        write(chunk, encoding, callback) {
+          this.body = this.body ? Buffer.concat([this.body, chunk]) : chunk;
+          callback();
+        },
+      }), {
         writeHead(status, responseHeaders) {
           this.status = status;
+          this.statusCode = status;
           this.headers = responseHeaders;
           this.headersSent = true;
         },
-        end(body) {
-          this.body = body;
-        },
-      };
+      });
       await handler({ url, method, headers }, response);
       return response;
     },

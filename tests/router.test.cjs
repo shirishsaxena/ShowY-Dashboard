@@ -27,6 +27,7 @@ function fixture({ view = true, edit = true } = {}) {
       isAuthenticated: () => edit,
     },
     "../lib/http": { send },
+    "../lib/logger": { debug() {} },
   };
   vm.runInNewContext(
     `(function(require, module) {\n${fs.readFileSync(filename, "utf8")}\n})`,
@@ -106,6 +107,8 @@ test("registry retains the complete API inventory and explicit policy", () => {
       "GET /api/remotes",
     ],
     edit: [
+      "GET /api/logs",
+      "DELETE /api/logs",
       "PUT /api/tunables",
       "PUT /api/config",
       "PUT /api/info/settings",

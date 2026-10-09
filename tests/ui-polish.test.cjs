@@ -29,10 +29,24 @@ function fixture(mobile = true) {
       this[key] = key === "open" ? true : value;
     }
     append(...children) {
+      for (const child of children)
+        if (child instanceof Element) child.parentElement = this;
       this.children.push(...children);
     }
     replaceChildren(...children) {
-      this.children = children;
+      this.children = [];
+      this.append(...children);
+    }
+    replaceWith(node) {
+      const parent = this.parentElement;
+      const index = parent.children.indexOf(this);
+      if (node.parentElement) {
+        const siblings = node.parentElement.children;
+        siblings.splice(siblings.indexOf(node), 1);
+      }
+      parent.children[index] = node;
+      node.parentElement = parent;
+      this.parentElement = null;
     }
     get lastChild() {
       return this.children.at(-1);
@@ -94,7 +108,9 @@ function fixture(mobile = true) {
     sourceOf: () => ({ stats }),
     $: () => section,
     h,
-    fill: (el, ...children) => el.replaceChildren(...children.filter(Boolean)),
+    fill: (el, ...children) => el.replaceChildren(
+      ...children.flat(Infinity).filter((v) => v != null && v !== false),
+    ),
     svg: () => h("svg"),
     fmtBytes: String,
     fmtUptime: String,
@@ -112,51 +128,37 @@ function fixture(mobile = true) {
   };
 }
 
-test("mobile keeps essential stats visible and secondary cards in a native disclosure", () => {
+test("mobile keeps system and optional stats directly visible", () => {
   const f = fixture();
   f.renderStats({ id: "one", local: true });
   assert.equal(f.section.children[0].className, "stat-card system");
-  const details = f.section.querySelector("details.stats-details");
-  assert.equal(details.open, false);
-  assert.equal(details.children[0].tagName, "SUMMARY");
-  assert.equal(
-    details.children[0].children[0],
-    "Network, availability, sensors",
-  );
+  assert.equal(f.section.querySelector("details.stats-details"), null);
   assert.deepEqual(
-    Array.from(details.children[1].children, (c) => c.className),
-    ["stat-card network", "stat-card availability", "stat-card sensors"],
+    Array.from(f.section.children, (c) => c.className),
+    ["stat-card system", "stat-card network", "stat-card availability", "stat-card sensors"],
   );
 });
 
-test("disclosure state and keyboard focus survive refresh and state is per server", () => {
+test("history trigger and keyboard focus survive refresh only for the same server", () => {
   const f = fixture();
   const one = { id: "one", local: true };
   const two = { id: "two", local: true };
   f.renderStats(one);
-  let details = f.section.querySelector("details.stats-details");
-  details.open = true;
-  details.querySelector("summary").focus();
+  const button = f.section.querySelector("button");
+  button.focus();
   f.renderStats(one);
-  details = f.section.querySelector("details.stats-details");
-  assert.equal(details.open, true);
-  assert.equal(f.document.activeElement, details.querySelector("summary"));
-  details.querySelector("button").focus();
-  f.renderStats(one);
+  assert.equal(f.section.querySelector("button"), button);
   assert.equal(f.document.activeElement, f.section.querySelector("button"));
   f.renderStats(two);
-  assert.equal(f.section.querySelector("details.stats-details").open, false);
-  f.renderStats(one);
-  assert.equal(f.section.querySelector("details.stats-details").open, true);
-  f.section.querySelector("details.stats-details").open = false;
-  f.renderStats(one);
-  assert.equal(f.section.querySelector("details.stats-details").open, false);
+  assert.notEqual(f.section.querySelector("button"), button);
+  assert.notEqual(f.document.activeElement, f.section.querySelector("button"));
 });
 
-test("desktop defaults open and missing optional stats omit the disclosure", () => {
+test("desktop shows optional stats directly and omits cards without data", () => {
   const f = fixture(false);
   f.renderStats({ id: "one", local: true });
-  assert.equal(f.section.querySelector("details.stats-details").open, true);
+  assert.equal(f.section.children.length, 4);
+  assert.equal(f.section.querySelector("details.stats-details"), null);
   delete f.stats.net;
   delete f.stats.availability;
   delete f.stats.temps;
@@ -165,6 +167,21 @@ test("desktop defaults open and missing optional stats omit the disclosure", () 
   f.state.query = "search";
   f.renderStats({ id: "one", local: true });
   assert.equal(f.section.hidden, true);
+});
+
+test("history trigger identity and busy state survive polls", () => {
+  const f = fixture();
+  const server = { id: "one", local: true };
+  f.renderStats(server);
+  const button = f.section.querySelector("button");
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  button.textContent = "Loading history…";
+  f.renderStats(server);
+  assert.equal(f.section.querySelector("button"), button);
+  assert.equal(button.disabled, true);
+  assert.equal(button["aria-busy"], "true");
+  assert.equal(button.textContent, "Loading history…");
 });
 
 test("freshness is neutral for routine updates and amber for stale data", () => {
@@ -180,12 +197,21 @@ test("freshness is neutral for routine updates and amber for stale data", () => 
     sourceOf: () => src,
   });
   assert.equal(staleness({ local: true }).level, "");
-  assert.equal(staleness({ local: true }).label, "Updated");
+  assert.equal(staleness({ local: true }).label, "");
+  assert.equal(staleness({ local: true }).since, now);
   state.localAt = now - 31_000;
   assert.equal(staleness({ local: true }).level, "amber");
+  assert.equal(staleness({ local: true }).dim, false);
+  state.localAt = now;
+  state.localError = "A required source failed";
+  assert.equal(staleness({ local: true }).label, "Refresh incomplete ·");
+  assert.equal(staleness({ local: true }).level, "amber");
   assert.equal(staleness({ remote: "remote" }).level, "");
-  src.at = now - 31_000;
+  // Receipt of a cached snapshot must not reset its last-success age.
+  src.lastOk = now - 31_000;
   assert.equal(staleness({ remote: "remote" }).level, "amber");
+  assert.equal(staleness({ remote: "remote" }).since, src.lastOk);
+  assert.equal(staleness({ remote: "remote" }).dim, true);
   src.ok = false;
   assert.equal(staleness({ remote: "remote" }).level, "red");
 });

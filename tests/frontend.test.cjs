@@ -643,7 +643,11 @@ test("only the initiating pointer can move or finish a drag", () => {
 
 function pollingHarness() {
   const calls = [];
-  const state = { health: {}, usage: {}, stats: null, remotes: [] };
+  const state = {
+    health: {}, usage: {}, stats: null, remotes: [],
+    tunables: { loadTimeout: 30 },
+    localAt: 42,
+  };
   let clock = 100;
   const module = browserModule(
     "js/api.js",
@@ -658,6 +662,9 @@ function pollingHarness() {
     ],
     {
       state,
+      AbortController,
+      setTimeout,
+      clearTimeout,
       Date: { now: () => ++clock },
       normalizeConfig: (config) => config,
       fetch: (url) => {
@@ -698,7 +705,8 @@ for (const [method, endpoint, payload] of [
     harness.respond(1, payload);
     await Promise.all([fresh, anotherFresh, background]);
     assert.equal(harness.calls.length, 2);
-    assert.ok(harness.state.localAt > 0);
+    // Only a complete dashboard refresh may advance its freshness timestamp.
+    assert.equal(harness.state.localAt, 42);
   });
 }
 
