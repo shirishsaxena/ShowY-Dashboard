@@ -3,7 +3,7 @@
 import { state } from "../state.js";
 import { $ } from "../dom.js";
 import * as actions from "../actions.js";
-import { field, value } from "./common.js";
+import { field, value, pendingForm } from "./common.js";
 import { iconPicker } from "./icon-picker.js";
 
 let picker;
@@ -24,6 +24,7 @@ function syncType(form) {
 
 export function openLinkEditor(linkId = null) {
   const form = $("#linkForm");
+  if (form.dataset.saving) return;
   form.reset();
   const link =
     (linkId && state.config.settings.links.find((l) => l.id === linkId)) || {};
@@ -48,19 +49,23 @@ export function initLinkForm() {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const copy = typeOf(form) === "copy";
-    const fields = {
-      name: value(form, "name"),
-      type: copy ? "copy" : "link",
-      url: copy ? "" : value(form, "url"),
-      text: copy ? field(form, "text").value : "", // kept exactly as typed (spaces and line breaks matter)
-      icon: value(form, "icon"),
-    };
-    if (await actions.saveLink(form.dataset.linkId || null, fields))
-      $("#linkDialog").close();
+    await pendingForm(form, async () => {
+      const copy = typeOf(form) === "copy";
+      const fields = {
+        name: value(form, "name"),
+        type: copy ? "copy" : "link",
+        url: copy ? "" : value(form, "url"),
+        text: copy ? field(form, "text").value : "", // kept exactly as typed (spaces and line breaks matter)
+        icon: value(form, "icon"),
+      };
+      if (await actions.saveLink(form.dataset.linkId || null, fields))
+        $("#linkDialog").close();
+    });
   });
 
   $("#linkDelete").addEventListener("click", async () => {
-    if (await actions.deleteLink(form.dataset.linkId)) $("#linkDialog").close();
+    await pendingForm(form, async () => {
+      if (await actions.deleteLink(form.dataset.linkId)) $("#linkDialog").close();
+    });
   });
 }

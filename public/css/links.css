@@ -1,0 +1,83 @@
+/* ---------- Plain links (under the services) ---------- */
+.links-section {
+  margin-bottom: 22px;
+}
+.link-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.link-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 12px 0 6px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  text-decoration: none;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
+}
+.link-pill:hover {
+  border-color: var(--border-strong);
+  background: var(--card-hover);
+}
+.link-pill:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.link-pill .ticon {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  font-size: 16px;
+}
+.link-pill .ticon .letter {
+  font-size: 12px;
+}
+.link-pill .copy-icon {
+  color: var(--muted);
+}
+.link-pill .copy-icon svg {
+  width: 16px;
+  height: 16px;
+}
+.link-pill:hover .copy-icon {
+  color: var(--text);
+}
+.link-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.link-pill .drag-handle {
+  width: 16px;
+  height: 26px;
+  margin: 0 -4px 0 0;
+  align-self: center;
+}
+.link-pill.add {
+  padding: 0 12px;
+  border-style: dashed;
+  border-color: var(--border-strong);
+  background: transparent;
+  color: var(--muted);
+}
+.link-pill.add:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.link-pill.add svg {
+  width: 15px;
+  height: 15px;
+}
+

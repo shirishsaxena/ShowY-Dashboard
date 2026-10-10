@@ -329,7 +329,7 @@ test("card links retain real destinations, accessible icon labels and note/QR ac
 });
 
 test("compact and list CSS keeps actions visible and long content bounded", () => {
-  const css = fs.readFileSync(path.join(__dirname, "../public/app.css"), "utf8");
+  const css = require("./helpers/styles.cjs").readStyles();
   const rules = (selector) => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
     .filter((match) => match[1].trim() === selector).map((match) => match[2]);
   const listLinks = rules('body[data-layout="list"] #services .card .links');

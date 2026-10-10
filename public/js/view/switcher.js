@@ -22,7 +22,6 @@ function selectServer(id) {
   $("#search").value = "";
   startLoad(); // cancels the previous server's load; a remote server shows its loading state at once
   render();
-  document.dispatchEvent(new CustomEvent("server-selected"));
 }
 
 function statusDot(server) {

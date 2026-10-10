@@ -201,6 +201,9 @@ function availabilityCard(s, server) {
   const a = s.availability;
   const { count = 0, last } = a;
   const notes = [];
+  notes.push(a.coverageSince === undefined
+    ? "History coverage unknown (older dashboard)"
+    : `Supported history since ${fmtDateTime(a.coverageSince)}${a.windows?.month?.limited ? " · partial periods" : ""}`);
   if (a.enabled) {
     notes.push(
       count && last
@@ -243,7 +246,9 @@ function availabilityCard(s, server) {
             "div",
             {
               class: `avail-pct ${pctLevel(w.pct)}`,
-              title: w.observed
+              title: w.limited
+                ? `Partial coverage: observed for ${fmtDuration(w.observed)} since ${fmtDateTime(w.from)}; earlier time excluded`
+                : w.observed
                 ? `Observed for ${fmtDuration(w.observed)}`
                 : "Not enough data yet",
             },

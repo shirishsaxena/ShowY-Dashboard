@@ -3,7 +3,15 @@ services:
     build: .
     container_name: showy-dashy
     restart: unless-stopped
+    # Console history is separate from application file rotation/clear.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
+      # Trusted-LAN convenience default. For HTTPS proxy-only access use
+      # 127.0.0.1:8080:8080 instead; see README hardened deployment guidance.
       - "8080:8080"
     environment:
       # Optional password. Empty = no password (fine on a trusted LAN).
@@ -15,6 +23,8 @@ services:
       #   true  = everything is behind a lock screen (use on a public VPS)
       #   false = anyone can view, only editing needs the password
       DASHBOARD_LOCK_VIEW: true
+      # Enable ONLY behind a trusted proxy with direct client access blocked.
+      TRUST_PROXY: false
       # Backend logging: minimum severity for both console and persistent files.
       # DEBUG = all levels; INFO = INFO/WARN/ERROR; WARN = WARN/ERROR; ERROR = errors only.
       LOG_LEVEL: "INFO"
@@ -41,8 +51,8 @@ services:
       # HEALTH_CACHE: 45              # seconds a result is kept before checking again (5-600)
       # HEALTH_PARALLEL: 8            # checks run at the same time (1-32)
       # Remote dashboards and Docker:
-      # REMOTE_TIMEOUT: 8             # seconds to wait for a remote dashboard (2-60)
-      # LOAD_TIMEOUT: 15              # seconds before the loading screen gives up (5-120)
+      # REMOTE_TIMEOUT: 60            # aggregate remote snapshot deadline (2-300 seconds)
+      # LOAD_TIMEOUT: 75              # browser budget (5-360); minimum remote + 5, forced remote: 2 * remote + 5
       # DOCKER_PARALLEL: 6            # container stats requests at the same time (1-16)
       # Login protection (env only, not in Settings):
       # SESSION_DAYS: 30              # how long a login lasts (1-365)
@@ -67,7 +77,7 @@ services:
       - ./data:/data
       # For separate log storage, set LOG_DIR to /logs and uncomment:
       # - ./logs:/logs
-      # Read-only access so the dashboard can list containers (only GET requests are made).
+      # Read-only mount is NOT a Docker API permission restriction (see README).
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # Disks to show in "This machine" stats: each folder under /disks becomes a tile (folder name = label).
       - /:/disks/System:ro

@@ -1,0 +1,241 @@
+/* Settings: tabs, one panel at a time, each setting in its own card */
+#settingsDialog {
+  width: min(600px, calc(100vw - 24px));
+  height: min(680px, calc(100dvh - 24px));
+}
+#settingsDialog form {
+  height: 100%;
+}
+#settingsDialog .dialog-body {
+  flex: 1;
+  min-height: 0;
+  padding-top: 14px;
+  padding-bottom: 16px;
+  overscroll-behavior: contain;
+  overflow-x: hidden;
+}
+.settings-tabs {
+  padding: 8px 20px 0;
+}
+.settings-tabs .seg {
+  display: flex;
+}
+.settings-tabs .seg button {
+  flex: 1;
+  justify-content: center;
+  padding: 7px 4px;
+}
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.set-group {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+.set-group h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.92rem;
+}
+.set-group .check {
+  background: var(--bg);
+}
+.auto-badge {
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+@media (max-width: 480px) {
+  .settings-tabs .seg button {
+    font-size: 0.78rem;
+    padding: 7px 2px;
+  }
+}
+/* Refine the existing Settings cards without changing the dashboard's design. */
+body:has(#settingsDialog[open]) {
+  overflow: hidden;
+}
+#settingsDialog .dialog-head,
+#settingsDialog .settings-tabs,
+#settingsDialog .dialog-foot {
+  flex-shrink: 0;
+}
+#settingsDialog .set-group {
+  padding: 18px;
+  gap: 12px;
+}
+#settingsDialog .set-group h3 {
+  flex-wrap: wrap;
+  line-height: 1.4;
+}
+#settingsDialog .field,
+#settingsDialog .grow {
+  min-width: 0;
+}
+#settingsDialog .field {
+  gap: 8px;
+}
+#settingsDialog small {
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+#settingsDialog input:not([type="checkbox"]):not([type="color"]),
+#settingsDialog select {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+}
+#settingsDialog .field-row:not(.cache-row) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+#settingsDialog .cache-row {
+  gap: 8px;
+}
+#settingsDialog .cache-row > small {
+  flex: 1 1 120px;
+}
+#settingsDialog .settings-share-row > input {
+  flex: 1 1 100%;
+}
+.settings-remote-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: end;
+  gap: 12px;
+}
+.settings-remote-fields > .btn {
+  justify-self: start;
+}
+#settingsDialog .remote-interval {
+  margin-top: 4px;
+}
+#settingsDialog .btn {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+#settingsDialog .storage-row {
+  padding: 6px 0;
+  grid-template-columns: minmax(0, 1fr) auto 68px;
+}
+#settingsDialog .storage-row .grow {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+#settingsDialog #tunableList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+#settingsDialog #tunableList > .set-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px 12px;
+}
+#settingsDialog #tunableList h3 {
+  grid-column: 1 / -1;
+}
+#settingsDialog .dialog-foot {
+  align-items: center;
+}
+.settings-save-note {
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 400;
+}
+#settingsDialog .settings-display-seg {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  width: 100%;
+}
+#settingsDialog .settings-display-seg button {
+  box-sizing: border-box;
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 6px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+#settingsDialog #installBtn {
+  align-self: flex-start;
+}
+#settingsDialog #installHint {
+  margin: 0;
+  padding: 0;
+}
+#settingsDialog .field-feedback {
+  font-size: 0.75rem;
+}
+#settingsDialog .field-feedback.error,
+#settingsFeedback.error {
+  color: var(--red);
+}
+#settingsDialog [aria-invalid="true"] {
+  border-color: var(--red);
+}
+@media (max-width: 480px) {
+  #settingsDialog {
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+  #settingsDialog .dialog-head {
+    padding: max(14px, env(safe-area-inset-top)) 14px 6px;
+  }
+  #settingsDialog .settings-tabs {
+    padding: 8px 14px 0;
+  }
+  #settingsDialog .settings-tabs button,
+  #settingsDialog .btn,
+  #settingsDialog .icon-btn {
+    min-height: 44px;
+  }
+  #settingsDialog .dialog-body {
+    padding: 14px;
+  }
+  #settingsDialog .set-group {
+    padding: 14px;
+  }
+  #settingsDialog .settings-display-seg button {
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px 4px;
+    font-size: 0.75rem;
+  }
+  #settingsDialog .field-row:not(.cache-row),
+  #settingsDialog .settings-remote-fields,
+  #settingsDialog #tunableList > .set-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #settingsDialog .cache-row > small {
+    flex-basis: 100%;
+  }
+  #settingsDialog .dialog-foot {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 12px 14px max(12px, env(safe-area-inset-bottom));
+  }
+  #settingsFeedback {
+    grid-column: 1 / -1;
+  }
+  #settingsDialog .app-version:empty {
+    display: none;
+  }
+  #settingsDialog .app-version {
+    grid-column: 1 / -1;
+  }
+}

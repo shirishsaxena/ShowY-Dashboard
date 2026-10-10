@@ -6,10 +6,37 @@ const vm = require("node:vm");
 
 const source = (file) =>
   fs.readFileSync(path.join(__dirname, "../public", file), "utf8");
+
+test("availability dialog explains partial coverage and keeps legacy records visible", () => {
+  const elements = new Map();
+  const $ = (id) => {
+    if (!elements.has(id)) elements.set(id, { textContent: "", setAttribute() {}, getAttribute() { return null; } });
+    return elements.get(id);
+  };
+  const h = (tag, attrs, ...children) => ({ tag, attrs, children });
+  const modal = load("js/dialogs/availability.js", ["view", "renderModal"], {
+    $, h, fill: (el, ...children) => { el.children = children; },
+    fmtDuration: String, fmtDateTime: String, fmtPercent: String,
+    Date, state: {},
+  });
+  modal.view.period = "all";
+  modal.view.detail = {
+    enabled: true, since: 1, coverageSince: 50, legacyHistory: true, now: 100,
+    windows: { all: { from: 50, observed: 50, down: 0, count: 0, longest: 0, pct: 100, limited: true } },
+    outages: [{ start: 10, end: 20 }], records: 1,
+  };
+  modal.renderModal();
+  assert.match($("#availObserved").textContent, /partial coverage/);
+  assert.match($("#availObserved").textContent, /Prior pruning is unknown/);
+  assert.match(JSON.stringify($("#availList").children), /Host down/);
+  delete modal.view.detail.coverageSince;
+  modal.renderModal();
+  assert.match($("#availObserved").textContent, /older dashboard/);
+});
 function load(file, names, globals) {
   const code = source(file)
     .replace(/^import\s[\s\S]*?;\r?$/gm, "")
-    .replace(/\bexport (?=(?:function|const)\b)/g, "");
+    .replace(/\bexport (?=(?:async function|function|const)\b)/g, "");
   return vm.runInNewContext(`${code}\n;({${names.join(",")}})`, globals);
 }
 
@@ -240,7 +267,7 @@ test("preferred service link is distinguished without changing destinations", ()
 });
 
 test("CSS scopes boot hiding and supplies focus, touch, and quiet freshness styles", () => {
-  const css = source("app.css");
+  const css = require("./helpers/styles.cjs").readStyles();
   assert.match(css, /body\.booting #appShell/);
   assert.doesNotMatch(css, /body\.booting::after/);
   assert.match(css, /\.boot-spinner\s*\{/);

@@ -3,8 +3,9 @@
 import { state, prefs } from "../state.js";
 import { $, h, fill, toast, iconBtn, resetIconCache, svg } from "../dom.js";
 import * as actions from "../actions.js";
-import { api, loadRemotes } from "../api.js";
-import { render } from "../view/render.js";
+import { loadRemotes } from "../api.js";
+import { render } from "../render-interface.js";
+import { beginSettingsSession, endSettingsSession, settingsOperation, settingsRequest, protectSettingsControl } from "./settings-session.js";
 import { plural, fmtBytes } from "../utils.js";
 import {
   setLayout,
@@ -32,6 +33,7 @@ const ACCENTS = [
   "#ec4899",
 ];
 const draft = { accent: "", hidden: [] };
+const GENERAL_CONTROLS = ["#settingsSaveBtn", "#importBtn", '#settingsForm [name="title"]', "#accentPicker input", "#accentPicker button", "#hiddenList button"];
 
 function renderDisplayPreferences() {
   for (const [selector, options, current, onPick] of [
@@ -58,39 +60,34 @@ function renderDisplayPreferences() {
 }
 
 async function manageLogs(clear = false) {
-  if (!(await actions.ensureCanEdit())) return;
-  if (clear && !(await ask({
-    title: "Clear backend logs?",
-    message: "The current log and previous backup will be permanently removed. Logging will continue.",
-    okLabel: "Clear Logs", danger: true,
-  }))) return;
-  const feedback = $("#logsFeedback");
-  $("#downloadLogsBtn").disabled = $("#clearLogsBtn").disabled = true;
-  feedback.textContent = clear ? "Clearing logs…" : "Downloading logs…";
-  try {
-    const res = await fetch("/api/logs", clear
-      ? { method: "DELETE", headers: { "Content-Type": "application/json" }, body: "{}" }
-      : {});
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error(data.error || `Log operation failed (${res.status})`);
+  return settingsOperation("logs", ["#downloadLogsBtn", "#clearLogsBtn"], async (scope) => {
+    if (clear && !(await ask({
+      title: "Clear backend logs?",
+      message: "The current log and previous backup will be permanently removed. Logging will continue.",
+      okLabel: "Clear Logs", danger: true,
+    }))) return;
+    if (!scope.current()) return;
+    const feedback = $("#logsFeedback");
+    feedback.textContent = clear ? "Clearing logs…" : "Downloading logs…";
+    try {
+      const data = await settingsRequest(scope, clear ? "DELETE" : "GET", "/api/logs", clear ? {} : undefined, clear ? "json" : "blob");
+      if (!data || !scope.current()) {
+        if (scope.current()) feedback.textContent = "Not completed. Try again.";
+        return;
+      }
+      if (!clear) {
+        const url = URL.createObjectURL(data);
+        h("a", { href: url, download: "backend-logs.txt" }).click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }
+      feedback.textContent = clear ? "Logs cleared. Logging continues." : "Logs downloaded.";
+      toast(feedback.textContent);
+      if (clear) showStorage();
+    } catch (err) {
+      if (scope.current()) feedback.textContent = err.message || "Dashboard server unreachable";
+      throw err;
     }
-    if (!clear) {
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = h("a", { href: url, download: "backend-logs.txt" });
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
-    }
-    feedback.textContent = clear ? "Logs cleared. Logging continues." : "Logs downloaded.";
-    toast(feedback.textContent);
-    if (clear) showStorage();
-  } catch (err) {
-    feedback.textContent = err.message || "Dashboard server unreachable";
-    toast(feedback.textContent, true);
-  } finally {
-    $("#downloadLogsBtn").disabled = $("#clearLogsBtn").disabled = false;
-  }
+  });
 }
 
 function pickAccent(color) {
@@ -164,40 +161,36 @@ function renderHiddenList() {
 async function showIconCache() {
   const info = $("#iconCacheInfo");
   info.textContent = "";
-  try {
-    const { res, data } = await api("GET", "/api/icons");
-    if (res.ok)
-      info.textContent = data.count
-        ? `${plural(data.count, "icon")} · ${fmtBytes(data.bytes)}`
-        : "Empty";
-  } catch {
-    /* offline - leave it blank */
-  }
+  return settingsOperation("icons", ["#clearIconsBtn", '#storageList [data-clear="icons"]'], async (scope) => {
+    const data = await settingsRequest(scope, "GET", "/api/icons");
+    if (!data) return;
+    scope.release(false);
+    info.textContent = data.count ? `${plural(data.count, "icon")} · ${fmtBytes(data.bytes)}` : "Empty";
+  }, { loading: true });
 }
 
 // ---------- Storage: size of the data folder, with a clear button for what can be emptied ----------
 
 async function clearIcons() {
-  if (!(await actions.ensureCanEdit())) return;
-  try {
-    const { res, data } = await api("DELETE", "/api/icons", {});
-    if (!res.ok)
-      return toast(
-        data.error || `Could not clear the cache (${res.status})`,
-        true,
-      );
+  return settingsOperation("icons", ["#clearIconsBtn", '#storageList [data-clear="icons"]'], async (scope) => {
+    const data = await settingsRequest(scope, "DELETE", "/api/icons", {});
+    if (!data) return;
     resetIconCache();
     render();
     toast(`Cleared ${plural(data.removed, "icon")}`);
-    showIconCache();
-  } catch {
-    toast("Dashboard server unreachable", true);
-  }
+    $("#iconCacheInfo").textContent = "Empty";
+    showStorage();
+  });
 }
 
 async function clearOutages() {
-  const data = await clearOutageHistory(avail?.records || 0);
-  if (data) showAvailability(data);
+  return settingsOperation("availability", AVAIL_CONTROLS, async (scope) => {
+    const data = await clearOutageHistory(avail?.records || 0, scope);
+    if (!data || !scope.current()) return;
+    scope.release();
+    showAvailability(data);
+    showStorage();
+  });
 }
 
 const STORAGE_CLEAR = {
@@ -207,9 +200,10 @@ const STORAGE_CLEAR = {
 };
 
 async function showStorage() {
-  try {
-    const { res, data } = await api("GET", "/api/storage");
-    if (!res.ok) return;
+  return settingsOperation("storage", [], async (scope) => {
+    const data = await settingsRequest(scope, "GET", "/api/storage");
+    if (!data) return;
+    scope.release();
     $("#storageTotal").textContent = `${fmtBytes(data.total)} in total`;
     fill(
       $("#storageList"),
@@ -220,25 +214,21 @@ async function showStorage() {
           h("span", { class: "grow", title: item.file }, item.name),
           h("span", { class: "size" }, fmtBytes(item.bytes)),
           STORAGE_CLEAR[item.clear]
-            ? h(
+            ? protectSettingsControl(item.clear, h(
                 "button",
                 {
                   type: "button",
                   class: "btn ghost",
-                  onclick: async () => (
-                    await STORAGE_CLEAR[item.clear](),
-                    showStorage()
-                  ),
+                  "data-clear": item.clear,
+                  onclick: () => STORAGE_CLEAR[item.clear](),
                 },
                 "Clear",
-              )
+              ))
             : h("span"),
         ),
       ),
     );
-  } catch {
-    /* offline - leave it as it is */
-  }
+  }, { replace: true });
 }
 
 /** The settings dialog is split into tabs; only one panel shows at a time. */
@@ -251,9 +241,11 @@ function showTab(name) {
 }
 
 export function openSettings() {
+  beginSettingsSession();
   const form = $("#settingsForm");
   const { settings } = state.config;
   form.reset();
+  $("#settingsSaveBtn").textContent = "Save";
   $("#settingsFeedback").textContent = "Save applies title, accent, and hidden containers. Other preferences save automatically.";
   $("#settingsFeedback").classList.remove("error");
   $("#logsFeedback").textContent = "";
@@ -283,7 +275,6 @@ export function openSettings() {
     : "Off — anyone who can reach this URL can view and edit. Set DASHBOARD_PASSWORD in docker-compose.yml to enable it.";
 
   const dialog = $("#settingsDialog");
-  dialog.addEventListener("close", syncAccent, { once: true }); // drop an unsaved preview
   dialog.showModal();
 }
 
@@ -299,39 +290,41 @@ function showClipInfo() {
 
 async function saveClipMax() {
   const select = $("#clipMax");
-  const data =
-    (await actions.ensureCanEdit()) &&
-    (await sharingApi("PUT", "/api/clip/settings", {
-      max: Number(select.value),
-    }));
-  if (data) {
+  const max = Number(select.value);
+  return settingsOperation("clip", ["#clipMax", "#clipClearSettingsBtn"], async (scope) => {
+    const data = await settingsRequest(scope, "PUT", "/api/clip/settings", { max });
+    if (!data) return;
+    scope.release();
     state.clip = data;
     showClipInfo();
     toast("Clipboard limit saved");
-  } else select.value = String(state.clip.max || 10); // not saved: back to the stored value
+  });
 }
 
 async function clearClipHistory() {
-  if (!(await actions.ensureCanEdit())) return;
-  const count = (state.clip.entries || []).length;
-  const ok = await ask({
-    title: "Clear clipboard history?",
-    message: `${count} ${count === 1 ? "entry" : "entries"} will be removed for every device.`,
-    okLabel: "Clear",
-    danger: true,
+  return settingsOperation("clip", ["#clipMax", "#clipClearSettingsBtn", '#storageList [data-clear="clip"]'], async (scope) => {
+    const count = (state.clip.entries || []).length;
+    const ok = await ask({
+      title: "Clear clipboard history?",
+      message: `${count} ${count === 1 ? "entry" : "entries"} will be removed for every device.`,
+      okLabel: "Clear", danger: true,
+    });
+    if (!ok || !scope.current()) return;
+    const data = await settingsRequest(scope, "DELETE", "/api/clip", {});
+    if (!data) return;
+    scope.release();
+    state.clip = data;
+    showClipInfo();
+    refreshClip();
+    toast("Clipboard history cleared");
+    showStorage();
   });
-  if (!ok) return;
-  const data = await sharingApi("DELETE", "/api/clip", {});
-  if (!data) return;
-  state.clip = data;
-  showClipInfo();
-  refreshClip();
-  toast("Clipboard history cleared");
 }
 
 // ---------- Outage tracking (saved right away, in data/availability.json) ----------
 
 let avail = null;
+const AVAIL_CONTROLS = ["#availEnabled", "#availInterval", "#availThreshold", "#availClearBtn", '#storageList [data-clear="availability"]'];
 
 function showAvailability(data) {
   avail = data;
@@ -347,12 +340,12 @@ function showAvailability(data) {
 }
 
 async function loadAvailability() {
-  try {
-    const { res, data } = await api("GET", "/api/availability");
-    if (res.ok) showAvailability(data);
-  } catch {
-    /* offline - leave the controls as they are */
-  }
+  return settingsOperation("availability", AVAIL_CONTROLS, async (scope) => {
+    const data = await settingsRequest(scope, "GET", "/api/availability");
+    if (!data) return;
+    scope.release(false);
+    showAvailability(data);
+  }, { loading: true });
 }
 
 async function saveAvailability() {
@@ -361,23 +354,21 @@ async function saveAvailability() {
     interval: Number($("#availInterval").value),
     threshold: Number($("#availThreshold").value),
   };
-  const data =
-    (await actions.ensureCanEdit()) &&
-    (await sharingApi("PUT", "/api/availability/settings", body));
-  if (!data) return avail && showAvailability(avail); // not saved: back to the stored values
-  showAvailability(data);
-  document.dispatchEvent(new CustomEvent("availability-changed"));
-  toast("Outage tracking saved");
+  return settingsOperation("availability", AVAIL_CONTROLS, async (scope) => {
+    const data = await settingsRequest(scope, "PUT", "/api/availability/settings", body);
+    if (!data) return;
+    scope.release();
+    showAvailability(data);
+    document.dispatchEvent(new CustomEvent("availability-changed"));
+    toast("Outage tracking saved");
+  });
 }
 
 function initAvailabilitySettings() {
   for (const id of ["#availEnabled", "#availInterval", "#availThreshold"])
     $(id).addEventListener("change", saveAvailability);
   $("#availViewBtn").addEventListener("click", openOwnAvailability);
-  $("#availClearBtn").addEventListener("click", async () => {
-    await clearOutages();
-    showStorage();
-  });
+  $("#availClearBtn").addEventListener("click", clearOutages);
 }
 
 // ---------- Server info: how the public IP is found (saved right away, in data/serverinfo.json) ----------
@@ -390,6 +381,7 @@ const PUBLIC_IP_HINTS = {
     "Shown as typed - nothing is looked up. Press Enter or leave the field to save it.",
 };
 let serverInfoSettings = { mode: "off", manualIp: "" };
+const INFO_CONTROLS = ["#publicIpMode", "#publicIpManual"];
 
 function showServerInfoSettings(data = serverInfoSettings) {
   serverInfoSettings = data;
@@ -400,9 +392,12 @@ function showServerInfoSettings(data = serverInfoSettings) {
 }
 
 async function loadServerInfoSettings() {
-  showServerInfoSettings({ mode: "off", manualIp: "" });
-  const data = await sharingApi("GET", "/api/info/settings");
-  if (data) showServerInfoSettings(data);
+  return settingsOperation("info", INFO_CONTROLS, async (scope) => {
+    const data = await settingsRequest(scope, "GET", "/api/info/settings");
+    if (!data) return;
+    scope.release(false);
+    showServerInfoSettings(data);
+  }, { loading: true });
 }
 
 async function saveServerInfoSettings() {
@@ -410,7 +405,8 @@ async function saveServerInfoSettings() {
   const manualIp = $("#publicIpManual").value.trim();
   if (mode === "manual" && !manualIp) {
     // Nothing to save yet: show the field and wait for the address.
-    showServerInfoSettings({ ...serverInfoSettings, mode });
+    $("#publicIpManual").hidden = false;
+    $("#publicIpNote").textContent = PUBLIC_IP_HINTS.manual;
     return $("#publicIpManual").focus();
   }
   if (
@@ -419,12 +415,13 @@ async function saveServerInfoSettings() {
     serverInfoSettings.mode === "manual"
   )
     return;
-  const data =
-    (await actions.ensureCanEdit()) &&
-    (await sharingApi("PUT", "/api/info/settings", { mode, manualIp }));
-  if (!data) return showServerInfoSettings(); // not saved: back to the stored values
-  showServerInfoSettings(data);
-  toast("Public IP setting saved");
+  return settingsOperation("info", INFO_CONTROLS, async (scope) => {
+    const data = await settingsRequest(scope, "PUT", "/api/info/settings", { mode, manualIp });
+    if (!data) return;
+    scope.release();
+    showServerInfoSettings(data);
+    toast("Public IP setting saved");
+  });
 }
 
 // ---------- Timing and limits (saved right away, in data/tunables.json; an env var in docker-compose locks a field) ----------
@@ -488,8 +485,12 @@ function showTunables(items = tunableItems) {
 }
 
 async function loadTunables() {
-  const items = await sharingApi("GET", "/api/tunables");
-  if (items) showTunables(items);
+  return settingsOperation("tunables", ["#tunableList input"], async (scope) => {
+    const items = await settingsRequest(scope, "GET", "/api/tunables");
+    if (!items) return;
+    scope.release();
+    showTunables(items);
+  }, { loading: true });
 }
 
 async function saveTunable(item, input, feedback) {
@@ -504,73 +505,59 @@ async function saveTunable(item, input, feedback) {
   input.removeAttribute("aria-invalid");
   feedback.classList.remove("error");
   feedback.textContent = "Saving…";
-  input.disabled = true;
-  try {
-    const data =
-      (await actions.ensureCanEdit()) &&
-      (await sharingApi("PUT", "/api/tunables", {
-        values: { [item.key]: value },
-      }));
-    if (!data) {
+  return settingsOperation("tunables", ["#tunableList input"], async (scope) => {
+    try {
+      const data = await settingsRequest(scope, "PUT", "/api/tunables", { values: { [item.key]: value } });
+      if (!data) {
+        if (scope.current()) feedback.textContent = "Not saved. Try again.";
+        return;
+      }
+      // Update only this field: retain focus, other drafts, and input identities.
+      const saved = data.items.find((entry) => entry.key === item.key);
+      if (saved) Object.assign(item, saved);
       input.value = item.value;
-      feedback.textContent = "Not saved. The previous value has been restored.";
-      feedback.classList.add("error");
-      return;
+      feedback.textContent = "Saved";
+      state.tunables = { ...state.tunables, ...data.client };
+      document.dispatchEvent(new CustomEvent("tunables-changed"));
+      toast(`${item.label} saved`);
+    } catch (err) {
+      if (scope.current()) {
+        feedback.textContent = err.message || "Not saved. Try again.";
+        feedback.classList.add("error");
+      }
+      throw err;
     }
-    showTunables(data.items);
-    state.tunables = { ...state.tunables, ...data.client };
-    document.dispatchEvent(new CustomEvent("tunables-changed"));
-    toast(`${item.label} saved`);
-  } finally {
-    input.disabled = Boolean(item.fixed);
-  }
+  });
 }
 
 // ---------- Remote dashboards: update interval (saved right away, in data/remotes.json) ----------
 
 async function saveRemoteInterval() {
   const select = $("#remoteInterval");
-  const data =
-    (await actions.ensureCanEdit()) &&
-    (await sharingApi("PUT", "/api/remotes/interval", {
-      interval: Number(select.value),
-    }));
-  if (!data) return (select.value = String(sharing.refreshInterval)); // not saved: back to the stored value
-  showSharing(data);
-  state.remotesInterval = data.refreshInterval;
-  document.dispatchEvent(new CustomEvent("remotes-interval-changed"));
-  toast("Update interval saved");
+  const interval = Number(select.value);
+  return settingsOperation("sharing", SHARING_CONTROLS, async (scope) => {
+    const data = await settingsRequest(scope, "PUT", "/api/remotes/interval", { interval });
+    if (!data) return;
+    scope.release();
+    showSharing(data);
+    state.remotesInterval = data.refreshInterval;
+    document.dispatchEvent(new CustomEvent("remotes-interval-changed"));
+    toast("Update interval saved");
+  });
 }
 
 // ---------- Sharing and remote dashboards (saved right away, outside config.json) ----------
 
 let sharing = { shareToken: "", refreshInterval: 10, remotes: [] }; // remotes: [{ id, name, url }] - tokens stay on the server
-
-/** Calls a remote-settings endpoint; returns the data, or null after showing the error. */
-async function sharingApi(method, url, body) {
-  try {
-    const { res, data } = await api(method, url, body);
-    if (res.ok) return data;
-    toast(
-      res.status === 401
-        ? "Login required"
-        : data.error || `Failed (${res.status})`,
-      true,
-    );
-  } catch {
-    toast("Dashboard server unreachable", true);
-  }
-  return null;
-}
+const SHARING_CONTROLS = ["#remoteInterval", "#shareCopyBtn", "#shareNewBtn", "#shareOffBtn", "#remoteAddBtn", "#remoteName", "#remoteUrl", "#remoteToken", "#remoteList button"];
 
 async function loadSharing() {
-  showSharing({
-    shareToken: "",
-    refreshInterval: state.remotesInterval,
-    remotes: [],
-  });
-  const data = await sharingApi("GET", "/api/remotes/settings");
-  if (data) showSharing(data);
+  return settingsOperation("sharing", SHARING_CONTROLS, async (scope) => {
+    const data = await settingsRequest(scope, "GET", "/api/remotes/settings");
+    if (!data) return;
+    scope.release(false);
+    showSharing(data);
+  }, { loading: true });
 }
 
 function showSharing(data = sharing) {
@@ -635,15 +622,17 @@ function remoteRow(r) {
 }
 
 /** Existing remotes are sent without tokens; the server keeps theirs. docker-compose ones are not sent. */
-async function saveRemotes(remotes, message) {
-  const data = await sharingApi("PUT", "/api/remotes/settings", {
+async function saveRemotes(scope, remotes, message) {
+  const data = await settingsRequest(scope, "PUT", "/api/remotes/settings", {
     remotes: remotes.filter((r) => !r.fixed),
   });
   if (!data) return false;
-  showSharing(data);
+  sharing = data;
   await loadRemotes();
+  if (!scope.current()) return false;
+  scope.release();
   render();
-  showSharing(); // with the new connection status
+  showSharing(data); // with the new connection status
   toast(message);
   return true;
 }
@@ -654,44 +643,48 @@ async function addRemote() {
   const token = $("#remoteToken").value.trim();
   if (!url || !token)
     return toast("Enter the other dashboard's URL and share token", true);
-  if (
-    await saveRemotes(
+  return settingsOperation("sharing", SHARING_CONTROLS, async (scope) => {
+    if (await saveRemotes(
+      scope,
       [...sharing.remotes, { name, url, token }],
       "Remote dashboard added",
-    )
-  ) {
-    for (const id of ["#remoteName", "#remoteUrl", "#remoteToken"])
-      $(id).value = "";
-  }
+    )) {
+      for (const id of ["#remoteName", "#remoteUrl", "#remoteToken"])
+        $(id).value = "";
+    }
+  });
 }
 
 async function removeRemote(r) {
-  const ok = await ask({
-    title: "Remove remote dashboard?",
-    message: `The servers of “${r.name}” will no longer show here.`,
-    okLabel: "Remove",
-    danger: true,
-  });
-  if (ok)
-    await saveRemotes(
+  return settingsOperation("sharing", SHARING_CONTROLS, async (scope) => {
+    const ok = await ask({
+      title: "Remove remote dashboard?",
+      message: `The servers of “${r.name}” will no longer show here.`,
+      okLabel: "Remove", danger: true,
+    });
+    if (ok && scope.current()) await saveRemotes(
+      scope,
       sharing.remotes.filter((x) => x.id !== r.id),
       "Remote dashboard removed",
     );
+  });
 }
 
 async function setSharing(enabled) {
-  if (sharing.shareToken) {
-    const ok = await ask({
-      title: enabled ? "Create a new token?" : "Turn sharing off?",
-      message:
-        "Dashboards using the current token will stop showing this one until they get a new token.",
-      okLabel: enabled ? "New token" : "Turn off",
-      danger: true,
-    });
-    if (!ok) return;
-  }
-  const data = await sharingApi("PUT", "/api/share", { enabled });
-  if (data) showSharing(data);
+  return settingsOperation("sharing", SHARING_CONTROLS, async (scope) => {
+    if (sharing.shareToken) {
+      const ok = await ask({
+        title: enabled ? "Create a new token?" : "Turn sharing off?",
+        message: "Dashboards using the current token will stop showing this one until they get a new token.",
+        okLabel: enabled ? "New token" : "Turn off", danger: true,
+      });
+      if (!ok || !scope.current()) return;
+    }
+    const data = await settingsRequest(scope, "PUT", "/api/share", { enabled });
+    if (!data) return;
+    scope.release();
+    showSharing(data);
+  });
 }
 
 async function copyToken() {
@@ -724,6 +717,12 @@ function initSharing() {
 
 export function initSettingsForm() {
   const form = $("#settingsForm");
+  $("#settingsDialog").addEventListener("close", () => {
+    // Close events are queued: a dialog reopened before delivery owns a new session.
+    if ($("#settingsDialog").open) return;
+    endSettingsSession();
+    syncAccent();
+  });
   initSharing();
   $("#downloadLogsBtn").addEventListener("click", () => manageLogs());
   $("#clearLogsBtn").addEventListener("click", () => manageLogs(true));
@@ -745,44 +744,40 @@ export function initSettingsForm() {
     e.preventDefault(); // Enter saves the field instead of submitting the whole dialog
     e.target.blur();
   });
-  $("#clipClearSettingsBtn").addEventListener("click", async () => {
-    await clearClipHistory();
-    showStorage();
-  });
+  $("#clipClearSettingsBtn").addEventListener("click", clearClipHistory);
   $("#clipMax").addEventListener("change", saveClipMax);
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const button = $("#settingsSaveBtn");
     const feedback = $("#settingsFeedback");
     if (button.disabled) return;
-    button.disabled = true;
-    button.textContent = "Saving…";
-    feedback.textContent = "Saving General settings…";
-    feedback.classList.remove("error");
-    try {
-      const ok = await actions.saveSettings({
-        title: value(form, "title") || "Home Lab",
-        accent: draft.accent === DEFAULT_ACCENT ? "" : draft.accent,
-        hiddenContainers: draft.hidden,
-      });
-      if (ok) $("#settingsDialog").close();
-      else {
-        feedback.textContent = "Not saved. Try again.";
+    return settingsOperation("general", GENERAL_CONTROLS, async (scope) => {
+      button.textContent = "Saving…";
+      feedback.textContent = "Saving General settings…";
+      feedback.classList.remove("error");
+      try {
+        const ok = await actions.saveSettings({
+          title: value(form, "title") || "Home Lab",
+          accent: draft.accent === DEFAULT_ACCENT ? "" : draft.accent,
+          hiddenContainers: draft.hidden,
+        });
+        if (!scope.current()) return;
+        if (ok) $("#settingsDialog").close();
+        else {
+          feedback.textContent = "Not saved. Try again.";
+          feedback.classList.add("error");
+        }
+      } catch (err) {
+        if (!scope.current()) return;
+        feedback.textContent = err.message || "Not saved. Try again.";
         feedback.classList.add("error");
+      } finally {
+        if (scope.current()) button.textContent = "Save";
       }
-    } catch (err) {
-      feedback.textContent = err.message || "Not saved. Try again.";
-      feedback.classList.add("error");
-    } finally {
-      button.disabled = false;
-      button.textContent = "Save";
-    }
+    });
   });
 
-  $("#clearIconsBtn").addEventListener("click", async () => {
-    await clearIcons();
-    showStorage();
-  });
+  $("#clearIconsBtn").addEventListener("click", clearIcons);
 
   $("#exportBtn").addEventListener("click", () => {
     const blob = new Blob([JSON.stringify(state.config, null, 2)], {
@@ -801,12 +796,18 @@ export function initSettingsForm() {
     const file = e.target.files[0];
     e.target.value = "";
     if (!file) return;
-    let parsed;
-    try {
-      parsed = JSON.parse(await file.text());
-    } catch {
-      return toast("That file is not valid JSON", true);
-    }
-    if (await actions.importConfig(parsed)) $("#settingsDialog").close();
+    return settingsOperation("general", GENERAL_CONTROLS, async (scope) => {
+      let parsed;
+      try {
+        parsed = JSON.parse(await file.text());
+      } catch {
+        if (scope.current()) toast("That file is not valid JSON", true);
+        return;
+      }
+      if (!scope.current()) return;
+      if (await actions.importConfig(parsed, scope.current)) {
+        if (scope.current()) $("#settingsDialog").close();
+      }
+    });
   });
 }

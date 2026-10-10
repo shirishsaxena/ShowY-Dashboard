@@ -27,7 +27,6 @@ function staleness(server) {
       level: state.localError || old ? "amber" : "",
       label: state.localError ? "Refresh incomplete ·" : old ? "Stale ·" : "",
       since: state.localAt,
-      local: true,
       dim: false,
       title:
         state.localError || "When the last successful dashboard refresh completed",
@@ -255,7 +254,6 @@ function renderServerHead(server) {
                 {
                   "data-since": stale.since || 0,
                   "data-label": stale.label,
-                  "data-local": stale.local ? "1" : null,
                   "data-age-server": server.id,
                 },
                 agoText(stale.label, stale.since),

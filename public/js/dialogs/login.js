@@ -3,7 +3,7 @@
 import { state } from "../state.js";
 import { $ } from "../dom.js";
 import { login } from "../api.js";
-import { render } from "../view/render.js";
+import { render } from "../render-interface.js";
 import { field } from "./common.js";
 
 let pendingLogin = null;

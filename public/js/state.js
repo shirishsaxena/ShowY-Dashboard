@@ -33,6 +33,9 @@ export function setPref(key, value) {
 
 export const state = {
   config: normalizeConfig({}),
+  configRevision: null,
+  configSaving: 0,
+  configEpoch: 0,
   auth: { passwordSet: false, lockView: false, authenticated: false },
   docker: { available: false, containers: [] },
   health: {}, // service id -> { state: 'up' | 'error' | 'down', code, ms, error }
@@ -50,11 +53,12 @@ export const state = {
     localDashboardRefresh: 30,
     healthRefresh: 60,
     localStale: 90,
-    loadTimeout: 15,
+    remoteTimeout: 60,
+    loadTimeout: 75,
   }, // seconds; the server sends the real ones (Settings / docker-compose)
   version: "", // server version, from /api/config
   activeId: prefs.tab,
-  // While the selected server's data first loads (see loading.js): { kind: 'remote' | 'local', serverId, remoteId, name, icon,
+  // While the selected server's data first loads (see loading.js): { kind: 'remote' | 'local', serverId, remoteId, name,
   // stage, progress (0-1 or null = unknown), error, blocking (nothing to show yet, so a panel replaces the page) } or null.
   loading: null,
   query: "",

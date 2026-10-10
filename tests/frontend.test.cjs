@@ -228,6 +228,9 @@ test("worker precaches the complete local module graph and shell before activati
     }
   }
   checkModule("/js/main.js");
+  for (const url of require("./helpers/styles.cjs").styleUrls()) {
+    assert.ok(assets.includes(url), `Missing shell stylesheet: ${url}`);
+  }
   adding.resolve();
   await event.done;
   assert.equal(skipped, true);
@@ -679,6 +682,150 @@ function pollingHarness() {
   return { ...module, state, calls, respond };
 }
 
+function refreshHarness() {
+  const document = new Element();
+  const window = new Element();
+  const button = {
+    classList: { toggle() {} }, setAttribute() {}, removeAttribute() {},
+  };
+  const state = {
+    config: { servers: [{ local: true }] }, locked: false,
+    stats: { interval: 0 }, docker: { available: true }, localAt: 42,
+    tunables: { localDashboardRefresh: 30, healthRefresh: 30 },
+    remotesInterval: 30,
+  };
+  const jobs = [];
+  const timers = [];
+  const code = source("js/refresh.js")
+    .replace(/^import\s[\s\S]*?;\r?$/gm, "")
+    .replace(/\bexport /g, "");
+  const module = vm.runInNewContext(`${code}\n;({ startTimers, refreshLocal });`, {
+    state, document, window, performance: { now: () => 100 },
+    Date: { now: () => 1000 }, $: () => button,
+    setTimeout(fn, ms) { const timer = { fn, ms }; timers.push(timer); return timer; },
+    clearTimeout() {}, setInterval() {}, clearInterval() {},
+    loadStats() { const job = deferred(); jobs.push(job); return job.promise; },
+    loadDocker: async () => true, loadHealth: async () => true,
+    loadUsage: async () => true, loadRemotes: async () => true,
+    refreshClip() {}, requestRender() {}, loaded() {}, tickAgo() {}, toast() {},
+  });
+  module.startTimers();
+  return { ...module, document, window, state, jobs, timers };
+}
+
+test("availability changes refresh disabled stats and serialize a post-save cycle", async () => {
+  const h = refreshHarness();
+  const first = h.refreshLocal(true);
+  h.document.emit("availability-changed");
+  h.document.emit("availability-changed");
+  assert.equal(h.jobs.length, 1);
+  assert.equal(h.state.localAt, 42);
+  h.jobs[0].resolve(true);
+  await first;
+  await flush();
+  assert.equal(h.jobs.length, 2); // Both notifications share the post-save cycle.
+  const afterSave = h.refreshLocal();
+  h.jobs[1].resolve(true);
+  await afterSave;
+  await flush();
+  assert.equal(h.jobs.length, 2);
+  assert.equal(h.state.localAt, 1000);
+});
+
+test("failed availability refresh does not advance dashboard freshness", async () => {
+  const h = refreshHarness();
+  h.document.emit("availability-changed");
+  const cycle = h.refreshLocal();
+  h.jobs[0].resolve(false);
+  await cycle;
+  assert.equal(h.state.localAt, 42);
+  assert.match(h.state.localError, /could not be refreshed/);
+});
+
+test("hidden availability changes retain fresh work and catch up on visibility", async () => {
+  const h = refreshHarness();
+  h.document.hidden = true;
+  h.document.emit("availability-changed");
+  assert.equal(h.jobs.length, 0);
+  assert.equal(h.state.localAt, 42);
+  h.document.hidden = false;
+  h.document.emit("visibilitychange");
+  const timer = h.timers.findLast((entry) => entry.fn === h.refreshLocal);
+  assert.equal(timer.ms, 0);
+  const cycle = timer.fn();
+  assert.equal(h.jobs.length, 1);
+  h.jobs[0].resolve(true);
+  await cycle;
+  assert.equal(h.state.localAt, 1000);
+});
+
+test("availability refresh respects lock and page lifecycle without duplicate listeners", async () => {
+  const h = refreshHarness();
+  h.startTimers();
+  assert.equal(h.document.listeners.get("availability-changed").size, 1);
+  h.state.locked = true;
+  h.document.emit("availability-changed");
+  assert.equal(h.jobs.length, 0);
+  h.state.locked = false;
+  h.window.emit("pagehide");
+  h.document.emit("availability-changed");
+  assert.equal(h.jobs.length, 0);
+  h.window.emit("pageshow");
+  const timer = h.timers.findLast((entry) => entry.fn === h.refreshLocal);
+  assert.equal(timer.ms, 0);
+  const cycle = timer.fn();
+  h.jobs[0].resolve(true);
+  await cycle;
+  assert.equal(h.jobs.length, 1);
+});
+
+test("collection budgets preserve configured local waits and remote response headroom", () => {
+  const state = { tunables: { loadTimeout: 75, remoteTimeout: 60 } };
+  const { collectionTimeout } = browserModule("js/api.js", ["collectionTimeout"], { state });
+  assert.equal(collectionTimeout(), 75000);
+  assert.equal(collectionTimeout({ fresh: true }), 125000);
+  state.tunables = { loadTimeout: 5, remoteTimeout: 60 };
+  assert.equal(collectionTimeout(), 65000);
+  state.tunables = { loadTimeout: 360, remoteTimeout: 300 };
+  assert.equal(collectionTimeout(), 360000);
+  assert.equal(collectionTimeout({ fresh: true }), 605000);
+  state.tunables = { loadTimeout: 15, remoteTimeout: 8 };
+  assert.equal(collectionTimeout(), 15000); // Existing explicitly short settings remain supported.
+  state.tunables = {};
+  assert.equal(collectionTimeout(), 75000);
+  assert.match(source("js/loading.js"), /const TIMEOUT_MS = collectionTimeout;/);
+  assert.match(source("js/loading.js"), /TIMEOUT_MS\(\{ fresh \}\)/);
+});
+
+test("browser timeout uses queued-remote budget, aborts only its request, and releases poll slot", async () => {
+  const state = { config: {}, locked: false, remotes: [], tunables: { loadTimeout: 75, remoteTimeout: 60 } };
+  const timers = [];
+  const calls = [];
+  const { loadRemotes } = browserModule("js/api.js", ["loadRemotes"], {
+    state, AbortController, Date,
+    setTimeout(fn, ms) { const timer = { fn, ms, cleared: false }; timers.push(timer); return timer; },
+    clearTimeout(timer) { timer.cleared = true; },
+    fetch(url, options) {
+      const job = deferred();
+      options.signal.addEventListener("abort", () => job.reject(new Error("aborted")), { once: true });
+      calls.push({ url, ...job });
+      return job.promise;
+    },
+  });
+  const first = loadRemotes("peer");
+  assert.equal(timers[0].ms, 125000);
+  timers[0].fn();
+  assert.equal(await first, false);
+  assert.equal(timers[0].cleared, true);
+  const retry = loadRemotes();
+  assert.equal(calls.length, 2);
+  assert.equal(timers[1].ms, 75000);
+  calls[1].resolve({ ok: true, json: async () => ({ remotes: [], interval: 30 }) });
+  assert.equal(await retry, true);
+  assert.equal(timers[1].cleared, true);
+  assert.equal(state.remotesInterval, 30);
+});
+
 for (const [method, endpoint, payload] of [
   ["loadHealth", "/api/health", { results: { service: "fresh" } }],
   [
@@ -772,3 +919,205 @@ test("a slow bulk remote poll still preserves newer individually loaded data", a
   await bulk;
   assert.equal(harness.state.remotes[0].name, "newer individual");
 });
+
+function editingHarness() {
+  const state = {
+    config: { settings: { title: "base", links: [], favorites: [], hiddenContainers: [] }, servers: [] },
+    configRevision: "r0", configEpoch: 0, configSaving: 0,
+  };
+  const requests = [];
+  const messages = [];
+  const actions = browserModule("js/actions.js", ["saveSettings", "saveLink", "saveServer", "toggleFavorite"], {
+    state, prefs: {}, clone: structuredClone, normalizeConfig: (c) => c,
+    uid: () => `id${requests.length}`, setPref() {}, render() {},
+    toast: (...args) => messages.push(args),
+    document: { dispatchEvent() {} }, CustomEvent: class {},
+    editApi: (method, url, body) => {
+      const pending = deferred();
+      requests.push({ method, url, body, ...pending });
+      return pending.promise;
+    },
+  });
+  const success = (i, revision) => {
+    const { _revision, ...config } = requests[i].body;
+    requests[i].resolve({ res: { ok: true }, data: { config, revision } });
+  };
+  return { ...actions, state, requests, messages, success };
+}
+
+test("queued config edits use latest committed state and revision without overlapping", async () => {
+  const h = editingHarness();
+  const first = h.saveSettings({ title: "new title" });
+  const second = h.saveLink(null, { name: "link" });
+  await flush();
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.state.config.settings.title, "base"); // No uncommitted snapshot.
+  h.success(0, "r1");
+  assert.equal(await first, true);
+  await flush();
+  assert.equal(h.requests[1].body.settings.title, "new title");
+  assert.equal(h.requests[1].body._revision, "r1");
+  h.success(1, "r2");
+  assert.equal(await second, true);
+  assert.equal(h.state.config.settings.links.length, 1);
+  assert.equal(h.state.config.settings.title, "new title");
+  assert.equal(h.state.configSaving, 0);
+});
+
+test("failed edit never rolls back a queued unrelated edit and can be retried", async () => {
+  const h = editingHarness();
+  const first = h.saveSettings({ title: "failed" });
+  const second = h.saveLink(null, { name: "survives" });
+  await flush();
+  h.requests[0].reject(new Error("network failed"));
+  assert.equal(await first, false);
+  await flush();
+  assert.equal(h.requests[1].body.settings.title, "base");
+  h.success(1, "r1");
+  assert.equal(await second, true);
+  const retry = h.saveSettings({ title: "retry" });
+  await flush();
+  assert.equal(h.requests[2].body.settings.links[0].name, "survives");
+  h.success(2, "r2");
+  assert.equal(await retry, true);
+});
+
+test("conflict refreshes committed state without replaying rejected edit", async () => {
+  const h = editingHarness();
+  const first = h.saveSettings({ title: "stale title" });
+  const second = h.saveLink(null, { name: "queued link" });
+  await flush();
+  h.requests[0].resolve({ res: { ok: false, status: 409 }, data: { error: "Conflict" } });
+  await flush();
+  assert.equal(h.requests[1].method, "GET");
+  const latest = structuredClone(h.state.config);
+  latest.settings.title = "other client";
+  h.requests[1].resolve({ res: { ok: true }, data: { config: latest, revision: "remote" } });
+  assert.equal(await first, false);
+  await flush();
+  assert.equal(h.requests[2].body.settings.title, "other client");
+  assert.equal(h.requests[2].body._revision, "remote");
+  h.success(2, "r2");
+  assert.equal(await second, true);
+});
+
+test("updated client refuses unsafe writes to a server without revisions", async () => {
+  const h = editingHarness();
+  h.state.configRevision = null;
+  assert.equal(await h.saveSettings({ title: "unsafe" }), false);
+  assert.equal(h.requests.length, 0);
+  assert.equal(h.state.config.settings.title, "base");
+});
+
+test("favorite toggles are evaluated when their queued operation starts", async () => {
+  const h = editingHarness();
+  const first = h.toggleFavorite("svc");
+  const second = h.toggleFavorite("svc");
+  await flush();
+  h.success(0, "r1");
+  await first;
+  await flush();
+  assert.equal(h.requests[1].body.settings.favorites.length, 0);
+  h.success(1, "r2");
+  await second;
+});
+
+test("config loads started before or during edits cannot replace committed results", async () => {
+  const calls = [];
+  const state = { config: { title: "base" }, configRevision: "r0", configEpoch: 0, configSaving: 0 };
+  const { loadConfig } = browserModule("js/api.js", ["loadConfig"], {
+    state, normalizeConfig: (c) => c, toast() {},
+    fetch: () => { const d = deferred(); calls.push(d); return d.promise; },
+  });
+  const old = loadConfig();
+  state.configEpoch++;
+  state.config = { title: "saved" };
+  state.configRevision = "r1";
+  calls[0].resolve({ ok: true, json: async () => ({ config: { title: "old" }, revision: "r0" }) });
+  await old;
+  assert.equal(state.config.title, "saved");
+  state.configSaving = 1;
+  const during = loadConfig();
+  state.configSaving = 0;
+  calls[1].resolve({ ok: true, json: async () => ({ config: { title: "old" }, revision: "r0" }) });
+  await during;
+  assert.equal(state.configRevision, "r1");
+  const fresh = loadConfig();
+  calls[2].resolve({ ok: true, json: async () => ({ config: { title: "fresh" }, revision: "r2" }) });
+  await fresh;
+  assert.equal(state.config.title, "fresh");
+  assert.equal(state.configRevision, "r2");
+});
+
+test("pending form guards duplicate saves/deletes and restores controls after failure", async () => {
+  const { pendingForm } = browserModule("js/dialogs/common.js", ["pendingForm"]);
+  const buttons = [{ disabled: false }, { disabled: true }];
+  const form = { dataset: {}, querySelectorAll: () => buttons };
+  const pending = deferred();
+  let calls = 0;
+  const first = pendingForm(form, () => { calls++; return pending.promise; });
+  assert.equal(buttons[0].disabled, true);
+  await pendingForm(form, () => calls++);
+  assert.equal(calls, 1);
+  pending.reject(new Error("failed"));
+  await assert.rejects(first, /failed/);
+  assert.equal(buttons[0].disabled, false);
+  assert.equal(buttons[1].disabled, true);
+  assert.equal(form.dataset.saving, undefined);
+  await pendingForm(form, () => calls++);
+  assert.equal(calls, 2);
+  for (const name of ["service", "server", "link"]) {
+    const code = source(`js/dialogs/${name}.js`);
+    assert.equal((code.match(/await pendingForm\(form/g) || []).length, 2);
+    assert.match(code, /if \(form.dataset.saving\) return;/);
+  }
+});
+
+for (const name of ["service", "server", "link"]) {
+  test(`${name} form blocks repeated submits and competing deletes, then allows retry`, async () => {
+    const { pendingForm } = browserModule("js/dialogs/common.js", ["pendingForm"]);
+    const form = new Element();
+    const button = { disabled: false };
+    const controls = new Map();
+    const field = (_form, key) => {
+      if (!controls.has(key)) controls.set(key, Object.assign(new Element(), { value: "value", checked: false }));
+      return controls.get(key);
+    };
+    form.querySelectorAll = () => [button];
+    const remove = new Element();
+    const dialog = { closes: 0, close() { this.closes++; } };
+    const request = deferred();
+    let saves = 0;
+    let deletes = 0;
+    const capital = name[0].toUpperCase() + name.slice(1);
+    const actions = {
+      [`save${capital}`]: () => { saves++; return saves === 1 ? request.promise : Promise.resolve(true); },
+      [`delete${capital}`]: async () => { deletes++; return true; },
+    };
+    const init = `init${capital}Form`;
+    const module = browserModule(`js/dialogs/${name}.js`, [init], {
+      pendingForm, actions, field, value: (form, key) => field(form, key).value,
+      iconPicker: () => ({ reset() {} }),
+      $: (selector) => selector === `#${name}Form` ? form
+        : selector === `#${name}Delete` ? remove : dialog,
+    });
+    module[init]();
+    const submit = [...form.listeners.get("submit")][0];
+    const deleteClick = [...remove.listeners.get("click")][0];
+    const first = submit({ preventDefault() {} });
+    await submit({ preventDefault() {} });
+    await deleteClick();
+    assert.equal(saves, 1);
+    assert.equal(deletes, 0);
+    assert.equal(button.disabled, true);
+    request.resolve(false);
+    await first;
+    assert.equal(dialog.closes, 0);
+    assert.equal(button.disabled, false);
+    await submit({ preventDefault() {} });
+    assert.equal(saves, 2);
+    assert.equal(dialog.closes, 1);
+    await deleteClick();
+    assert.equal(deletes, 1);
+  });
+}

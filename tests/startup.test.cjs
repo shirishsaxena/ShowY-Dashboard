@@ -267,3 +267,80 @@ test("shutdown allows an in-flight JSON request to finish before flushing", asyn
   assert.equal(result.body.text, "completed during shutdown");
   assert.deepEqual(await app.exited, [0, null]);
 });
+
+
+test("persistence API failures are scoped, redact details, and preserve stores and memory", async (t) => {
+  const app = await start(t);
+  const headers = { "content-type": "application/json" };
+  for (const [file, url, method, body, scope] of [
+    ["config.json", "/api/config", "PUT", { servers: [] }, "Dashboard configuration"],
+    ["clipboard.json", "/api/clip", "DELETE", {}, "Shared clipboard"],
+    ["remotes.json", "/api/share", "PUT", { enabled: true }, "Remote dashboard settings"],
+    ["serverinfo.json", "/api/info/settings", "PUT", { mode: "manual", manualIp: "127.0.0.1" }, "Server info settings"],
+  ]) {
+    const target = path.join(app.dir, file);
+    fs.writeFileSync(target, "{private-corrupt-content");
+    const response = await app.request(url, { method, headers, body: JSON.stringify(body) });
+    assert.equal(response.status, 500, url);
+    assert.deepEqual(await response.json(), {
+      error: `${scope} could not be loaded or saved. Check the backend logs.`,
+    });
+    assert.equal(fs.readFileSync(target, "utf8"), "{private-corrupt-content");
+  }
+  const before = await (await app.request("/api/availability")).json();
+  const target = path.join(app.dir, "availability.json");
+  fs.unlinkSync(target);
+  fs.mkdirSync(target); // Rename cannot replace a directory, even when running as root.
+  const response = await app.request("/api/availability/settings", {
+    method: "PUT", headers, body: JSON.stringify({ enabled: !before.enabled }),
+  });
+  assert.equal(response.status, 500);
+  assert.deepEqual(await response.json(), {
+    error: "Availability history could not be loaded or saved. Check the backend logs.",
+  });
+  assert.equal((await (await app.request("/api/availability")).json()).enabled, before.enabled);
+  assert.equal((await app.request("/api/availability", { method: "DELETE", headers })).status, 500);
+  const items = await (await app.request("/api/tunables")).json();
+  const item = items.find((entry) => !entry.fixed);
+  assert.ok(item);
+  fs.mkdirSync(path.join(app.dir, "tunables.json"));
+  const failedTunable = await app.request("/api/tunables", {
+    method: "PUT", headers, body: JSON.stringify({ values: { [item.key]: item.min } }),
+  });
+  assert.equal(failedTunable.status, 500);
+  assert.deepEqual(await failedTunable.json(), {
+    error: "Timing settings could not be loaded or saved. Check the backend logs.",
+  });
+  const after = await (await app.request("/api/tunables")).json();
+  assert.equal(after.find((entry) => entry.key === item.key).value, item.value);
+});
+
+test("configuration API exposes revisions and rejects concurrent stale documents", async (t) => {
+  const app = await start(t);
+  const initial = await (await app.request("/api/config")).json();
+  assert.match(initial.revision, /^[a-f0-9]{64}$/);
+  const put = (config, revision) => app.request("/api/config", {
+    method: "PUT", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ ...config, ...(revision === undefined ? {} : { _revision: revision }) }),
+  });
+  const document = (title) => ({ ...initial.config, settings: { ...initial.config.settings, title } });
+  const responses = await Promise.all([
+    put(document("client A"), initial.revision),
+    put(document("client B"), initial.revision),
+  ]);
+  assert.deepEqual(responses.map((r) => r.status).sort(), [200, 409]);
+  const winner = await responses.find((r) => r.status === 200).json();
+  const conflict = await responses.find((r) => r.status === 409).json();
+  assert.match(conflict.error, /changed elsewhere/);
+  const latest = await (await app.request("/api/config")).json();
+  assert.deepEqual(latest.config, winner.config);
+  assert.equal(latest.revision, winner.revision);
+  assert.notEqual(latest.revision, initial.revision);
+  assert.equal(Object.hasOwn(latest.config, "_revision"), false);
+  assert.equal((await put(document("invalid token"), null)).status, 409);
+  const retry = await put(document("reviewed retry"), latest.revision);
+  assert.equal(retry.status, 200);
+  const legacy = await put(document("legacy client"));
+  assert.equal(legacy.status, 200);
+  assert.match((await legacy.json()).revision, /^[a-f0-9]{64}$/);
+});

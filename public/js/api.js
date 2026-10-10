@@ -5,13 +5,23 @@ import { toast } from "./dom.js";
 
 export class LockedError extends Error {}
 
-export async function api(method, url, body, signal) {
+// A forced peer refresh may wait for a background fetch, then fetch fresh.
+// The browser must outlive both backend deadlines, including response overhead.
+// These are consumer deadlines: aborting must not cancel shared server collection.
+export const collectionTimeout = ({ fresh = false } = {}) =>
+  Math.max(
+    state.tunables.loadTimeout || 75,
+    (fresh ? 2 : 1) * (state.tunables.remoteTimeout || 60) + 5,
+  ) * 1000;
+
+export async function api(method, url, body, signal, responseType = "json") {
   const opts = { method, headers: {}, signal };
   if (body !== undefined) {
     opts.headers["Content-Type"] = "application/json";
     opts.body = JSON.stringify(body);
   }
   const res = await fetch(url, opts);
+  if (res.ok && responseType === "blob") return { res, data: await res.blob() };
   let data;
   try {
     data = await res.json();
@@ -48,7 +58,7 @@ async function performLoad(url, apply, current) {
   const controller = new AbortController();
   const timer = setTimeout(
     () => controller.abort(),
-    state.tunables.loadTimeout * 1000,
+    collectionTimeout({ fresh: url.startsWith("/api/remotes?") && url.includes("fresh=") }),
   );
   try {
     const { res, data } = await api("GET", url, undefined, controller.signal);
@@ -68,10 +78,17 @@ export async function loadAuth(signal) {
 }
 
 export async function loadConfig(signal) {
+  const epoch = state.configEpoch;
+  const saving = state.configSaving;
   const { res, data } = await api("GET", "/api/config", undefined, signal);
   if (res.status === 401) throw new LockedError("Locked");
   if (!res.ok) throw new Error(`Failed to load config (${res.status})`);
-  state.config = normalizeConfig(data.config);
+  // A load begun before/during an edit must not replace its committed result.
+  if (!saving && !state.configSaving && epoch === state.configEpoch) {
+    state.config = normalizeConfig(data.config);
+    state.configRevision = data.revision || null;
+    state.configEpoch = (state.configEpoch || 0) + 1;
+  }
   // The server was rebuilt while this tab stayed open: its scripts are out of date.
   if (state.version && data.version && data.version !== state.version) {
     toast(`Dashboard updated to v${data.version} — reload the page`);

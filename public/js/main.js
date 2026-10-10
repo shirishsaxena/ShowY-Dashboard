@@ -1,7 +1,7 @@
 // Entry point: wires up the page, loads data and keeps statuses fresh.
 
 import { state, prefs, activeServer } from "./state.js";
-import { $, h, fill, svg, toast } from "./dom.js";
+import { $, toast } from "./dom.js";
 import {
   logout,
   login,
@@ -10,6 +10,7 @@ import {
   loadConfig,
 } from "./api.js";
 import { render } from "./view/render.js";
+import { setRenderer } from "./render-interface.js";
 import { makeSortable } from "./sortable.js";
 import { initDialogs } from "./dialogs/common.js";
 import { openServiceEditor, initServiceForm } from "./dialogs/service.js";
@@ -30,6 +31,8 @@ import {
 } from "./theme.js";
 
 // ---------- Top bar ----------
+
+setRenderer(render);
 
 async function toggleEdit() {
   if (!state.editing && !(await actions.ensureCanEdit())) return;
