@@ -1,0 +1,85 @@
+# Prebuilt-image deployment; no repository clone or local build required.
+# Start: docker compose -f docker-compose.example.yml up -d
+# Update: docker compose -f docker-compose.example.yml pull
+#         docker compose -f docker-compose.example.yml up -d
+services:
+  showy-dashboard:
+    image: ghcr.io/shirishsaxena/showy-dashboard:latest
+    container_name: showy-dashboard
+    restart: unless-stopped
+    # Docker console-log rotation only; application files rotate separately.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    ports:
+      # Trusted LAN only. Behind a host HTTPS proxy use 127.0.0.1:8011:8080.
+      - "8011:8080"
+    environment:
+      # Empty = anyone who can reach the dashboard can view and edit.
+      # Set a strong password for public access; write literal $ as $$.
+      DASHBOARD_PASSWORD: ""
+      DASHBOARD_LOCK_VIEW: true
+      # Enable only behind a trusted proxy with direct access blocked.
+      TRUST_PROXY: false
+      # Optional application logging overrides (defaults shown).
+      # These are independent of Docker's logging options above.
+      # LOG_LEVEL: "INFO"
+      LOG_DIR: "/data/logs"
+      # LOG_FILE: "backend.log"
+      # LOG_MAX_BYTES: 10485760
+      # Host stats interval metadata (0 = scheduled updates off).
+      # Browser polling uses LOCAL_DASHBOARD_REFRESH_INTERVAL below.
+      # HOST_STATS_INTERVAL: 5
+      # Container usage cache interval in seconds (0 = off).
+      # The Refresh button updates host/container stats immediately.
+      # CONTAINER_STATS_INTERVAL: 30
+      # Timing overrides: optional whole numbers, also editable in Settings -> Monitoring.
+      # Valid overrides win and lock the corresponding Settings field.
+      # Refresh timing, in seconds:
+      # LOCAL_DASHBOARD_REFRESH_INTERVAL: 30 # shared dashboard refresh (5-3600)
+      # HEALTH_REFRESH_INTERVAL: 60 # shared clipboard refresh (10-3600)
+      # LOCAL_STALE_AFTER: 90 # local stats become stale (15-3600)
+      # REFRESH_MIN_GAP: 5 # minimum forced refresh gap (1-60)
+      # Health checks:
+      # HEALTH_TIMEOUT: 6 # check timeout (1-60)
+      # HEALTH_CACHE: 45 # cached result lifetime (5-600)
+      # HEALTH_PARALLEL: 8 # simultaneous checks (1-32)
+      # Remote dashboards and Docker:
+      # REMOTE_TIMEOUT: 60 # aggregate remote snapshot deadline (2-300)
+      # LOAD_TIMEOUT: 75 # browser budget (5-360); minimum remote + 5, forced remote: 2 * remote + 5
+      # DOCKER_PARALLEL: 6 # simultaneous container stats requests (1-16)
+      # Login protection (environment only):
+      # SESSION_DAYS: 30 # login lifetime in days (1-365)
+      # LOGIN_MAX_FAILURES: 5 # failed attempts before lockout (1-100)
+      # LOGIN_LOCKOUT: 60 # lockout seconds (5-86400)
+      # Remote sharing (also configurable in Settings):
+      # Fixed share token: 16+ characters; generate with openssl rand -hex 24.
+      # SHARE_TOKEN: ""
+      # Empty = saved Settings value (default 10 seconds).
+      # A positive override locks the Settings choice.
+      # REMOTE_REFRESH_INTERVAL: ""
+      # Remote entries: Name | URL | their share token.
+      # REMOTE_DASHBOARDS: |
+      #   VPS | https://dash.example.com | token-of-the-vps
+      #   NAS | http://192.168.1.20:8011 | token-of-the-nas
+      # DATA_DIR: "/data"
+      # DISKS_DIR: "/disks"
+      # HOST_PROC: "/host/proc"
+      # DOCKER_SOCKET: "/var/run/docker.sock"
+      # Contacted only when public-IP lookup is enabled in Settings.
+      # PUBLIC_IP_URL: "https://api.ipify.org"
+      # Optional container timezone; application log timestamps remain UTC.
+      # TZ: "Asia/Kolkata"
+    mem_limit: 128m
+    cpus: 0.5
+    volumes:
+      # Stores configuration, history and application logs.
+      - ./data:/data
+      # Read-only mounting does NOT restrict Docker API permissions.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /:/disks/System:ro
+      # Optional additional disks:
+      # - /mnt/hdd:/disks/HDD:ro
+      - /proc:/host/proc:ro

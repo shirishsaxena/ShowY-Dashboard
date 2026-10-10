@@ -90,6 +90,8 @@ To update a CLI installation, pull the image again, run `docker stop showy-dashb
 
 For a declarative deployment managed with Docker Compose:
 
+A ready-to-use prebuilt-image configuration is included in [docker-compose.example.yml](docker-compose.example.yml). Save it as `compose.yaml` in your deployment directory and run `docker compose up -d`. It includes resource limits and Docker console-log rotation; the repository's `docker-compose.yml` remains the optional local-build setup.
+
 1. Create a directory for your dashboard and a `compose.yaml` file:
 
    ```bash
@@ -126,6 +128,8 @@ For a declarative deployment managed with Docker Compose:
 4. Open **`http://YOUR-SERVER-IP:8011`**. Select **Edit**, add a server, mark the local host as **This machine**, and add services manually or from **Not on dashboard**.
 
 Your configuration is stored in `./data` and persists across container updates. Adjust the published port, password, and disk mounts for your setup. **Docker socket access is privileged even when mounted `:ro`**; deploy only on trusted hosts and protect access to the dashboard.
+
+**Two independent logging layers:** Compose `logging.options` limits Docker's captured stdout/stderr history; it does not set application severity or rotate application files. The application defaults to `LOG_LEVEL=INFO`, `LOG_DIR=/data/logs` in Docker, `LOG_FILE=backend.log`, and `LOG_MAX_BYTES=10485760` (10 MiB, with one backup). You do not need to explicitly pass these variables unless changing the defaults. Omitting them does not disable persistent logging. Application files support Settings log download/clear and persist in `./data`; those actions do not clear Docker's console history.
 
 ### Update
 
