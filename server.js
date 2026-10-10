@@ -49,7 +49,7 @@ async function start() {
   server.once("close", removeSignalHandlers);
 
   try {
-    logger.info("[Lifecycle] Starting dashboard", { version: VERSION, config: CONFIG_FILE, logFile: logger.filename });
+    logger.startup("[Lifecycle] Starting dashboard", { version: VERSION, config: CONFIG_FILE, logFile: logger.filename });
     await Promise.all([auth.initAuth(), availability.init()]);
     if (shuttingDown) return server;
     await new Promise((resolve, reject) => {
@@ -59,8 +59,8 @@ async function start() {
         resolve();
       });
     });
-    logger.info(`[HTTP] Dashboard v${VERSION} listening on port ${PORT}`);
-    logger.info(
+    logger.startup(`[HTTP] Dashboard v${VERSION} listening on port ${PORT}`);
+    logger.startup(
       PASSWORD
         ? `Password: on (${LOCK_VIEW ? "required to view" : "required to edit"})`
         : "Password: off",
