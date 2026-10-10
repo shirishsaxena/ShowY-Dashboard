@@ -26,7 +26,7 @@ services:
       # Optional application logging overrides (defaults shown).
       # These are independent of Docker's logging options above.
       # LOG_LEVEL: "INFO"
-      # LOG_DIR: "/data/logs"
+      LOG_DIR: "/data/logs"
       # LOG_FILE: "backend.log"
       # LOG_MAX_BYTES: 10485760
       # Host stats interval metadata (0 = scheduled updates off).
@@ -64,8 +64,6 @@ services:
       # REMOTE_DASHBOARDS: |
       #   VPS | https://dash.example.com | token-of-the-vps
       #   NAS | http://192.168.1.20:8011 | token-of-the-nas
-      # Container paths/port: changing these may require matching mount/port changes.
-      # PORT: 8080
       # DATA_DIR: "/data"
       # DISKS_DIR: "/disks"
       # HOST_PROC: "/host/proc"
