@@ -96,6 +96,9 @@ function scheduleRemotes() {
 let pendingLocal = null;
 let pendingLocalFresh = false;
 let pendingLocalConfig = null;
+let availabilityRevision = 0;
+let pendingLocalAvailabilityRevision = 0;
+let availabilityRefreshNeeded = false;
 let lastLocalFinishedAt = null;
 let localTimer;
 let timersStarted = false;
@@ -106,13 +109,19 @@ function scheduleLocal() {
   if (!timersStarted || !pageActive || !canRefresh() || pendingLocal) return;
   localTimer = setTimeout(
     refreshLocal,
-    remaining(lastLocalFinishedAt, state.tunables.localDashboardRefresh),
+    availabilityRefreshNeeded
+      ? 0
+      : remaining(lastLocalFinishedAt, state.tunables.localDashboardRefresh),
   );
 }
 
 function refreshLocal(fresh = false) {
+  fresh = fresh || availabilityRefreshNeeded;
   if (pendingLocal) {
-    if (pendingLocalConfig !== state.config)
+    if (
+      pendingLocalConfig !== state.config ||
+      pendingLocalAvailabilityRevision !== availabilityRevision
+    )
       return pendingLocal.then(() => refreshLocal(fresh));
     if (fresh && !pendingLocalFresh)
       return pendingLocal.then(() => refreshLocal(true));
@@ -122,6 +131,8 @@ function refreshLocal(fresh = false) {
   clearTimeout(localTimer);
   pendingLocalFresh = fresh;
   pendingLocalConfig = state.config;
+  pendingLocalAvailabilityRevision = availabilityRevision;
+  availabilityRefreshNeeded = false;
   refreshBusy(1);
   pendingLocal = performLocalRefresh(fresh).finally(() => {
     pendingLocal = null;
@@ -273,6 +284,13 @@ export function startTimers() {
     refreshClip();
   });
   document.addEventListener("config-saved", () => refreshLocal(true));
+  document.addEventListener("availability-changed", () => {
+    // A pre-save cycle (even a fresh one) cannot satisfy this change. Queue
+    // through the coordinator; hidden pages retain the request until resume.
+    availabilityRevision++;
+    availabilityRefreshNeeded = true;
+    refreshLocal(true);
+  });
   document.addEventListener("remotes-interval-changed", scheduleRemotes);
   // Timers/listeners live for this page; no duplicate subscriptions on login/navigation.
   window.addEventListener("pagehide", () => {

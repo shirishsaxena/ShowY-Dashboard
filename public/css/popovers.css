@@ -1,0 +1,231 @@
+/* ---------- QR code ---------- */
+.qr-dialog {
+  width: min(380px, calc(100vw - 24px));
+}
+.qr-body {
+  align-items: center;
+  padding-bottom: 24px;
+}
+.qr-box {
+  width: min(280px, 100%);
+  aspect-ratio: 1;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+}
+.qr-box .qr {
+  display: block;
+  width: 100%;
+  height: 100%;
+  stroke: none;
+}
+.qr-url {
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-align: center;
+  word-break: break-all;
+}
+.seg {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+}
+.seg button {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 9px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+}
+.seg button[aria-pressed="true"] {
+  background: var(--accent);
+  color: #fff;
+}
+.seg button:focus-visible {
+  outline: 2px solid var(--accent);
+}
+.seg svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ---------- Ask dialog ---------- */
+.ask-dialog {
+  width: min(420px, calc(100vw - 24px));
+}
+.ask-message {
+  margin: 0;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+/* ---------- View menu (popover) ---------- */
+.menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: min(280px, calc(100vw - 16px));
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  background: var(--bg-2);
+  color: var(--text);
+  box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.6);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.menu:popover-open {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: pop 0.15s ease;
+}
+.menu-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.menu .seg {
+  display: flex;
+}
+.menu .seg button {
+  flex: 1;
+  justify-content: center;
+  padding: 7px 6px;
+  font-size: 0.8rem;
+}
+.menu .btn {
+  margin-top: 6px;
+}
+.menu-hint {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+/* ---------- Shared clipboard (popover) ---------- */
+#clipBtn {
+  position: relative;
+}
+.badge-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.menu.clip-menu {
+  width: min(360px, calc(100vw - 16px));
+}
+.clip-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.clip-age {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.clip-menu textarea {
+  width: 100%;
+  min-height: 110px;
+  max-height: 50vh;
+  padding: 10px 12px;
+  border-radius: 10px;
+  resize: vertical;
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1.45; /* 16px prevents iOS zoom */
+}
+.clip-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.menu .clip-actions .btn {
+  margin-top: 0;
+}
+.clip-history-head {
+  align-items: center;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.clip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+  max-height: min(40vh, 320px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.clip-entry {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.clip-entry-text {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+button.clip-entry-text {
+  cursor: pointer;
+}
+button.clip-entry-text:hover {
+  color: var(--accent-2);
+}
+.clip-entry-foot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+.clip-entry-foot .icon-btn {
+  margin: 0;
+}
+
+/* ---------- Service notes (popover) ---------- */
+.menu.note-pop {
+  width: min(340px, calc(100vw - 16px));
+  max-height: min(60vh, 420px);
+}
+.note-text {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.note-text a {
+  color: var(--accent-2);
+}
+

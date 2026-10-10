@@ -4,6 +4,7 @@
 import { state, sourceOf } from "../state.js";
 import { $, h, fill, toast } from "../dom.js";
 import { api, fetchAvailability } from "../api.js";
+import { editApi } from "../edit-api.js";
 import * as actions from "../actions.js";
 import { plural, fmtDuration, fmtDateTime, fmtPercent } from "../utils.js";
 import { ask } from "./ask.js";
@@ -12,7 +13,7 @@ const PERIODS = [
   ["day", "24 h"],
   ["week", "7 days"],
   ["month", "30 days"],
-  ["all", "All"],
+  ["all", "Retained"],
 ];
 
 const view = { detail: null, period: "day", readOnly: false };
@@ -128,11 +129,15 @@ function renderModal() {
   $("#availObserved").textContent = detail.enabled
     ? `Observed ${fmtDuration(w.observed)} since ${fmtDateTime(w.from)}${period !== "all" && w.from === detail.since ? " (monitoring started)" : ""}.`
     : "Outage tracking is off - no new outages are recorded.";
+  $("#availObserved").textContent += detail.coverageSince === undefined
+    ? " Coverage limits are unknown for this older dashboard."
+    : ` Calculations use supported history since ${fmtDateTime(detail.coverageSince)}. History is bounded; pruning advances coverage.${w.limited ? " This period has partial coverage; earlier time is excluded." : ""}${detail.legacyHistory ? " Prior pruning is unknown; legacy records are kept but excluded from calculations." : ""}`;
   fill($("#availTimeline"), timeline(w, outages, now));
   fill(
     $("#availList"),
-    outages.length
-      ? outages.map(outageRow)
+    (period === "all" ? detail.outages || [] : outages).length
+      ? [period === "all" && h("p", { class: "muted" }, "Retained records (may include records before calculation coverage):"),
+          ...(period === "all" ? detail.outages || [] : outages).map(outageRow)]
       : h("p", { class: "muted avail-empty" }, "No outages in this period."),
   );
   const clear = $("#availClear");
@@ -185,17 +190,21 @@ async function loadOwnAvailability() {
 }
 
 /** Asks first, then removes this dashboard's outage records. Resolves to the new history, or null if nothing was cleared. */
-export async function clearOutageHistory(count) {
+export async function clearOutageHistory(count, options = {}) {
+  const current = options.current || (() => true);
   if (!(await actions.ensureCanEdit())) return null;
+  if (!current()) return null;
   const ok = await ask({
     title: "Clear outage history?",
-    message: `This removes ${plural(count, "record")} (outages and dashboard-only gaps). Availability goes back to 100% for the time monitored so far. It cannot be undone.`,
+    message: `This removes ${plural(count, "record")} (outages and dashboard-only gaps). Availability calculations restart now; earlier time is excluded. It cannot be undone.`,
     okLabel: "Clear history",
     danger: true,
   });
-  if (!ok) return null;
+  if (!ok || !current()) return null;
   try {
-    const { res, data } = await api("DELETE", "/api/availability", {});
+    const result = await editApi("DELETE", "/api/availability", {}, options);
+    if (!result || !current()) return null;
+    const { res, data } = result;
     if (!res.ok) {
       toast(data.error || `Could not clear the history (${res.status})`, true);
       return null;
@@ -203,8 +212,8 @@ export async function clearOutageHistory(count) {
     document.dispatchEvent(new CustomEvent("availability-changed"));
     toast("Outage history cleared");
     return data;
-  } catch {
-    toast("Dashboard server unreachable", true);
+  } catch (err) {
+    if (current()) toast(err.message || "Dashboard server unreachable", true);
     return null;
   }
 }

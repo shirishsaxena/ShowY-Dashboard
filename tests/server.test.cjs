@@ -139,3 +139,53 @@ test("static HEAD and conditional GET avoid reading asset contents", async () =>
   assert.equal(get.headers.ETag, head.headers.ETag);
   assert.equal(server.reads, 1);
 });
+
+test("request completion keeps read traces opt-in and mutations, failures and aborts diagnosable", async () => {
+  const { EventEmitter } = require("node:events");
+  const logs = [];
+  let failure = null;
+  const modules = {
+    "./context": { createContext },
+    "../web/manifest": {}, "../web/static": {},
+    "../lib/http": { HttpError, send },
+    "./router": { async handleApi() { if (failure) throw failure; } },
+    "../lib/logger": Object.fromEntries(["debug", "info", "warn", "error"].map(
+      (level) => [level, (message, context) => logs.push({ level, message, context })],
+    )),
+  };
+  const module = { exports: {} };
+  vm.runInNewContext(`(function(require,module,exports){${fs.readFileSync(
+    path.resolve(__dirname, "../http/handler.js"), "utf8",
+  )}\n})`, { process, URL })((id) => modules[id], module, module.exports);
+  async function request(method, code, aborted = false) {
+    logs.length = 0;
+    const res = Object.assign(new EventEmitter(), {
+      statusCode: code, writableEnded: !aborted,
+      writeHead(code) { this.statusCode = code; this.headersSent = true; },
+      end() { this.writableEnded = true; },
+    });
+    await module.exports.handleRequest({ method, url: "/api/stats?token=secret" }, res);
+    res.emit("close");
+    return logs.filter((entry) => entry.message !== "[HTTP] Incoming request");
+  }
+  for (const [method, code, aborted, level] of [
+    ["GET", 200, false, "debug"], ["HEAD", 200, false, "debug"],
+    ["GET", 304, false, "debug"], ["PUT", 200, false, "info"],
+    ["POST", 201, false, "info"], ["DELETE", 204, false, "info"],
+    ["GET", 401, false, "warn"], ["GET", 500, false, "error"],
+    ["GET", 200, true, "warn"],
+  ]) {
+    const entries = await request(method, code, aborted);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].level, level);
+    assert.equal(entries[0].context.route, "/api/stats");
+    assert.equal(entries[0].context.aborted, aborted);
+    assert.equal(typeof entries[0].context.durationMs, "number");
+    assert.doesNotMatch(JSON.stringify(entries), /secret|token/);
+  }
+  failure = new Error("collector failed");
+  const entries = await request("GET", 200, true);
+  assert.equal(entries.length, 1, "exception is not logged twice on close");
+  assert.equal(entries[0].level, "error");
+  assert.equal(entries[0].message, "[HTTP] Request failed");
+});

@@ -2,11 +2,23 @@
 // Network-first for the app files; API responses are never cached.
 
 const CACHE_PREFIX = "showy-dashboard-";
-const CACHE = `${CACHE_PREFIX}v2`;
+const CACHE = `${CACHE_PREFIX}v3`;
 // Keep the complete module graph here: first-visit requests may precede worker control.
 const SHELL = [
   "/",
   "/app.css",
+  "/css/shell.css",
+  "/css/controls.css",
+  "/css/services.css",
+  "/css/loading.css",
+  "/css/layouts.css",
+  "/css/dialogs.css",
+  "/css/settings.css",
+  "/css/popovers.css",
+  "/css/links.css",
+  "/css/monitoring.css",
+  "/css/states.css",
+  "/css/responsive.css",
   "/favicon.svg",
   "/manifest.webmanifest",
   "/icons/apple-touch-icon.png",
@@ -22,6 +34,7 @@ const SHELL = [
   "/js/main.js",
   "/js/qr.js",
   "/js/refresh.js",
+  "/js/render-interface.js",
   "/js/sortable.js",
   "/js/state.js",
   "/js/status.js",
@@ -38,6 +51,7 @@ const SHELL = [
   "/js/dialogs/serverinfo.js",
   "/js/dialogs/service.js",
   "/js/dialogs/settings.js",
+  "/js/dialogs/settings-session.js",
   "/js/view/cards.js",
   "/js/view/containers.js",
   "/js/view/favorites.js",

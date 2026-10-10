@@ -3,7 +3,7 @@
 import { state, findServer, isFavorite } from "../state.js";
 import { $, h, fill } from "../dom.js";
 import * as actions from "../actions.js";
-import { field, value } from "./common.js";
+import { field, value, pendingForm } from "./common.js";
 import { iconPicker } from "./icon-picker.js";
 
 let picker;
@@ -18,6 +18,7 @@ function updateGroupOptions() {
 
 export function openServiceEditor(serverId, svcId = null, preset = {}) {
   const form = $("#serviceForm");
+  if (form.dataset.saving) return;
   form.reset();
   const server = findServer(serverId);
   const svc = (svcId && server.services.find((s) => s.id === svcId)) || preset;
@@ -62,28 +63,32 @@ export function initServiceForm() {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const ok = await actions.saveService({
-      fromServerId: form.dataset.serverId,
-      toServerId: field(form, "serverId").value,
-      svcId: form.dataset.svcId,
-      pinned: field(form, "favorite").checked,
-      fields: {
-        name: value(form, "name"),
-        icon: value(form, "icon"),
-        description: value(form, "description"),
-        notes: value(form, "notes"),
-        url: value(form, "url"),
-        altUrl: value(form, "altUrl"),
-        container: value(form, "container"),
-        group: value(form, "group"),
-      },
+    await pendingForm(form, async () => {
+      const ok = await actions.saveService({
+        fromServerId: form.dataset.serverId,
+        toServerId: field(form, "serverId").value,
+        svcId: form.dataset.svcId,
+        pinned: field(form, "favorite").checked,
+        fields: {
+          name: value(form, "name"),
+          icon: value(form, "icon"),
+          description: value(form, "description"),
+          notes: value(form, "notes"),
+          url: value(form, "url"),
+          altUrl: value(form, "altUrl"),
+          container: value(form, "container"),
+          group: value(form, "group"),
+        },
+      });
+      if (ok) $("#serviceDialog").close();
     });
-    if (ok) $("#serviceDialog").close();
   });
 
   $("#serviceDelete").addEventListener("click", async () => {
-    const { serverId, svcId } = form.dataset;
-    if (await actions.deleteService(serverId, svcId))
-      $("#serviceDialog").close();
+    await pendingForm(form, async () => {
+      const { serverId, svcId } = form.dataset;
+      if (await actions.deleteService(serverId, svcId))
+        $("#serviceDialog").close();
+    });
   });
 }

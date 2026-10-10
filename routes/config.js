@@ -2,7 +2,7 @@
 
 const { VERSION } = require("../lib/env");
 const { readJson } = require("../lib/http");
-const { readConfig, writeConfig, sanitizeConfig } = require("../lib/config");
+const { readConfig, writeConfig, sanitizeConfig, configRevision } = require("../lib/config");
 const { invalidateHealth } = require("../lib/health");
 const tunables = require("../lib/tunables");
 
@@ -10,11 +10,15 @@ module.exports = {
   "GET /api/config": {
     access: "view",
     body: "none",
-    handler: async () => ({
-      config: await readConfig(),
-      version: VERSION,
-      tunables: tunables.clientValues(),
-    }),
+    handler: async () => {
+      const config = await readConfig();
+      return {
+        config,
+        revision: configRevision(config),
+        version: VERSION,
+        tunables: tunables.clientValues(),
+      };
+    },
   },
   "GET /api/tunables": {
     access: "view",
@@ -33,10 +37,12 @@ module.exports = {
     access: "edit",
     body: "json",
     handler: async (req) => {
-      const config = sanitizeConfig(await readJson(req));
-      await writeConfig(config);
+      const body = await readJson(req);
+      const config = sanitizeConfig(body);
+      // Optional for legacy whole-document clients; never persisted in config.
+      const revision = await writeConfig(config, body._revision);
       invalidateHealth();
-      return { config };
+      return { config, revision };
     },
   },
 };

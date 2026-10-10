@@ -1,10 +1,10 @@
-// Every change to the config goes through here: optimistic update, save, roll back on error.
+// Every config edit is applied serially to the latest committed state.
 
 import { state, prefs, setPref, findServer, normalizeConfig } from "./state.js";
 import { editApi } from "./edit-api.js";
 import { toast } from "./dom.js";
 import { clone, uid } from "./utils.js";
-import { render } from "./view/render.js";
+import { render } from "./render-interface.js";
 import { ask } from "./dialogs/ask.js";
 import { promptLogin } from "./dialogs/login.js";
 
@@ -15,36 +15,56 @@ export async function ensureCanEdit() {
 }
 
 async function putConfig(cfg) {
-  const result = await editApi("PUT", "/api/config", cfg);
+  if (!state.configRevision)
+    throw new Error("Not saved — reload the page and use a server with configuration revision support");
+  const result = await editApi("PUT", "/api/config", { ...cfg, _revision: state.configRevision });
   if (!result) throw new Error("Not saved — password required");
   const { res, data } = result;
+  if (res.status === 409) {
+    // Do not replay the rejected edit automatically over another client's work.
+    state.configRevision = null;
+    const latest = await editApi("GET", "/api/config");
+    if (latest?.res.ok) {
+      state.config = normalizeConfig(latest.data.config);
+      state.configRevision = latest.data.revision || null;
+    }
+  }
   if (!res.ok) throw new Error(data.error || `Save failed (${res.status})`);
+  state.configRevision = data.revision || null;
   return normalizeConfig(data.config);
 }
 
-export async function save(next, message = "Saved") {
-  const prev = state.config;
-  state.config = next;
-  render();
-  try {
-    state.config = await putConfig(next);
-    render();
-    toast(message);
-    document.dispatchEvent(new CustomEvent("config-saved"));
-    return true;
-  } catch (err) {
-    state.config = prev;
-    render();
-    toast(err.message, true);
-    return false;
-  }
+export function save(next, message = "Saved") {
+  const replacement = clone(next);
+  return update((c) => Object.assign(c, replacement), message);
 }
 
-/** Apply `mutate` to a copy of the config and save it. */
+let configQueue = Promise.resolve();
+
+/** No optimistic snapshots: failures leave committed state and unrelated edits intact. */
 function update(mutate, message) {
-  const next = clone(state.config);
-  mutate(next);
-  return save(next, message);
+  state.configSaving = (state.configSaving || 0) + 1;
+  state.configEpoch = (state.configEpoch || 0) + 1;
+  const run = configQueue.then(async () => {
+    try {
+      const next = clone(state.config);
+      mutate(next);
+      state.config = await putConfig(next);
+      render();
+      toast(message);
+      document.dispatchEvent(new CustomEvent("config-saved"));
+      return true;
+    } catch (err) {
+      render();
+      toast(err.message, true);
+      return false;
+    } finally {
+      state.configSaving--;
+      state.configEpoch++;
+    }
+  });
+  configQueue = run.catch(() => {});
+  return run;
 }
 
 const serverIn = (cfg, id) => cfg.servers.find((s) => s.id === id);
@@ -80,13 +100,13 @@ export function arrangeServices(serverId, lists) {
 // ---------- Services ----------
 
 export function toggleFavorite(svcId) {
-  const on = !state.config.settings.favorites.includes(svcId);
   return update(
     (c) => {
+      const on = !c.settings.favorites.includes(svcId);
       const favs = c.settings.favorites.filter((f) => f !== svcId);
       c.settings.favorites = on ? [...favs, svcId] : favs;
     },
-    on ? "Pinned to favourites" : "Unpinned",
+    "Favourites updated",
   );
 }
 
@@ -104,6 +124,7 @@ export function saveService({
       const from = serverIn(c, fromServerId);
       const to = serverIn(c, toServerId);
       const idx = svcId ? from.services.findIndex((s) => s.id === svcId) : -1;
+      if (svcId && idx < 0) throw new Error("Service no longer exists. Reopen the editor.");
       if (idx >= 0 && from === to) to.services[idx] = svc;
       else {
         if (idx >= 0) from.services.splice(idx, 1);
@@ -240,6 +261,7 @@ export function saveLink(linkId, fields) {
     (c) => {
       const links = c.settings.links;
       const i = links.findIndex((l) => l.id === linkId);
+      if (linkId && i < 0) throw new Error("Quick action no longer exists. Reopen the editor.");
       if (i >= 0) links[i] = { ...links[i], ...fields };
       else links.push({ id: uid(), ...fields });
     },
@@ -290,7 +312,7 @@ export const unhideContainer = (name) =>
     `${name} visible again`,
   );
 
-export async function importConfig(parsed) {
+export async function importConfig(parsed, current = () => true) {
   if (!parsed || !Array.isArray(parsed.servers)) {
     toast("That file is not a dashboard backup", true);
     return false;
@@ -301,5 +323,5 @@ export async function importConfig(parsed) {
     okLabel: "Replace",
     danger: true,
   });
-  return ok && save(normalizeConfig(parsed), "Imported");
+  return ok && current() && save(normalizeConfig(parsed), "Imported");
 }

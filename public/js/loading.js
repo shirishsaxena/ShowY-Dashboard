@@ -2,10 +2,10 @@
 // a remote dashboard) so default or old values are not mistaken for current ones. The state is state.loading.
 
 import { state, prefs, allServers } from "./state.js";
-import { loadRemote } from "./api.js";
-import { render } from "./view/render.js";
+import { loadRemote, collectionTimeout } from "./api.js";
+import { render } from "./render-interface.js";
 
-const TIMEOUT_MS = () => state.tunables.loadTimeout * 1000; // Settings / LOAD_TIMEOUT
+const TIMEOUT_MS = collectionTimeout;
 
 let seq = 0; // every start bumps it: answers that belong to an older start are ignored
 let controller = null;
@@ -25,7 +25,6 @@ function targetOf(initial) {
       serverId: id,
       remoteId: known.remote,
       name: known.name,
-      icon: known.icon || "",
     };
   // Remote server ids are "<dashboard id>:<server id>"; a saved one can't be resolved before its dashboard answered.
   if (!known && typeof id === "string" && id.includes(":")) {
@@ -34,7 +33,6 @@ function targetOf(initial) {
       serverId: id,
       remoteId: id.slice(0, id.indexOf(":")),
       name: prefs.tabName || "remote server",
-      icon: "",
     };
   }
   const server = known || servers[0];
@@ -43,7 +41,6 @@ function targetOf(initial) {
         kind: "local",
         serverId: server.id,
         name: server.name,
-        icon: server.icon || "",
       }
     : null;
 }
@@ -82,7 +79,7 @@ export function startLoad({ initial = false, fresh = false } = {}) {
     if (!alive()) return;
     controller.abort();
     fail(loading, "Timed out waiting for the dashboard");
-  }, TIMEOUT_MS());
+  }, TIMEOUT_MS({ fresh }));
   return loadRemote(target.remoteId, { fresh, signal: controller.signal }).then(
     (data) => {
       if (!alive()) return;

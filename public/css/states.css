@@ -1,0 +1,180 @@
+/* ---------- Edit mode ---------- */
+.drag-handle {
+  position: relative;
+  z-index: 2;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  align-self: stretch;
+  margin-left: -6px;
+  border-radius: 8px;
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.drag-handle:hover {
+  color: var(--text);
+  background: var(--card-hover);
+}
+.drag-handle svg {
+  stroke-width: 3.2;
+}
+.drag-placeholder {
+  opacity: 0.35;
+  border-style: dashed !important;
+}
+.drag-ghost {
+  position: fixed !important;
+  z-index: 300;
+  margin: 0;
+  pointer-events: none;
+  animation: none !important;
+  transform: rotate(1.5deg) scale(1.03) !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.55) !important;
+  opacity: 0.96;
+  border-color: var(--accent) !important;
+  background: var(--bg-2) !important;
+}
+body.editing .card[data-id] {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+}
+body.editing main {
+  padding-bottom: 110px;
+}
+
+.edit-dock {
+  position: fixed;
+  left: 50%;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  z-index: 30;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: color-mix(in srgb, var(--bg-2) 85%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  box-shadow: 0 20px 50px -15px rgba(0, 0, 0, 0.6);
+  animation: sheet 0.25s ease;
+  max-width: calc(100vw - 20px);
+}
+.dock-hint {
+  font-size: 0.8rem;
+  color: var(--muted);
+  padding: 0 8px;
+  white-space: nowrap;
+}
+
+/* ---------- Unlisted / hidden containers ---------- */
+.show-hidden {
+  margin-top: 14px;
+}
+.card.is-hidden {
+  opacity: 0.6;
+}
+.card.is-hidden:hover {
+  opacity: 1;
+}
+
+/* ---------- Lock screen ---------- */
+.lock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: var(--bg);
+}
+.lock-screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    500px circle at 50% 30%,
+    color-mix(in srgb, var(--accent) 22%, transparent),
+    transparent 60%
+  );
+}
+.lock-card {
+  position: relative;
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 24px;
+  border-radius: 22px;
+  background: var(--card);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+.lock-card .logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+}
+.lock-card h2 {
+  margin: 4px 0 0;
+}
+.lock-card p {
+  margin: 0;
+}
+.lock-card input {
+  width: 100%;
+  height: 46px;
+  padding: 0 14px;
+  border-radius: 12px;
+  text-align: center;
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+.lock-card input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.lock-card .btn {
+  width: 100%;
+  height: 46px;
+}
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 100;
+  transform: translate(-50%, 30px);
+  opacity: 0;
+  pointer-events: none;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: var(--shadow);
+  transition: all 0.25s;
+}
+.toast.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.toast.error {
+  background: var(--red);
+  color: #fff;
+}
+/* Sit above the edit toolbar instead of covering it. */
+body.editing .toast {
+  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 66px);
+}
+
