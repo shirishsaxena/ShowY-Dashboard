@@ -507,6 +507,13 @@ body[data-layout="cards"] #services .card :is(.links, .edit-tools) svg {
 .status.up {
   color: var(--green);
 }
+.status.neutral {
+  color: var(--muted);
+}
+.status.neutral .dot {
+  background: currentColor;
+  box-shadow: none;
+}
 .status.up .dot {
   background: var(--green);
   box-shadow: 0 0 0 0 color-mix(in srgb, var(--green) 60%, transparent);
@@ -538,4 +545,3 @@ body[data-layout="cards"] #services .card :is(.links, .edit-tools) svg {
   color: var(--muted);
   padding: 48px 0;
 }
-

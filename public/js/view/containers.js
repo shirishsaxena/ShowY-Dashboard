@@ -94,6 +94,7 @@ function containerCard(c, server, host, isHidden) {
   const add = async () => {
     if (!(await actions.ensureCanEdit())) return;
     openServiceEditor(server.id, null, {
+      type: "docker",
       name: c.name
         .replace(/[-_]+/g, " ")
         .replace(/\b\w/g, (m) => m.toUpperCase()),

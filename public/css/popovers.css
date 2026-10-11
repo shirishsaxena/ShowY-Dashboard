@@ -12,6 +12,9 @@
   border-radius: 16px;
   overflow: hidden;
   background: #fff;
+  flex-shrink: 0;
+  border: 8px solid #fff;
+  box-shadow: 0 8px 24px -12px rgba(0, 0, 0, 0.3);
 }
 .qr-box .qr {
   display: block;
@@ -63,8 +66,9 @@
 }
 .ask-message {
   margin: 0;
-  line-height: 1.45;
+  line-height: 1.6;
   white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 /* ---------- View menu (popover) ---------- */
@@ -228,4 +232,3 @@ button.clip-entry-text:hover {
 .note-text a {
   color: var(--accent-2);
 }
-

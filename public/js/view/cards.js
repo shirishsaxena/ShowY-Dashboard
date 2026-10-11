@@ -2,7 +2,7 @@
 
 import { state, isFavorite } from "../state.js";
 import { h, svg, iconBtn, iconNode, dragHandle, external } from "../dom.js";
-import { safeUrl, hostLabel, hostOf, primaryUrl } from "../utils.js";
+import { serviceUrls, monitoringUrl, primaryUrl } from "../utils.js";
 import {
   serviceStatus,
   statusNode,
@@ -16,47 +16,30 @@ import { usageNode } from "./usage.js";
 import { openNote } from "./notes.js";
 
 function linkChips(svc, dupes) {
-  const local = safeUrl(svc.url);
-  const alt = safeUrl(svc.altUrl);
+  const urls = serviceUrls(svc);
   const primary = primaryUrl(svc);
-  const shared = dupes.has(hostPort(svc.url));
+  const shared = dupes.has(hostPort(monitoringUrl(svc)));
   const tools = state.editing
     ? []
     : [
         svc.notes
           ? iconBtn("note", "Notes", (e) => openNote(svc, e.currentTarget))
           : null,
-        local || alt ? iconBtn("qr", "Show QR code", () => openQr(svc)) : null,
+        urls.length ? iconBtn("qr", "Show QR code", () => openQr(svc)) : null,
       ].filter(Boolean);
   return [
-    local
-      ? h(
-          "a",
-          {
-            class: `chip${local === primary ? " primary-link" : ""}`,
-            href: local,
-            title: local,
-            "aria-label": `Open local link: ${hostLabel(local)}`,
-            ...external,
-          },
-          svg("home"),
-          h("span", { class: "link-label" }, hostLabel(local)),
-        )
-      : null,
-    alt
-      ? h(
-          "a",
-          {
-            class: `chip${alt === primary ? " primary-link" : ""}`,
-            href: alt,
-            title: alt,
-            "aria-label": `Open alternate link: ${hostOf(alt)}`,
-            ...external,
-          },
-          svg("globe"),
-          h("span", { class: "link-label" }, hostOf(alt)),
-        )
-      : null,
+    ...urls.map(({ label, url }) => h(
+      "a",
+      {
+        class: `chip${url === primary ? " primary-link" : ""}`,
+        href: url,
+        title: url,
+        "aria-label": `Open ${label} link: ${url}`,
+        ...external,
+      },
+      svg("globe"),
+      h("span", { class: "link-label" }, label),
+    )),
     shared
       ? h(
           "span",

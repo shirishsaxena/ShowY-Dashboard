@@ -57,13 +57,11 @@ body[data-layout="compact"] #services .card .links {
   align-items: center;
 }
 body[data-layout="compact"] #services .card .links a.chip {
-  width: 32px;
-  height: 32px;
-  padding: 0;
+  min-height: 32px;
+  padding: 3px 8px;
   justify-content: center;
-  flex-shrink: 0;
 }
-body[data-layout="compact"] #services .card .links :is(.link-label, .amber, .grow) {
+body[data-layout="compact"] #services .card .links :is(.amber, .grow) {
   display: none;
 }
 body[data-layout="compact"] #services .add-card {
@@ -171,4 +169,3 @@ body[data-layout="list"] #services .add-card {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-

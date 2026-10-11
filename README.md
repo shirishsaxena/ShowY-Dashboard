@@ -43,7 +43,7 @@ Click a preview to view the full-size screenshot.
 
 | Area | What you get |
 | --- | --- |
-| **Service directory** | Icons, descriptions, local and alternate URLs, groups, drag-and-drop sorting, favorites, and notes |
+| **Service directory** | Icons, descriptions, multiple labeled URLs, groups, drag-and-drop sorting, favorites, and notes |
 | **Health checks** | Server-side HTTP checks; 404 and 5xx responses are errors, connection failures are down, and other HTTP responses count as reachable |
 | **Docker integration** | Automatic container matching, state, CPU/memory/network usage, and a list of containers not yet on the dashboard |
 | **Server stats** | CPU, RAM, disks, uptime, network speed/history, temperatures, and fans |
@@ -57,6 +57,25 @@ Click a preview to view the full-size screenshot.
 | **Backend logging** | Configurable severity, console output, rotating persistent files, and authorized download/clear actions in Settings |
 
 Icons can come from [dashboard-icons](https://github.com/homarr-labs/dashboard-icons), an emoji, or a custom image URL. Saved icons are cached locally for faster loading.
+
+### Service types and monitoring
+
+- **Docker** binds to an explicit container name on a server marked **This machine**. URLs are optional. Container state and resources come from that dashboard's Docker engine; an HTTP response alone cannot mark a missing or unavailable container online.
+- **Web** requires at least one HTTP(S) URL and uses HTTP reachability only, never Docker matching. New manually added services default to Web; adding a discovered container defaults to Docker.
+- **Bookmark** requires at least one HTTP(S) URL but is not monitored. It has a neutral type indicator, stays in service totals, and is excluded from health ratios. Groups, favorites, notes, icons, and other service metadata still work.
+- **Legacy** entries without a type keep their existing automatic Docker matching and HTTP fallback, including on ordinary edits. Select a type explicitly to convert them; there is no automatic migration. Types are preserved in saves, JSON import/export, and remote views.
+
+HTTP checks run **from the dashboard server**, not your browser (remote services are checked by their originating dashboard). Only the **first URL** in a labeled list is checked; other URLs are not monitored or used as failover targets. Legacy services without a labeled list check the local URL when present, otherwise the alternate URL. A reachable URL is not proof that every app feature works. Bookmarks are service cards within servers/groups; **quick actions** are separate dashboard-wide link/copy shortcuts and also have no health checks.
+
+### Multiple labeled service URLs
+
+The service editor supports **up to 50 URLs**, not just Local and Public. Use **Add URL**, **Remove URL**, and **Make primary** to manage entries such as Local, Public, Admin, and VPN. The first entry is primary for card and favorite clicks and, except for bookmarks, HTTP health checks. Cards show all labels with full URL tooltips and accessible names; QR selection and search include every safe URL and label, including in remote dashboards.
+
+Each entry needs a nonblank label (1–60 characters) and an absolute HTTP(S) URL (up to 2000 characters). Fully blank editor rows are omitted on save; partially filled or invalid rows must be corrected or removed. Web and Bookmark need at least one entry. Docker permits an empty list but still requires its explicit container name. Oversized lists and invalid entries in API saves or JSON imports are rejected, not silently truncated or discarded.
+
+Configuration stores an optional ordered [`urls`](lib/config.js) array of objects with [`label` and `url`](lib/config.js). For example: Local → `http://192.168.1.20:8096`, Public → `https://media.example.com`, Admin → `https://media.example.com/admin`. When this array is present it is authoritative, even when empty. Saves derive the compatibility [`url` and `altUrl`](lib/config.js) fields from the first and second entries (or empty strings), preventing stale legacy fields from overriding the list. JSON export/import and remote snapshots preserve the entire ordered list.
+
+Existing services without the array retain their two-field behavior: card/favorite clicks prefer Public outside the LAN, while monitoring prefers Local. Opening the editor initializes those fields as Local/Public rows; **saving** adopts the labeled list and its fixed first-entry primary behavior. Merely loading or exporting old configuration does not migrate it. Service type conversion remains independent of URL editing.
 
 ## Quick start (Docker)
 
@@ -383,7 +402,7 @@ the application cannot bound an external console sink.
 - **Too little diagnostic detail:** temporarily select DEBUG and recreate/restart the backend. Successful GET/HEAD polling is logged only at DEBUG; use WARN or ERROR to suppress routine INFO notices as well.
 - **Missing containers:** verify socket access and `DOCKER_SOCKET`. The dashboard only monitors containers; it cannot start or stop them.
 - **Missing host network/disks/sensors:** verify Linux host access, the `/proc:/host/proc:ro` mount, disk mounts under `/disks`, and available `/sys` sensors. Docker Desktop reports its Linux VM rather than full macOS/Windows host metrics.
-- **Service looks down despite opening in your browser:** checks originate from the backend, using the service's primary URL (or alternate URL if no primary is set). Check container DNS/routing and timeout settings. HTTP 401/403 count as reachable; 404 and 5xx do not.
+- **Service looks down despite opening in your browser:** checks originate from the backend, using only the first labeled URL (or Local then alternate for legacy services without a list). Check container DNS/routing and timeout settings. HTTP 401/403 count as reachable; 404 and 5xx do not.
 - **Remote unavailable:** confirm backend reachability, URL, share-token validity, and timeout settings. Cached directory entries are not proof that the remote is currently online.
 
 ## Data and backups

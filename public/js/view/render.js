@@ -84,13 +84,14 @@ function summary() {
     for (const svc of server.services) {
       total++;
       const level = serviceStatus(svc, server)?.level;
-      if (level && level !== "unknown") known++;
+      if (["up", "warn", "down"].includes(level)) known++;
       if (level === "up") up++;
     }
   }
   // Shown under the server name: dashboard title plus totals across all servers.
   const parts = [state.config.settings.title];
   if (servers.length > 1) parts.push(plural(servers.length, "server"));
-  parts.push(known ? `${up}/${known} online` : plural(total, "service"));
+  parts.push(plural(total, "service"));
+  if (known) parts.push(`${up}/${known} online`);
   return parts.join(" · ");
 }

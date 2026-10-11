@@ -43,6 +43,7 @@ export function promptLogin() {
       { once: true },
     );
     dialog.showModal();
+    field(form, "password").focus();
   }).finally(() => {
     pendingLogin = null;
   });

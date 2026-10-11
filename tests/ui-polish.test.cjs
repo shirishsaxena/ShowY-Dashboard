@@ -249,8 +249,9 @@ test("preferred service link is distinguished without changing destinations", ()
     h: f.h,
     svg: f.svg,
     state: { editing: true },
-    safeUrl: (v) => v,
-    primaryUrl: (svc) => svc.altUrl,
+    ...load("js/utils.js", ["serviceUrls", "monitoringUrl", "primaryUrl"], {
+      URL, location: { hostname: "dashboard.example.com" },
+    }),
     hostPort: () => "",
     hostLabel: (v) => v,
     hostOf: (v) => v,

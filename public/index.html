@@ -340,126 +340,143 @@
     </section>
 
     <!-- Service editor -->
-    <dialog id="serviceDialog">
+    <dialog id="serviceDialog" class="editor-dialog" aria-labelledby="serviceDialogTitle" aria-describedby="serviceDialogHint">
       <form id="serviceForm" method="dialog">
         <header class="dialog-head">
-          <h2 id="serviceDialogTitle">Add service</h2>
+          <div class="dialog-heading">
+            <h2 id="serviceDialogTitle">Add service</h2>
+            <p id="serviceDialogHint">A home for your apps, bookmarks, and containers.</p>
+          </div>
           <button type="button" class="icon-btn" data-close aria-label="Close">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
         </header>
-        <div class="dialog-body">
-          <div class="field-row">
-            <div class="icon-preview" id="serviceIconPreview"></div>
-            <label class="field grow"
-              >Name
-              <input
-                name="name"
-                required
-                maxlength="100"
-                placeholder="Jellyfin"
-              />
-            </label>
+        <div class="editor-tabs settings-tabs">
+          <div class="seg" role="tablist" aria-label="Service sections">
+          <button type="button" role="tab" id="serviceDetailsTab" aria-controls="serviceDetailsPanel" aria-selected="true">Details</button>
+          <button type="button" role="tab" id="serviceConnectionTab" aria-controls="serviceConnectionPanel" aria-selected="false" tabindex="-1">Connection</button>
+          <button type="button" role="tab" id="serviceOrganisationTab" aria-controls="serviceOrganisationPanel" aria-selected="false" tabindex="-1">Organisation</button>
           </div>
-          <label class="field"
-            >Icon
-            <input
-              name="icon"
-              maxlength="2000"
-              placeholder="jellyfin · 🎬 · https://…/icon.png"
-              autocomplete="off"
-            />
-            <div id="serviceIconSuggest" class="icon-suggest" hidden></div>
-            <small
-              >Pick a suggestion, or type an emoji, image URL or
-              <a
-                href="https://dashboardicons.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                >dashboard-icons</a
-              >
-              name.</small
-            >
-          </label>
-          <label class="field"
-            >Description
-            <textarea
-              name="description"
-              maxlength="500"
-              rows="3"
-              placeholder="Movies &amp; TV"
-            ></textarea>
-          </label>
-          <label class="field"
-            >Notes <span class="muted">(optional)</span>
-            <textarea
-              name="notes"
-              maxlength="2000"
-              rows="3"
-              placeholder="Config in /opt/jellyfin · admin login in Bitwarden…"
-            ></textarea>
-            <small
-              >Opened from the note button on the card. Anyone who can view the
-              dashboard can read them — don't store passwords.</small
-            >
-          </label>
-          <label class="field"
-            >Local URL
-            <input
-              name="url"
-              type="url"
-              placeholder="http://192.168.1.150:8096"
-            />
-          </label>
-          <label class="field"
-            >Public / alternate URL <span class="muted">(optional)</span>
-            <input
-              name="altUrl"
-              type="url"
-              placeholder="https://jellyfin.example.com"
-            />
-          </label>
-          <label class="field"
-            >Docker container <span class="muted">(optional)</span>
-            <input
-              name="container"
-              list="containerList"
-              maxlength="200"
-              placeholder="Auto-match by port or name"
-            />
-            <datalist id="containerList"></datalist>
-            <small
-              >Only used on servers marked "This machine". Leave blank to
-              auto-match.</small
-            >
-          </label>
-          <div class="field-row">
-            <label class="field grow"
-              >Server
-              <select name="serverId"></select>
-            </label>
-            <label class="field grow"
-              >Group <span class="muted">(optional)</span>
+        </div>
+        <div class="dialog-body">
+          <fieldset class="dialog-section editor-panel" id="serviceDetailsPanel" role="tabpanel" aria-labelledby="serviceDetailsTab">
+            <legend>Details</legend>
+            <div class="field-row identity-row">
+              <div class="icon-preview" id="serviceIconPreview"></div>
+              <label class="field grow"
+                >Name
+                <input
+                  name="name"
+                  required
+                  maxlength="100"
+                  placeholder="Jellyfin"
+                />
+              </label>
+            </div>
+            <div class="field">
+              <label for="serviceIcon">Icon</label>
               <input
-                name="group"
-                list="groupList"
-                maxlength="60"
-                placeholder="Ungrouped"
+                id="serviceIcon"
+                name="icon"
+                maxlength="2000"
+                placeholder="jellyfin · 🎬 · https://…/icon.png"
                 autocomplete="off"
               />
-              <datalist id="groupList"></datalist>
+              <div id="serviceIconSuggest" class="icon-suggest" hidden></div>
+              <small
+                >Pick a suggestion, or type an emoji, image URL or
+                <a
+                  href="https://dashboardicons.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >dashboard-icons</a
+                >
+                name.</small
+              >
+            </div>
+            <label class="field"
+              >Description
+              <textarea
+                name="description"
+                maxlength="500"
+                rows="3"
+                placeholder="Movies &amp; TV"
+              ></textarea>
             </label>
-          </div>
-          <label class="check">
-            <input type="checkbox" name="favorite" />
-            <span
-              ><strong>Pin to favourites</strong><br /><small class="muted"
-                >Shows it in the favourites row at the top of every page.</small
-              ></span
-            >
-          </label>
+          </fieldset>
+          <fieldset class="dialog-section editor-panel" id="serviceConnectionPanel" role="tabpanel" aria-labelledby="serviceConnectionTab" hidden>
+            <legend>Connection</legend>
+            <label class="field"
+              >Service type
+              <select name="type" aria-describedby="serviceTypeHelp"></select>
+              <small id="serviceTypeHelp"></small>
+            </label>
+            <section class="service-urls" aria-labelledby="serviceUrlsTitle">
+              <h3 id="serviceUrlsTitle">Service URLs</h3>
+              <p id="serviceUrlsHelp" class="muted">
+                The first URL is primary for cards and favourites. Only the first
+                URL is health-checked; bookmarks are never monitored. Add up to 50
+                labeled HTTP(S) URLs. Fully blank rows are skipped when saving.
+              </p>
+              <div id="serviceUrls"></div>
+              <button type="button" class="btn" id="serviceAddUrl">Add URL</button>
+            </section>
+            <label class="field" id="serviceContainerField"
+              >Docker container
+              <input
+                name="container"
+                list="containerList"
+                maxlength="200"
+                placeholder="Auto-match by port or name"
+              />
+              <datalist id="containerList"></datalist>
+              <small id="serviceContainerHelp"
+                >Only used on servers marked "This machine". Leave blank to
+                auto-match.</small
+              >
+            </label>
+          </fieldset>
+          <fieldset class="dialog-section editor-panel" id="serviceOrganisationPanel" role="tabpanel" aria-labelledby="serviceOrganisationTab" hidden>
+            <legend>Organisation</legend>
+            <div class="field-row equal-fields">
+              <label class="field grow"
+                >Server
+                <select name="serverId"></select>
+              </label>
+              <label class="field grow"
+                ><span>Group <span class="field-optional">Optional</span></span>
+                <input
+                  name="group"
+                  list="groupList"
+                  maxlength="60"
+                  placeholder="Ungrouped"
+                  autocomplete="off"
+                />
+                <datalist id="groupList"></datalist>
+              </label>
+            </div>
+            <label class="check">
+              <input type="checkbox" name="favorite" />
+              <span
+                ><strong>Pin to favourites</strong><br /><small class="muted"
+                  >Shows it in the favourites row at the top of every page.</small
+                ></span
+              >
+            </label>
+            <label class="field">
+              <span>Notes <span class="field-optional">Optional</span></span>
+              <textarea
+                name="notes"
+                maxlength="2000"
+                rows="3"
+                placeholder="Config in /opt/jellyfin · admin login in Bitwarden…"
+              ></textarea>
+              <small>Shown from the note button on the card. Anyone who can view the dashboard can read them — don't store passwords.</small>
+            </label>
+          </fieldset>
         </div>
         <footer class="dialog-foot">
+          <p class="editor-feedback" role="status" aria-live="polite" hidden></p>
           <button type="button" class="btn danger ghost" id="serviceDelete">
             Delete
           </button>
@@ -471,76 +488,93 @@
     </dialog>
 
     <!-- Server editor -->
-    <dialog id="serverDialog">
+    <dialog id="serverDialog" class="editor-dialog" aria-labelledby="serverDialogTitle" aria-describedby="serverDialogHint">
       <form id="serverForm" method="dialog">
         <header class="dialog-head">
-          <h2 id="serverDialogTitle">Add server</h2>
+          <div class="dialog-heading">
+            <h2 id="serverDialogTitle">Add server</h2>
+            <p id="serverDialogHint">Give your services a place to live.</p>
+          </div>
           <button type="button" class="icon-btn" data-close aria-label="Close">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
         </header>
+        <div class="editor-tabs settings-tabs">
+          <div class="seg" role="tablist" aria-label="Server sections">
+          <button type="button" role="tab" id="serverDetailsTab" aria-controls="serverDetailsPanel" aria-selected="true">Details</button>
+          <button type="button" role="tab" id="serverHostTab" aria-controls="serverHostPanel" aria-selected="false" tabindex="-1">Host</button>
+          </div>
+        </div>
         <div class="dialog-body">
-          <div class="field-row">
-            <div class="icon-preview" id="serverIconPreview"></div>
-            <label class="field grow"
-              >Name
-              <input name="name" required maxlength="100" placeholder="Home" />
-            </label>
-          </div>
-          <label class="field"
-            >Icon
-            <input
-              name="icon"
-              maxlength="2000"
-              placeholder="proxmox · 🏠 · https://…/icon.png"
-              autocomplete="off"
-            />
-            <div id="serverIconSuggest" class="icon-suggest" hidden></div>
-            <small
-              >Pick a suggestion, or type an emoji, image URL or
-              <a
-                href="https://dashboardicons.com"
-                target="_blank"
-                rel="noopener noreferrer"
-                >dashboard-icons</a
+          <fieldset class="dialog-section editor-panel" id="serverDetailsPanel" role="tabpanel" aria-labelledby="serverDetailsTab">
+            <legend>Details</legend>
+            <div class="field-row identity-row">
+              <div class="icon-preview" id="serverIconPreview"></div>
+              <label class="field grow"
+                >Name
+                <input name="name" required maxlength="100" placeholder="Home" />
+              </label>
+            </div>
+            <div class="field">
+              <label for="serverIcon">Icon</label>
+              <input
+                id="serverIcon"
+                name="icon"
+                maxlength="2000"
+                placeholder="proxmox · 🏠 · https://…/icon.png"
+                autocomplete="off"
+              />
+              <div id="serverIconSuggest" class="icon-suggest" hidden></div>
+              <small
+                >Pick a suggestion, or type an emoji, image URL or
+                <a
+                  href="https://dashboardicons.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >dashboard-icons</a
+                >
+                name (e.g. <code>ubuntu</code>, <code>proxmox</code>,
+                <code>ovh</code>).</small
               >
-              name (e.g. <code>ubuntu</code>, <code>proxmox</code>,
-              <code>ovh</code>).</small
-            >
-          </label>
-          <label class="field"
-            >Main URL <span class="muted">(optional)</span>
-            <input
-              name="mainUrl"
-              type="url"
-              placeholder="http://192.168.1.150"
-            />
-          </label>
-          <label class="field"
-            >Description
-            <textarea name="description" maxlength="500" rows="3"></textarea>
-          </label>
-          <div class="field-row">
-            <label class="field grow"
-              >Location
-              <input name="location" maxlength="100" />
+            </div>
+            <label class="field"
+              ><span>Main URL <span class="field-optional">Optional</span></span>
+              <input
+                name="mainUrl"
+                type="url"
+                placeholder="http://192.168.1.150"
+              />
             </label>
-            <label class="field grow"
-              >Specs
-              <input name="specs" maxlength="200" />
+            <label class="field"
+              >Description
+              <textarea name="description" maxlength="500" rows="3"></textarea>
             </label>
-          </div>
-          <label class="check">
-            <input type="checkbox" name="local" />
-            <span
-              ><strong>This machine</strong><br /><small class="muted"
-                >Match services against Docker containers running where the
-                dashboard runs.</small
-              ></span
-            >
-          </label>
+          </fieldset>
+          <fieldset class="dialog-section editor-panel" id="serverHostPanel" role="tabpanel" aria-labelledby="serverHostTab" hidden>
+            <legend>Host</legend>
+            <div class="field-row equal-fields">
+              <label class="field grow"
+                >Location
+                <input name="location" maxlength="100" />
+              </label>
+              <label class="field grow"
+                >Specs
+                <input name="specs" maxlength="200" />
+              </label>
+            </div>
+            <label class="check">
+              <input type="checkbox" name="local" />
+              <span
+                ><strong>This machine</strong><br /><small class="muted"
+                  >Match services against Docker containers running where the
+                  dashboard runs.</small
+                ></span
+              >
+            </label>
+          </fieldset>
         </div>
         <footer class="dialog-foot">
+          <p class="editor-feedback" role="status" aria-live="polite" hidden></p>
           <button type="button" class="btn danger ghost" id="serverDelete">
             Delete
           </button>
@@ -552,16 +586,19 @@
     </dialog>
 
     <!-- Plain link editor -->
-    <dialog id="linkDialog">
+    <dialog id="linkDialog" aria-labelledby="linkDialogTitle" aria-describedby="linkDialogHint">
       <form id="linkForm" method="dialog">
         <header class="dialog-head">
-          <h2 id="linkDialogTitle">Add quick action</h2>
+          <div class="dialog-heading">
+            <h2 id="linkDialogTitle">Add quick action</h2>
+            <p id="linkDialogHint">Open a link or copy useful text in one click.</p>
+          </div>
           <button type="button" class="icon-btn" data-close aria-label="Close">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
         </header>
         <div class="dialog-body">
-          <div class="field-row">
+          <div class="field-row identity-row">
             <div class="icon-preview" id="linkIconPreview"></div>
             <label class="field grow"
               >Name
@@ -603,9 +640,10 @@
               save passwords here.</small
             >
           </label>
-          <label class="field"
-            >Icon <span class="muted">(optional)</span>
+          <div class="field">
+            <label for="linkIcon">Icon <span class="field-optional">Optional</span></label>
             <input
+              id="linkIcon"
               name="icon"
               maxlength="2000"
               placeholder="openwrt · 📡 · https://…/icon.png"
@@ -615,7 +653,7 @@
             <small id="linkIconHint"
               >Leave blank to use the site's own icon.</small
             >
-          </label>
+          </div>
         </div>
         <footer class="dialog-foot">
           <button type="button" class="btn danger ghost" id="linkDelete">
@@ -632,7 +670,10 @@
     <dialog id="settingsDialog" aria-labelledby="settingsTitle">
       <form id="settingsForm" method="dialog">
         <header class="dialog-head">
-          <h2 id="settingsTitle">Settings</h2>
+          <div class="dialog-heading">
+            <h2 id="settingsTitle">Settings</h2>
+            <p>Make this dashboard feel like yours.</p>
+          </div>
           <button type="button" class="icon-btn" data-close aria-label="Close">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
@@ -752,26 +793,29 @@
               <h3>Remote dashboards</h3>
               <div id="remoteList" class="remote-list"></div>
               <div class="settings-remote-fields">
-                <label class="field">Name (optional)
-<input
+                <label class="field"><span>Name <span class="field-optional">Optional</span></span>
+                <input
                   id="remoteName"
                   placeholder="Name"
                   maxlength="100"
                   aria-label="Remote dashboard name"
                 />
+                </label>
                 <label class="field">Dashboard URL
-<input
+                <input
                   id="remoteUrl" inputmode="url"
                   placeholder="http://192.168.1.20:8011"
                   aria-label="Remote dashboard URL"
                 />
+                </label>
                 <label class="field">Share token
-<input
+                <input
                   id="remoteToken" spellcheck="false"
                   placeholder="Share token"
                   autocomplete="off"
                   aria-label="Remote share token"
                 />
+                </label>
                 <button type="button" class="btn ghost" id="remoteAddBtn">
                   Add
                 </button>
@@ -957,10 +1001,13 @@
     </dialog>
 
     <!-- Outage history -->
-    <dialog id="availabilityDialog" class="avail-dialog">
+    <dialog id="availabilityDialog" class="avail-dialog" aria-labelledby="availabilityTitle">
       <form method="dialog">
         <header class="dialog-head">
-          <h2>Outage history</h2>
+          <div class="dialog-heading">
+            <h2 id="availabilityTitle">Outage history</h2>
+            <p>Availability at a glance, over time.</p>
+          </div>
           <button type="button" class="icon-btn" data-close aria-label="Close">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
@@ -994,10 +1041,13 @@
     </dialog>
 
     <!-- Server info -->
-    <dialog id="serverInfoDialog" class="info-dialog">
+    <dialog id="serverInfoDialog" class="info-dialog" aria-labelledby="serverInfoTitle">
       <form method="dialog">
         <header class="dialog-head">
-          <h2 id="serverInfoTitle">Server info</h2>
+          <div class="dialog-heading">
+            <h2 id="serverInfoTitle">Server info</h2>
+            <p>System details and network addresses.</p>
+          </div>
           <button type="button" class="icon-btn" data-close aria-label="Close">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
@@ -1013,20 +1063,29 @@
       </form>
     </dialog>
 
-    <dialog id="loginDialog">
+    <dialog id="loginDialog" aria-labelledby="loginTitle" aria-describedby="loginHint">
       <form id="loginForm" method="dialog">
-        <header class="dialog-head"><h2>Password required</h2></header>
+        <header class="dialog-head">
+          <div class="dialog-heading">
+            <h2 id="loginTitle">Password required</h2>
+            <p id="loginHint">Unlock editing to make changes to your dashboard.</p>
+          </div>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
         <div class="dialog-body">
           <label class="field"
-            >Enter the dashboard password to make changes
+            >Dashboard password
             <input
               name="password"
               type="password"
               required
               autocomplete="current-password"
+              aria-describedby="loginError"
             />
           </label>
-          <p class="form-error" id="loginError" hidden></p>
+          <p class="form-error" id="loginError" role="alert" hidden></p>
         </div>
         <footer class="dialog-foot">
           <span class="grow"></span>
@@ -1037,10 +1096,13 @@
     </dialog>
 
     <!-- QR code -->
-    <dialog id="qrDialog" class="qr-dialog">
+    <dialog id="qrDialog" class="qr-dialog" aria-labelledby="qrTitle">
       <form method="dialog">
         <header class="dialog-head">
-          <h2 id="qrTitle">Scan to open</h2>
+          <div class="dialog-heading">
+            <h2 id="qrTitle">Scan to open</h2>
+            <p>Point your camera at the code to continue.</p>
+          </div>
           <button type="button" class="icon-btn" data-close aria-label="Close">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
@@ -1064,9 +1126,14 @@
     </dialog>
 
     <!-- Generic text prompt / confirmation -->
-    <dialog id="askDialog" class="ask-dialog">
+    <dialog id="askDialog" class="ask-dialog" aria-labelledby="askTitle" aria-describedby="askMessage">
       <form id="askForm" method="dialog">
-        <header class="dialog-head"><h2 id="askTitle"></h2></header>
+        <header class="dialog-head">
+          <h2 id="askTitle"></h2>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
         <div class="dialog-body">
           <p id="askMessage" class="muted ask-message"></p>
           <label class="field" id="askField"
@@ -1076,7 +1143,7 @@
         </div>
         <footer class="dialog-foot">
           <span class="grow"></span>
-          <button type="button" class="btn ghost" data-close>Cancel</button>
+          <button type="button" class="btn ghost" id="askCancel" data-close>Cancel</button>
           <button type="submit" class="btn primary" id="askOk">OK</button>
         </footer>
       </form>

@@ -4,6 +4,7 @@ import { state, allServers } from "../state.js";
 import { $, h, fill } from "../dom.js";
 import { serviceCard } from "./cards.js";
 import { renderLinks } from "./links.js";
+import { serviceUrls } from "../utils.js";
 
 export function renderSearch() {
   const q = state.query.toLowerCase();
@@ -14,8 +15,7 @@ export function renderSearch() {
         svc.name,
         svc.description,
         svc.notes,
-        svc.url,
-        svc.altUrl,
+        ...serviceUrls(svc).flatMap(({ label, url }) => [label, url]),
         svc.container,
         svc.group,
         server.name,
