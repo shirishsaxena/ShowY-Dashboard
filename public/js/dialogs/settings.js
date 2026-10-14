@@ -33,7 +33,7 @@ const ACCENTS = [
   "#ec4899",
 ];
 const draft = { accent: "", hidden: [] };
-const GENERAL_CONTROLS = ["#settingsSaveBtn", "#importBtn", '#settingsForm [name="title"]', "#accentPicker input", "#accentPicker button", "#hiddenList button"];
+const GENERAL_CONTROLS = ["#settingsSaveBtn", "#importBtn", '#settingsForm [name="title"]', '#settingsForm [name="appName"]', "#accentPicker input", "#accentPicker button", "#hiddenList button"];
 
 function renderDisplayPreferences() {
   for (const [selector, options, current, onPick] of [
@@ -246,7 +246,7 @@ export function openSettings() {
   const { settings } = state.config;
   form.reset();
   $("#settingsSaveBtn").textContent = "Save";
-  $("#settingsFeedback").textContent = "Save applies title, accent, and hidden containers. Other preferences save automatically.";
+  $("#settingsFeedback").textContent = "Save applies title, app name, accent, and hidden containers. Other preferences save automatically.";
   $("#settingsFeedback").classList.remove("error");
   $("#logsFeedback").textContent = "";
   showTab("general");
@@ -259,6 +259,10 @@ export function openSettings() {
   $("#clipMax").value = String(state.clip.max || 10);
   showClipInfo();
   field(form, "title").value = settings.title;
+  field(form, "appName").value = settings.appName || "";
+  $("#appNameDefault").textContent = state.auth.lockView
+    ? 'Leave blank to use “Dashboard” while viewing is password-protected.'
+    : "Leave blank to use your dashboard title.";
   draft.accent = isHexColor(settings.accent)
     ? settings.accent.toLowerCase()
     : DEFAULT_ACCENT;
@@ -758,6 +762,7 @@ export function initSettingsForm() {
       try {
         const ok = await actions.saveSettings({
           title: value(form, "title") || "Home Lab",
+          appName: value(form, "appName"),
           accent: draft.accent === DEFAULT_ACCENT ? "" : draft.accent,
           hiddenContainers: draft.hidden,
         });
