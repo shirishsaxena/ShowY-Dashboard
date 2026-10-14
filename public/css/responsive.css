@@ -131,17 +131,44 @@
     padding: 0 9px;
   }
 
-  dialog {
+  dialog,
+  dialog.editor-dialog,
+  #settingsDialog,
+  .info-dialog,
+  .qr-dialog,
+  .ask-dialog,
+  .avail-dialog {
     width: 100vw;
     max-width: 100vw;
     margin: auto 0 0;
     border-radius: 20px 20px 0 0;
     border-bottom: 0;
-    max-height: 92dvh;
+    max-height: min(92dvh, calc(100dvh - env(safe-area-inset-top) - 12px));
   }
-  .qr-dialog,
-  .avail-dialog {
-    width: 100vw;
+  #settingsDialog {
+    height: min(760px, 92dvh);
+  }
+  .dialog-head,
+  #settingsDialog .dialog-head {
+    padding: 18px 16px;
+  }
+  .dialog-body {
+    padding: 18px 16px;
+  }
+  .dialog-section {
+    padding: 14px;
+  }
+  .dialog-foot {
+    padding-inline: 16px;
+  }
+  .settings-tabs {
+    padding-inline: 16px;
+  }
+  dialog .seg button {
+    min-height: 44px;
+  }
+  .service-url-actions .btn {
+    min-height: 44px;
   }
   dialog[open] {
     animation: sheet 0.22s ease;
@@ -185,6 +212,22 @@
 }
 
 @media (max-width: 480px) {
+  .settings-tabs {
+    padding: 12px 14px 0;
+  }
+  .equal-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .identity-row {
+    flex-wrap: nowrap;
+  }
+  .identity-row .field {
+    min-width: 0;
+  }
+  .dialog-foot .btn {
+    min-width: 0;
+    padding-inline: 12px;
+  }
   .dock-label {
     display: none;
   }

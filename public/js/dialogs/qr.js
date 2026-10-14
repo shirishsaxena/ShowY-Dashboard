@@ -1,14 +1,12 @@
-// QR code dialog for a service link (local / public).
+// QR code dialog for all labeled service URLs.
 
 import { $, h, fill, svg } from "../dom.js";
-import { safeUrl, primaryUrl } from "../utils.js";
+import { serviceUrls, primaryUrl } from "../utils.js";
 import { QR } from "../qr.js";
 
 export function openQr(svc) {
-  const urls = [
-    { label: "Local", icon: "home", url: safeUrl(svc.url) },
-    { label: "Public", icon: "globe", url: safeUrl(svc.altUrl) },
-  ].filter((u) => u.url);
+  const urls = serviceUrls(svc);
+  if (!urls.length) return;
   let current = urls.find((u) => u.url === primaryUrl(svc)) || urls[0];
 
   const show = () => {
@@ -24,13 +22,15 @@ export function openQr(svc) {
           "button",
           {
             type: "button",
+            title: u.url,
+            "aria-label": `${u.label}: ${u.url}`,
             "aria-pressed": String(u === current),
             onclick: () => {
               current = u;
               show();
             },
           },
-          svg(u.icon),
+          svg("globe"),
           u.label,
         ),
       ),

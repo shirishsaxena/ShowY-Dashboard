@@ -279,6 +279,184 @@ test("malformed server and service entries produce HTTP 400 errors", () => {
   assert.equal(valid.servers[0].services[0].id, "svc");
 });
 
+test("service types validate explicitly, preserve legacy, and clear inactive bindings", () => {
+  const { sanitizeConfig } = loadLib("config", { "./env": {} });
+  const service = (fields) => sanitizeConfig({ servers: [{ name: "Host", services: [
+    { id: "svc", name: "Service", ...fields },
+  ] }] }).servers[0].services[0];
+  for (const type of [null, "", "tcp", "Docker", false, 0, {}, undefined])
+    assert.throws(() => service({ type, url: "http://example.test", container: "app" }), { status: 400 });
+  assert.equal(Object.hasOwn(service({}), "type"), false);
+  assert.equal(service({ container: "legacy" }).container, "legacy");
+  for (const container of [undefined, "", "  ", null, 123])
+    assert.throws(() => service({ type: "docker", container }), { status: 400 });
+  assert.equal(service({ type: "docker", container: " app " }).container, "app");
+  for (const type of ["web", "bookmark"]) {
+    assert.throws(() => service({ type }), { status: 400 });
+    assert.throws(() => service({ type, url: "ftp://example.test" }), { status: 400 });
+    assert.throws(() => service({ type, altUrl: "not a URL" }), { status: 400 });
+    const result = service({ type, altUrl: "https://example.test", container: "inactive",
+      icon: "🌐", notes: "notes", description: "description", group: "Apps" });
+    assert.equal(result.type, type);
+    assert.equal(result.container, "");
+    assert.equal(result.altUrl, "https://example.test");
+    assert.equal(result.notes, "notes");
+    assert.equal(result.group, "Apps");
+  }
+});
+
+const labeledUrls = () => [
+  { label: "Local", url: "http://app.test:8080" },
+  { label: "Public", url: "https://app.test" },
+  { label: "Admin <&> \"panel\"", url: "https://app.test/admin" },
+  { label: "VPN", url: "http://vpn.test:8080" },
+];
+
+test("canonical service URLs are ordered and authoritative, with derived compatibility fields", () => {
+  const { sanitizeConfig } = loadLib("config", { "./env": {} });
+  const service = (fields) => sanitizeConfig({ servers: [{ name: "Host", services: [
+    { id: "svc", name: "Service", ...fields },
+  ] }] }).servers[0].services[0];
+  for (const type of [undefined, "docker", "web", "bookmark"]) {
+    const result = service({ ...(type ? { type } : {}), container: "app", urls: labeledUrls(),
+      url: "javascript:stale", altUrl: { invalid: true } });
+    assert.deepEqual(result.urls, labeledUrls());
+    assert.equal(result.url, labeledUrls()[0].url);
+    assert.equal(result.altUrl, labeledUrls()[1].url);
+    assert.deepEqual(service(result), result);
+  }
+  const empty = service({ type: "docker", container: "app", urls: [], url: "https://stale.test", altUrl: "https://stale.test" });
+  assert.deepEqual(empty.urls, []);
+  assert.equal(empty.url, "");
+  assert.equal(empty.altUrl, "");
+  assert.deepEqual(service({ urls: [] }).urls, []);
+  const single = service({ type: "web", urls: [labeledUrls()[2]], altUrl: "https://stale.test" });
+  assert.equal(single.url, labeledUrls()[2].url);
+  assert.equal(single.altUrl, "");
+  for (const type of ["web", "bookmark"])
+    assert.throws(() => service({ type, urls: [], url: "https://stale.test" }), { status: 400 });
+  assert.throws(() => service({ type: "docker", urls: labeledUrls() }), { status: 400 });
+  const legacy = service({ url: "http://local.test", altUrl: "https://public.test" });
+  assert.equal(Object.hasOwn(legacy, "urls"), false);
+  assert.equal(legacy.url, "http://local.test");
+  assert.equal(legacy.altUrl, "https://public.test");
+});
+
+test("URL arrays reject malformed entries and excess counts or lengths without truncation", () => {
+  const { sanitizeConfig } = loadLib("config", { "./env": {} });
+  const sanitize = (urls) => sanitizeConfig({ servers: [{ name: "Host", services: [
+    { name: "Service", type: "web", urls, url: "https://legacy.test" },
+  ] }] }).servers[0].services[0];
+  for (const urls of [null, undefined, false, 4, "https://app.test", {},
+    [null], [false], ["https://app.test"], [[]], [{}],
+    [{ label: 4, url: "https://app.test" }], [{ label: "  ", url: "https://app.test" }],
+    [{ label: "x".repeat(61), url: "https://app.test" }],
+    ...[null, 4, {}, "", " ", "not a URL", "/relative", "javascript:alert(1)", "file:///private", "ftp://app.test", `https://app.test/${"x".repeat(2000)}`]
+      .map((url) => [{ label: "Local", url }]),
+    [labeledUrls()[0], { label: "Bad", url: "no" }, labeledUrls()[2]],
+    Array(51).fill(labeledUrls()[0]), Array(1),
+  ]) assert.throws(() => sanitize(urls), { status: 400 }, JSON.stringify(urls));
+  assert.equal(sanitize(Array(50).fill(labeledUrls()[0])).urls.length, 50);
+  const exact = { label: "x".repeat(60), url: `https://app.test/${"x".repeat(1983)}` };
+  assert.equal(exact.url.length, 2000);
+  assert.deepEqual(sanitize([exact]).urls, [exact]);
+  assert.deepEqual(sanitize([{ label: "  Admin  ", url: " https://app.test/admin  " }]).urls,
+    [{ label: "Admin", url: "https://app.test/admin" }]);
+});
+
+test("typed services and untyped legacy survive persistence and JSON export/import", async (t) => {
+  const dir = await temporaryDirectory(t);
+  const store = loadLib("config", { "./env": { DATA_DIR: dir, CONFIG_FILE: path.join(dir, "config.json") } });
+  const input = { settings: { favorites: ["bookmark"] }, servers: [{ id: "host", name: "Host", groups: ["Apps"], services: [
+    { id: "docker", name: "Docker", type: "docker", container: "app" },
+    { id: "web", name: "Web", type: "web", urls: labeledUrls(), url: "https://stale.test" },
+    { id: "bookmark", name: "Bookmark", type: "bookmark", altUrl: "https://link.test", group: "Apps", notes: "keep" },
+    { id: "legacy", name: "Legacy", container: "auto" },
+  ] }] };
+  const sanitized = store.sanitizeConfig(input);
+  await store.writeConfig(sanitized);
+  const saved = await store.readConfig();
+  assert.deepEqual(saved, sanitized);
+  assert.deepEqual(saved.servers[0].services[1].urls, labeledUrls());
+  assert.equal(Object.hasOwn(saved.servers[0].services[3], "urls"), false);
+  const imported = store.sanitizeConfig(JSON.parse(JSON.stringify(saved)));
+  assert.deepEqual(imported, saved);
+  imported.servers[0].services[0] = { ...imported.servers[0].services[0], type: "bookmark", url: "https://app.test" };
+  const converted = store.sanitizeConfig(imported);
+  await store.writeConfig(converted);
+  assert.equal((await store.readConfig()).servers[0].services[0].container, "");
+  assert.equal(Object.hasOwn((await store.readConfig()).servers[0].services[3], "type"), false);
+  assert.deepEqual((await store.readConfig()).settings.favorites, ["bookmark"]);
+});
+
+test("health probes only URL-bearing monitored entries and invalidation drops bookmark health", async () => {
+  const contacted = [];
+  const services = [
+    { id: "bookmark", type: "bookmark", url: "http://bookmark.test" },
+    { id: "web", type: "web", url: "http://web.test", altUrl: "http://unused.test" },
+    { id: "alt", type: "web", altUrl: "https://alternate.test" },
+    { id: "docker", type: "docker", container: "app" },
+    { id: "docker-url", type: "docker", container: "app", url: "http://docker.test" },
+    { id: "legacy", url: "http://legacy.test" },
+    { id: "empty" },
+    { id: "unknown", type: "future", url: "http://unknown.test" },
+    { id: "duplicate", type: "bookmark", url: "http://web.test" },
+  ];
+  const client = { request(url, options, callback) {
+    contacted.push(url.href);
+    const req = new EventEmitter();
+    req.end = () => queueMicrotask(() => callback({ statusCode: 200, destroy() {} }));
+    req.destroy = (err) => req.emit("error", err);
+    return req;
+  } };
+  const health = loadLib("health", {
+    "./config": { readConfig: async () => ({ servers: [{ services }] }) },
+    "./tunables": { get: () => 60 },
+    "./logger": { info() {}, warn() {} }, http: client, https: client,
+  });
+  const first = await health.getHealth();
+  assert.deepEqual(Object.keys(first.results).sort(), ["alt", "docker-url", "legacy", "web"]);
+  assert.deepEqual(contacted.sort(), ["http://docker.test/", "http://legacy.test/", "http://web.test/", "https://alternate.test/"]);
+  services.find((s) => s.id === "web").type = "bookmark";
+  contacted.length = 0;
+  health.invalidateHealth();
+  const next = await health.getHealth();
+  assert.equal(next.results.web, undefined);
+  assert.equal(contacted.includes("http://web.test/"), false);
+});
+
+test("health checks only canonical first URLs for Web, Docker and legacy, never bookmark or shadows", async () => {
+  const contacted = [];
+  const services = ["web", "docker", "legacy", "bookmark"].map((type) => ({
+    id: type, ...(type === "legacy" ? {} : { type }), container: "app",
+    urls: [{ label: "Primary", url: `http://${type}.test` }, ...labeledUrls()],
+    url: "https://stale.test", altUrl: "https://stale-alt.test",
+  }));
+  services.push({ id: "empty", urls: [], url: "http://stale.test" },
+    { id: "invalid", urls: [{ label: "Bad", url: "javascript:bad" }, ...labeledUrls()], url: "http://stale.test" },
+    { id: "invalid-array", urls: null, url: "http://stale.test" });
+  const client = { request(url, options, callback) {
+    contacted.push(url.href);
+    const req = new EventEmitter();
+    req.end = () => queueMicrotask(() => callback({ statusCode: 200, destroy() {} }));
+    req.destroy = (err) => req.emit("error", err);
+    return req;
+  } };
+  const health = loadLib("health", {
+    "./config": { readConfig: async () => ({ servers: [{ services }] }) },
+    "./tunables": { get: () => 60 },
+    "./logger": { info() {}, warn() {} }, http: client, https: client,
+  });
+  assert.deepEqual(Object.keys((await health.getHealth()).results).sort(), ["docker", "legacy", "web"]);
+  assert.deepEqual(contacted.sort(), ["http://docker.test/", "http://legacy.test/", "http://web.test/"]);
+  services[0].urls.unshift(services[0].urls.pop());
+  health.invalidateHealth();
+  contacted.length = 0;
+  await health.getHealth();
+  assert.equal(contacted.includes("http://web.test/"), false);
+  assert.equal(contacted.includes("http://vpn.test:8080/"), true);
+});
+
 test("health invalidation starts a new generation and old completion cannot replace it", async () => {
   const reads = [];
   const health = loadLib("health", {
@@ -516,6 +694,56 @@ test("peer snapshots copy known bounded fields and support older optional fields
   assert.equal((await fixture.read()).refreshError, "");
 });
 
+test("remote service types preserve legacy and do not require bookmark health", async (t) => {
+  const fixture = await snapshotFixture(t);
+  const data = validPeerSnapshot();
+  data.servers[0].services.push(
+    { id: "bookmark", name: "Bookmark", type: "bookmark", url: "https://bookmark.test", container: "web" },
+    { id: "alt", name: "Alternate", type: "web", altUrl: "https://alternate.test" },
+    { id: "docker", name: "Docker", type: "docker", container: "web" },
+  );
+  data.health.alt = { state: "up", code: 200, ms: 1 };
+  fixture.set(data);
+  const result = await fixture.read();
+  assert.equal(result.refreshError, "");
+  assert.deepEqual(result.servers[0].services.map((s) => s.type), [undefined, "bookmark", "web", "docker"]);
+  assert.equal(result.servers[0].services[1].container, "");
+  delete data.health.alt;
+  fixture.set(data);
+  assert.match((await fixture.read()).refreshError, /health/);
+  data.servers[0].services[1].type = "future";
+  fixture.set(data);
+  assert.match((await fixture.read()).refreshError, /servers/);
+});
+
+test("remote snapshots preserve all labeled URLs, derive shadows and validate lists", async (t) => {
+  const fixture = await snapshotFixture(t);
+  const data = validPeerSnapshot();
+  const svc = data.servers[0].services[0];
+  svc.urls = labeledUrls();
+  svc.url = "javascript:stale";
+  svc.altUrl = "invalid shadow";
+  data.servers[0].services.push({ id: "bookmark", name: "Bookmark", type: "bookmark", urls: labeledUrls() });
+  fixture.set(data);
+  const result = await fixture.read();
+  assert.equal(result.refreshError, "");
+  assert.deepEqual(result.servers[0].services[0].urls, labeledUrls());
+  assert.deepEqual(result.servers[0].services[1].urls, labeledUrls());
+  assert.equal(result.servers[0].services[0].url, labeledUrls()[0].url);
+  assert.equal(result.servers[0].services[0].altUrl, labeledUrls()[1].url);
+  delete data.health.web;
+  fixture.set(data);
+  assert.match((await fixture.read()).refreshError, /health/);
+  svc.urls = [];
+  fixture.set(data);
+  assert.equal((await fixture.read()).refreshError, "");
+  for (const urls of [Array(51).fill(labeledUrls()[0]), [labeledUrls()[0], { label: "Bad", url: "javascript:bad" }]]) {
+    svc.urls = urls;
+    fixture.set(data);
+    assert.match((await fixture.read()).refreshError, /servers/);
+  }
+});
+
 test("invalid and incomplete peer sections are render-safe and never advance lastOk", async (t) => {
   const fixture = await snapshotFixture(t);
   const good = await fixture.read();
@@ -580,6 +808,7 @@ test("accepted peer sections execute frontend stats, status and usage consumers 
     document: { createElementNS: node },
     fmtBytes: String, fmtUptime: String, fmtDuration: String, fmtDateTime: String,
     fmtPercent: String, plural: String, norm: (v) => v.toLowerCase(), portOf: () => 80,
+    monitoringUrl: require("../lib/service-urls").monitoringUrl,
   };
   const consumer = (file, names) => {
     const code = fs.readFileSync(path.join(__dirname, "../public/js", file), "utf8")

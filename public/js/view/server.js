@@ -197,7 +197,8 @@ function renderServerHead(server) {
     );
   const src = sourceOf(server);
   const stale = staleness(server);
-  if (!stale?.level && server.local && !src.docker.available) {
+  if (!stale?.level && server.local && !src.docker.available &&
+      server.services.some((svc) => !Object.hasOwn(svc, "type") || svc.type === "docker")) {
     meta.append(
       h(
         "span",

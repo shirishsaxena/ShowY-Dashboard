@@ -51,9 +51,31 @@ export function hostLabel(u) {
   return url.port ? `:${url.port}` : url.hostname;
 }
 
-/** On remote access (e.g. phone on mobile data) prefer the public URL when available. */
+/** Safe display links, with canonical arrays authoritative over legacy shadows. */
+export function serviceUrls(svc) {
+  const entries = Object.hasOwn(svc, "urls")
+    ? (Array.isArray(svc.urls) ? svc.urls : [])
+    : [{ label: "Local", url: svc.url }, { label: "Public", url: svc.altUrl }];
+  return entries.flatMap((entry, index) => {
+    const url = typeof entry?.url === "string" ? safeUrl(entry.url) : "";
+    return url ? [{ label: typeof entry.label === "string" && entry.label.trim()
+      ? entry.label.trim() : `URL ${index + 1}`, url }] : [];
+  });
+}
+
+/** Backend check target (no browser-host substitution or LAN/public switching). */
+export function monitoringUrl(svc) {
+  const value = Object.hasOwn(svc, "urls")
+    ? (Array.isArray(svc.urls) ? svc.urls[0]?.url : "")
+    : svc.url || svc.altUrl;
+  const url = typeof value === "string" ? parseUrl(value) : null;
+  return url && ["http:", "https:"].includes(url.protocol) ? value : "";
+}
+
+/** Canonical first URL; only legacy services retain LAN/public selection. */
 export const primaryUrl = (svc) =>
-  safeUrl(!isLan && svc.altUrl ? svc.altUrl : svc.url || svc.altUrl);
+  Object.hasOwn(svc, "urls") ? safeUrl(monitoringUrl(svc))
+    : safeUrl(!isLan && svc.altUrl ? svc.altUrl : svc.url || svc.altUrl);
 
 // ---------- Formatting ----------
 

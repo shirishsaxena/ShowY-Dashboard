@@ -21,7 +21,7 @@ function deferred() {
 // Evaluate browser modules with explicit dependency stubs, without dependencies or VM flags.
 function browserModule(file, names, globals = {}) {
   const code = source(file)
-    .replace(/^import .*;\r?$/gm, "")
+    .replace(/^import[\s\S]*?;\r?$/gm, "")
     .replace(/\bexport (?=(?:async )?(?:function|class|const|let)\b)/g, "");
   return vm.runInNewContext(`${code}\n;({ ${names.join(", ")} });`, globals, {
     filename: file,
@@ -89,6 +89,411 @@ class Element {
     return { left: 0, top: 0, width: 100, height: 50 };
   }
 }
+
+function serviceTypeHarness() {
+  const stateModule = browserModule("js/state.js", ["state", "sourceOf", "normalizeConfig", "allServers"], {
+    localStorage: { getItem: () => null },
+  });
+  const utils = browserModule("js/utils.js", ["norm", "portOf", "plural", "serviceUrls", "monitoringUrl", "primaryUrl"], {
+    URL, location: { hostname: "localhost" },
+  });
+  const h = (tag, attrs, ...children) => ({ tag, attrs, children: children.flat(Infinity).filter((x) => x != null) });
+  const status = browserModule("js/status.js", ["containerFor", "containerStatus", "serviceStatus", "serverCounts", "statusNode", "duplicateHosts"], {
+    ...utils, sourceOf: stateModule.sourceOf, h, URL,
+  });
+  const { state } = stateModule;
+  state.docker = { available: true, containers: [
+    { name: "app", state: "running", status: "Up", ports: [8080] },
+    { name: "stopped", state: "exited", status: "Exited", ports: [] },
+  ] };
+  return { ...stateModule, ...utils, ...status, h };
+}
+
+test("typed matching excludes web/bookmarks and Docker has no automatic fallback; legacy remains", () => {
+  const h = serviceTypeHarness();
+  const server = { local: true };
+  const base = { id: "svc", name: "app", url: "http://host:8080" };
+  assert.equal(h.containerFor(base, server).name, "app");
+  assert.equal(h.containerFor({ ...base, name: "other" }, server).name, "app");
+  assert.equal(h.containerFor({ ...base, url: "" }, server).name, "app");
+  assert.equal(h.containerFor({ ...base, type: "docker" }, server), null);
+  assert.equal(h.containerFor({ ...base, type: "docker", container: "missing" }, server), null);
+  assert.equal(h.containerFor({ ...base, type: "docker", container: "APP" }, server).name, "app");
+  for (const type of ["web", "bookmark", "future", "", null])
+    assert.equal(h.containerFor({ ...base, type, container: "app" }, server), undefined);
+  h.state.docker.available = false;
+  assert.equal(h.containerFor({ ...base, type: "docker", container: "app" }, server), undefined);
+});
+
+test("typed statuses ignore cached bookmark health, use HTTP-only web and require Docker evidence", () => {
+  const h = serviceTypeHarness();
+  const server = { local: true };
+  const svc = { id: "svc", name: "app", url: "http://host:8080", container: "app" };
+  h.state.health.svc = { state: "down", error: "refused" };
+  const bookmark = h.serviceStatus({ ...svc, type: "bookmark" }, server);
+  assert.equal(bookmark.level, "neutral");
+  assert.equal(bookmark.label, "Bookmark");
+  assert.doesNotMatch(bookmark.title, /HTTP|Docker|refused/);
+  assert.equal(h.statusNode(bookmark).attrs.class, "status neutral");
+  assert.equal(h.serviceStatus({ ...svc, type: "web" }, server).level, "down");
+  assert.doesNotMatch(h.serviceStatus({ ...svc, type: "web" }, server).title, /Docker|Container/);
+  assert.equal(h.serviceStatus({ ...svc, type: "docker" }, server).level, "warn");
+  h.state.health.svc = { state: "up", code: 200, ms: 2 };
+  assert.equal(h.serviceStatus({ ...svc, type: "docker" }, server).level, "up");
+  assert.equal(h.serviceStatus({ ...svc, type: "docker", container: "stopped" }, server).level, "down");
+  for (const container of ["", "missing"]) {
+    assert.equal(h.serviceStatus({ ...svc, type: "docker", container }, server).level, "unknown");
+    assert.equal(h.serviceStatus({ ...svc, container: "missing" }, server).level, "up");
+  }
+  h.state.docker.available = false;
+  assert.equal(h.serviceStatus({ ...svc, type: "docker" }, server).label, "Docker unavailable");
+  assert.equal(h.serviceStatus({ ...svc, type: "web" }, server).level, "up");
+  assert.equal(h.serviceStatus(svc, server).level, "up");
+  h.state.docker.available = true;
+  assert.equal(h.serviceStatus({ ...svc, type: "docker" }, { local: false }).level, "unknown");
+  for (const type of [null, "", "tcp"])
+    assert.equal(h.serviceStatus({ ...svc, type }, server).label, "Unknown type");
+  h.state.health.svc = { state: "error", code: 404, ms: 1 };
+  assert.equal(h.serviceStatus({ ...svc, type: "web" }, server).label, "Not found");
+  delete h.state.health.svc;
+  assert.equal(h.serviceStatus({ ...svc, type: "web" }, server), null);
+});
+
+test("type transitions immediately ignore stale health/resources and remote types use their own source", () => {
+  const h = serviceTypeHarness();
+  const svc = { id: "svc", name: "app", type: "docker", container: "app", url: "http://host:8080" };
+  const server = { local: true, services: [svc] };
+  h.state.health.svc = { state: "up", code: 200, ms: 1 };
+  assert.equal(h.serviceStatus(svc, server).level, "up");
+  svc.type = "bookmark";
+  assert.equal(h.containerFor(svc, server), undefined);
+  assert.equal(h.serviceStatus(svc, server).level, "neutral");
+  svc.type = "web";
+  assert.equal(h.containerFor(svc, server), undefined);
+  assert.equal(h.serviceStatus(svc, server).label, "Online");
+  svc.type = "docker";
+  svc.container = "missing";
+  assert.equal(h.serviceStatus(svc, server).level, "unknown");
+  const remote = { id: "remote", docker: { available: true, containers: [
+    { name: "app", state: "exited", status: "Exited", ports: [8080] },
+  ] }, health: { svc: { state: "down", error: "remote failure" } } };
+  h.state.remotes = [remote];
+  server.remote = "remote";
+  svc.container = "app";
+  assert.equal(h.serviceStatus(svc, server).level, "down");
+  svc.type = "web";
+  assert.match(h.serviceStatus(svc, server).title, /remote failure/);
+  svc.type = "bookmark";
+  assert.equal(h.serviceStatus(svc, server).level, "neutral");
+  const normalized = h.normalizeConfig({ servers: [server] });
+  assert.equal(normalized.servers[0].services[0].type, "bookmark");
+});
+
+test("summary and server counts exclude bookmarks from health while retaining truthful service totals", () => {
+  const h = serviceTypeHarness();
+  const server = { id: "host", local: true, services: [
+    { id: "web", name: "Web", type: "web", url: "http://web.test" },
+    { id: "bookmark", name: "Bookmark", type: "bookmark", url: "http://link.test" },
+    { id: "docker", name: "Docker", type: "docker", container: "missing" },
+  ] };
+  h.state.config.servers = [server];
+  h.state.health = { web: { state: "up", code: 200 }, bookmark: { state: "down" } };
+  const { summary } = browserModule("js/view/render.js", ["summary"], h);
+  assert.equal(JSON.stringify(h.serverCounts(server)), JSON.stringify({ up: 1, warn: 0, down: 0 }));
+  assert.match(summary(), /3 services · 1\/1 online/);
+  server.services = [server.services[1]];
+  assert.match(summary(), /1 service$/);
+  assert.doesNotMatch(summary(), /online/);
+});
+
+test("unlisted discovery ignores Web/Bookmark membership and adds explicitly bound Docker services", async () => {
+  const status = serviceTypeHarness();
+  status.state.docker.containers = [{ name: "app", image: "app:latest", state: "running", status: "Up", ports: [8080] }];
+  const server = { id: "host", local: true, mainUrl: "http://host.test", services: [
+    { id: "web", type: "web", name: "app", container: "app", url: "http://host:8080" },
+    { id: "bookmark", type: "bookmark", name: "app", container: "app", url: "http://host:8080" },
+  ] };
+  status.state.config.servers = [server];
+  const section = {};
+  const adds = [];
+  const nodes = [];
+  const { renderUnlisted } = browserModule("js/view/containers.js", ["renderUnlisted"], {
+    ...status,
+    h: (tag, attrs, ...children) => {
+      const node = { tag, attrs, children: children.flat(Infinity), addEventListener() {} };
+      nodes.push(node);
+      return node;
+    },
+    $: () => section, fill: (node, contents) => { node.contents = contents; },
+    prefs: { unlistedOpen: true }, setPref() {}, hostOf: () => "host.test",
+    location: { hostname: "localhost" }, svg: () => null, iconNode: () => null,
+    iconBtn: () => null, external: {}, usageNode: () => null, groupUsageNode: () => null,
+    actions: { ensureCanEdit: async () => true },
+    openServiceEditor: (...args) => adds.push(args),
+  });
+  renderUnlisted(server);
+  assert.equal(section.hidden, false);
+  assert.match(JSON.stringify(section.contents), /1 Docker container/);
+  const add = nodes.find((node) => node.tag === "button" && node.children.includes("Add"));
+  assert.ok(add);
+  await add.attrs.onclick();
+  assert.equal(adds[0][2].type, "docker");
+  assert.equal(adds[0][2].container, "app");
+  server.services.push({ id: "docker", name: "Docker", type: "docker", container: "app" });
+  renderUnlisted(server);
+  assert.equal(section.hidden, true);
+  server.services.at(-1).container = "missing";
+  renderUnlisted(server);
+  assert.equal(section.hidden, false);
+  delete server.services.at(-1).type;
+  delete server.services.at(-1).container;
+  server.services.at(-1).name = "app";
+  renderUnlisted(server);
+  assert.equal(section.hidden, true);
+});
+
+test("remote browser loading preserves service types, legacy omission and originating health", () => {
+  const h = serviceTypeHarness();
+  const { remoteEntry } = browserModule("js/api.js", ["remoteEntry"], {
+    state: h.state, normalizeConfig: h.normalizeConfig,
+  });
+  const remote = remoteEntry({ id: "peer", name: "Peer", ok: true, age: 0, lastOk: 1,
+    docker: h.state.docker, usage: { stats: {} }, health: { bookmark: { state: "down" } },
+    servers: [{ id: "host", local: true, services: [
+      { id: "bookmark", name: "Bookmark", type: "bookmark", url: "https://link.test" },
+      { id: "web", name: "Web", type: "web", url: "https://web.test" },
+      { id: "docker", name: "Docker", type: "docker", container: "app" },
+      { id: "legacy", name: "Legacy" },
+    ] }],
+  }, 1);
+  h.state.remotes = [remote];
+  const server = remote.servers[0];
+  assert.equal(server.remote, "peer");
+  assert.equal(server.services[0].type, "bookmark");
+  assert.equal(server.services[1].type, "web");
+  assert.equal(server.services[2].type, "docker");
+  assert.equal(Object.hasOwn(server.services[3], "type"), false);
+  assert.equal(h.serviceStatus(server.services[0], server).level, "neutral");
+  assert.equal(h.serviceStatus(server.services[2], server).level, "up");
+});
+
+test("URL helpers preserve legacy LAN/public selection but canonical first wins everywhere", () => {
+  for (const hostname of ["localhost", "192.168.1.2", "dashboard.example.com"]) {
+    const helpers = browserModule("js/utils.js", ["serviceUrls", "monitoringUrl", "primaryUrl"], { URL, location: { hostname } });
+    const svc = { url: "http://local.test:8080", altUrl: "https://public.test" };
+    assert.equal(helpers.primaryUrl(svc), hostname === "dashboard.example.com" ? "https://public.test/" : "http://local.test:8080/");
+    assert.equal(helpers.monitoringUrl(svc), svc.url);
+    assert.deepEqual(Array.from(helpers.serviceUrls(svc), (entry) => entry.label), ["Local", "Public"]);
+    svc.urls = [{ label: "VPN", url: "http://vpn.test:8000" }, { label: "Admin", url: "https://admin.test" }, { label: "Third", url: "https://third.test" }];
+    assert.equal(helpers.primaryUrl(svc), "http://vpn.test:8000/");
+    assert.equal(helpers.monitoringUrl(svc), "http://vpn.test:8000");
+    assert.equal(helpers.serviceUrls(svc).length, 3);
+    for (const urls of [[], null, {}, [{ label: "Bad", url: "javascript:bad" }, ...svc.urls]]) {
+      assert.equal(helpers.primaryUrl({ ...svc, urls }), "");
+      assert.equal(helpers.monitoringUrl({ ...svc, urls }), "");
+    }
+    const unsafe = { urls: [null, { label: "Unsafe", url: "data:text/html,hi" }, { label: "Good", url: "https://good.test" }] };
+    assert.deepEqual(Array.from(helpers.serviceUrls(unsafe), (entry) => entry.url), ["https://good.test/"]);
+    assert.equal(helpers.primaryUrl({ urls: [{ label: "Local", url: "http://localhost:8080" }] }), `http://${hostname}:8080/`);
+    assert.equal(helpers.monitoringUrl({ urls: [{ label: "Local", url: "http://localhost:8080" }] }), "http://localhost:8080");
+  }
+});
+
+test("legacy Docker port matching and duplicate hosts use only the primary monitored URL", () => {
+  const h = serviceTypeHarness();
+  const svc = { id: "svc", name: "Unmatched", url: "http://stale.test:9000",
+    urls: [{ label: "Primary", url: "http://app.test:8080" }, { label: "Other", url: "http://other.test:9000" }] };
+  const server = { local: true, services: [svc, { id: "other", urls: [{ label: "Other", url: "http://app.test:8080/path" }] }] };
+  assert.equal(h.containerFor(svc, server).name, "app");
+  assert.equal(h.duplicateHosts(server).has("app.test:8080"), true);
+  svc.urls.reverse();
+  assert.equal(h.containerFor(svc, server), null);
+  assert.equal(h.duplicateHosts(server).size, 0);
+  h.state.health.svc = { state: "up", code: 200, ms: 1 };
+  for (const type of [undefined, "docker", "web"])
+    assert.notEqual(h.serviceStatus({ ...svc, ...(type ? { type } : {}), urls: [], container: "missing" }, server)?.level, "up");
+});
+
+function serviceEditorHarness() {
+  const input = (attrs = {}) => {
+    const el = new Element();
+    el.value = "";
+    Object.assign(el, attrs);
+    el.setCustomValidity = (message) => { el.validationMessage = message; };
+    el.focus = () => { el.focused = true; };
+    return el;
+  };
+  const fields = Object.fromEntries(["type", "name", "icon", "description", "notes", "container", "group", "favorite", "serverId"].map((key) => [key, input()]));
+  const nodes = new Map();
+  const $ = (selector) => {
+    if (!nodes.has(selector)) nodes.set(selector, new Element());
+    return nodes.get(selector);
+  };
+  const form = $("#serviceForm");
+  form.reset = () => { for (const el of Object.values(fields)) { el.value = ""; el.checked = false; } };
+  $("#serviceDialog").showModal = () => {};
+  $("#serviceDialog").close = () => {};
+  const saved = [];
+  const server = { id: "host", name: "Host", groups: ["Apps"], services: [] };
+  const utils = browserModule("js/utils.js", ["safeUrl"], { URL, location: { hostname: "localhost" } });
+  const editor = browserModule("js/dialogs/service.js", ["initServiceForm", "openServiceEditor"], {
+    ...utils,
+    $, field: (form, name) => fields[name], value: (form, name) => fields[name].value.trim(),
+    h: (tag, attrs, ...children) => {
+      const node = input({ tag, ...attrs, children });
+      for (const [key, handler] of Object.entries(attrs))
+        if (key.startsWith("on")) node.addEventListener(key.slice(2), handler);
+      return node;
+    },
+    fill: (node, children) => { node.options = children; },
+    state: { config: { servers: [server] }, docker: { containers: [{ name: "app", image: "app" }] } },
+    findServer: () => server, isFavorite: () => true,
+    pendingForm: async (form, fn) => fn(), iconPicker: () => ({ reset() {} }),
+    actions: { saveService: async (data) => { saved.push(data); return true; } },
+  });
+  const rows = () => Array.from($("#serviceUrls").options, (node) => ({
+    label: node.children[0].children[1], url: node.children[1].children[1],
+    primary: node.children[2].children[0], remove: node.children[2].children[1],
+  }));
+  form.reportValidity = () => [...Object.values(fields), ...rows().flatMap((row) => [row.label, row.url])]
+    .every((el) => el.disabled || (!el.validationMessage && (!el.required || el.value.trim())));
+  editor.initServiceForm();
+  const submit = () => [...form.listeners.get("submit")][0]({ preventDefault() {} });
+  return { ...editor, fields, server, saved, submit, $, rows };
+}
+
+test("service editor saves and reopens 3+ labeled URLs with add/remove/primary and type transitions", async () => {
+  const h = serviceEditorHarness();
+  h.server.services = [{ id: "svc", name: "Legacy", url: "http://local.test", altUrl: "https://public.test" }];
+  h.openServiceEditor("host", "svc");
+  assert.deepEqual(h.rows().map((row) => row.label.value), ["Local", "Public"]);
+  assert.equal(Object.hasOwn(h.server.services[0], "urls"), false);
+  for (const [label, url] of [["<Admin & panel>", "https://admin.test"], ["VPN", "http://vpn.test"]]) {
+    h.$("#serviceAddUrl").emit("click");
+    const row = h.rows().at(-1);
+    assert.equal(row.label.focused, true);
+    row.label.value = label;
+    row.url.value = url;
+    row.url.emit("input");
+  }
+  h.rows()[2].primary.emit("click");
+  assert.equal(h.rows()[0].label.value, "<Admin & panel>");
+  assert.equal(h.rows()[0].primary.disabled, true);
+  h.rows()[1].remove.emit("click");
+  assert.equal(h.rows().length, 3);
+  h.$("#serviceAddUrl").emit("click"); // blank trailing row is not persisted
+  await h.submit();
+  const fields = h.saved.at(-1).fields;
+  assert.equal(fields.urls.length, 3);
+  assert.equal(fields.url, "https://admin.test");
+  assert.equal(fields.altUrl, "https://public.test");
+  assert.deepEqual(Array.from(fields.urls, (row) => row.label), ["<Admin & panel>", "Public", "VPN"]);
+  h.server.services[0] = { id: "svc", ...fields, url: "https://stale.test" };
+  h.openServiceEditor("host", "svc");
+  assert.deepEqual(h.rows().map((row) => row.url.value), ["https://admin.test", "https://public.test", "http://vpn.test"]);
+  for (const type of ["bookmark", "web", "docker"]) {
+    h.fields.type.value = type;
+    h.fields.container.value = "app";
+    h.fields.type.emit("change");
+    await h.submit();
+    assert.equal(h.saved.at(-1).fields.urls.length, 3);
+    assert.equal(h.saved.at(-1).fields.container, type === "docker" ? "app" : "");
+  }
+  h.rows()[0].remove.emit("click");
+  await h.submit();
+  assert.equal(h.saved.at(-1).fields.url, "https://public.test");
+  h.rows()[1].remove.emit("click");
+  await h.submit();
+  assert.equal(h.saved.at(-1).fields.altUrl, "");
+  h.rows()[0].remove.emit("click");
+  await h.submit();
+  assert.equal(h.saved.at(-1).fields.urls.length, 0);
+  assert.equal(h.saved.at(-1).fields.url, "");
+  for (const type of ["web", "bookmark"]) {
+    h.fields.type.value = type;
+    h.fields.type.emit("change");
+    const before = h.saved.length;
+    await h.submit();
+    assert.equal(h.saved.length, before);
+  }
+});
+
+test("editor rejects partial/unsafe/oversized entries, limits rows, and preserves raw invalid URLs for correction", async () => {
+  const h = serviceEditorHarness();
+  h.openServiceEditor("host", null, { type: "docker", container: "app" });
+  for (const [label, url] of [["Only label", ""], ["", "https://app.test"], ["Bad", "ftp://app.test"],
+    ["Bad", "https://"], ["x".repeat(61), "https://app.test"], ["Long", `https://app.test/${"x".repeat(2000)}`]]) {
+    const row = h.rows()[0];
+    row.label.value = label;
+    row.url.value = url;
+    row.url.emit("input");
+    await h.submit();
+    assert.equal(h.saved.length, 0);
+  }
+  h.server.services = [{ id: "svc", name: "Raw", type: "web", urls: [{ label: "Fix", url: "javascript:bad" }] }];
+  h.openServiceEditor("host", "svc");
+  assert.equal(h.rows()[0].url.value, "javascript:bad");
+  assert.match(h.rows()[0].url.validationMessage, /HTTP/);
+  while (h.rows().length < 50) h.$("#serviceAddUrl").emit("click");
+  assert.equal(h.$("#serviceAddUrl").disabled, true);
+  h.$("#serviceAddUrl").emit("click");
+  assert.equal(h.rows().length, 50);
+  h.rows()[49].remove.emit("click");
+  assert.equal(h.$("#serviceAddUrl").disabled, false);
+});
+
+test("service editor defaults, legacy ordinary edits, discovery and type transitions preserve metadata", async () => {
+  const h = serviceEditorHarness();
+  h.openServiceEditor("host");
+  assert.equal(h.fields.type.value, "web");
+  assert.equal(h.fields.type.options.some((o) => o.value === ""), false);
+  assert.equal(h.rows()[0].url.required, true);
+  assert.equal(h.fields.container.disabled, true);
+  h.rows()[0].url.value = "https://example.test";
+  h.rows()[0].url.emit("input");
+  assert.equal(h.rows()[0].url.required, false);
+  h.rows()[0].url.value = "ftp://example.test";
+  h.rows()[0].url.emit("input");
+  assert.match(h.rows()[0].url.validationMessage, /HTTP/);
+  h.openServiceEditor("host", null, { type: "docker", name: "app", container: "app" });
+  assert.equal(h.fields.type.value, "docker");
+  assert.equal(h.fields.container.required, true);
+  assert.equal(h.rows()[0].url.required, false);
+  await h.submit();
+  assert.equal(h.saved.at(-1).fields.container, "app");
+  assert.equal(h.saved.at(-1).fields.type, "docker");
+  h.server.services = [{ id: "svc", name: "Legacy", container: "app", group: "Apps", notes: "keep", icon: "🌐", url: "http://app.test", description: "description" }];
+  h.openServiceEditor("host", "svc");
+  assert.equal(h.fields.type.value, "");
+  assert.equal(h.fields.container.required, false);
+  await h.submit();
+  assert.equal(Object.hasOwn(h.saved.at(-1).fields, "type"), false);
+  assert.equal(h.saved.at(-1).fields.container, "app");
+  h.fields.type.value = "bookmark";
+  h.fields.type.emit("change");
+  await h.submit();
+  const converted = h.saved.at(-1);
+  assert.equal(converted.fields.type, "bookmark");
+  assert.equal(converted.fields.container, "");
+  assert.equal(converted.fields.group, "Apps");
+  assert.equal(converted.fields.notes, "keep");
+  assert.equal(converted.fields.icon, "🌐");
+  assert.equal(converted.pinned, true);
+  h.server.services[0] = { id: "svc", ...converted.fields };
+  h.openServiceEditor("host", "svc");
+  assert.equal(h.fields.type.options.some((o) => o.value === ""), false);
+  h.fields.type.value = "docker";
+  h.fields.type.emit("change");
+  assert.match(h.fields.container.validationMessage, /explicit/);
+  h.fields.container.value = "app";
+  h.fields.container.emit("input");
+  assert.equal(h.fields.container.validationMessage, "");
+  h.server.services[0].type = "future";
+  h.openServiceEditor("host", "svc");
+  assert.equal(h.fields.type.value, "unsupported");
+  assert.match(h.fields.type.validationMessage, /supported/);
+  assert.equal(h.fields.type.options.some((o) => o.value === ""), false);
+});
 
 for (const name of ["SecurityError", "QuotaExceededError"]) {
   test(`preferences remain usable when storage throws ${name}`, () => {
@@ -1080,12 +1485,13 @@ for (const name of ["service", "server", "link"]) {
     const button = { disabled: false };
     const controls = new Map();
     const field = (_form, key) => {
-      if (!controls.has(key)) controls.set(key, Object.assign(new Element(), { value: "value", checked: false }));
+      if (!controls.has(key)) controls.set(key, Object.assign(new Element(), { value: "value", checked: false, setCustomValidity() {} }));
       return controls.get(key);
     };
     form.querySelectorAll = () => [button];
+    form.reportValidity = () => true;
     const remove = new Element();
-    const dialog = { closes: 0, close() { this.closes++; } };
+    const dialog = Object.assign(new Element(), { closes: 0, close() { this.closes++; } });
     const request = deferred();
     let saves = 0;
     let deletes = 0;
