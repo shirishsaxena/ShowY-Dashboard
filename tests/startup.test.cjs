@@ -133,6 +133,50 @@ test("password modes preserve login, logout, view and edit policies", async (t) 
   }
 });
 
+test("public install names persist without exposing locked titles or changing app identity", async (t) => {
+  for (const lockView of ["true", "false"]) {
+    await t.test(`view lock ${lockView}`, async (t) => {
+      const app = await start(t, { DASHBOARD_PASSWORD: "test-password", DASHBOARD_LOCK_VIEW: lockView });
+      const json = { "content-type": "application/json" };
+      const login = await app.request("/api/login", {
+        method: "POST", headers: json, body: JSON.stringify({ password: "test-password" }),
+      });
+      const headers = { ...json, cookie: login.headers.get("set-cookie").split(";")[0] };
+      const save = (appName) => app.request("/api/config", {
+        method: "PUT", headers,
+        body: JSON.stringify({ settings: { title: "Private infrastructure", appName }, servers: [] }),
+      });
+      const denied = await app.request("/api/config", {
+        method: "PUT", headers: json, body: JSON.stringify({ settings: { appName: "Untrusted" }, servers: [] }),
+      });
+      assert.equal(denied.status, 401);
+      assert.equal((await save("  Home NAS production  ")).status, 200);
+      const response = await app.request("/manifest.webmanifest");
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("cache-control"), "no-cache");
+      const manifest = await response.json();
+      assert.equal(manifest.name, "Home NAS production");
+      assert.equal(manifest.short_name, "Home NAS production");
+      for (const key of ["id", "start_url", "scope"]) assert.equal(manifest[key], "/");
+      assert.doesNotMatch(JSON.stringify(manifest), /Private infrastructure/);
+      const saved = await (await app.request("/api/config", { headers })).json();
+      assert.equal(saved.config.settings.appName, "Home NAS production");
+      // Same path used by backup import/export: the full configuration survives a round trip.
+      assert.equal((await app.request("/api/config", {
+        method: "PUT", headers, body: JSON.stringify(saved.config),
+      })).status, 200);
+      assert.equal(JSON.parse(fs.readFileSync(path.join(app.dir, "config.json"))).settings.appName, "Home NAS production");
+      assert.equal((await save("VPS")).status, 200);
+      assert.equal((await (await app.request("/manifest.webmanifest")).json()).name, "VPS");
+      assert.equal((await save("   ")).status, 200);
+      const fallback = await (await app.request("/manifest.webmanifest")).json();
+      assert.equal(fallback.name, lockView === "true" ? "Dashboard" : "Private infrastructure");
+      assert.equal(fallback.id, manifest.id);
+      if (lockView === "true") assert.equal((await app.request("/api/config")).status, 401);
+    });
+  }
+});
+
 test("unlocked APIs retain response shapes, persistence and HTTP errors", async (t) => {
   const app = await start(t, { PATH: "", SHARE_TOKEN: "test-share-token-123456" });
   const json = { "content-type": "application/json" };

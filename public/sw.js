@@ -2,7 +2,7 @@
 // Network-first for the app files; API responses are never cached.
 
 const CACHE_PREFIX = "showy-dashboard-";
-const CACHE = `${CACHE_PREFIX}v7`;
+const CACHE = `${CACHE_PREFIX}v8`;
 // Keep the complete module graph here: first-visit requests may precede worker control.
 const SHELL = [
   "/",
@@ -32,6 +32,7 @@ const SHELL = [
   "/js/edit-api.js",
   "/js/loading.js",
   "/js/main.js",
+  "/js/pwa.js",
   "/js/qr.js",
   "/js/refresh.js",
   "/js/render-interface.js",

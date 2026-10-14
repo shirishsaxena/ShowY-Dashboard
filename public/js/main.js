@@ -1,6 +1,7 @@
 // Entry point: wires up the page, loads data and keeps statuses fresh.
 
 import { state, prefs, activeServer } from "./state.js";
+import { initInstallMetadata } from "./pwa.js";
 import { $, toast } from "./dom.js";
 import {
   logout,
@@ -159,6 +160,7 @@ function initSortables() {
 // ---------- Install as an app (PWA) ----------
 
 function initPwa() {
+  initInstallMetadata();
   // Service workers (and the install prompt) need HTTPS or localhost.
   if ("serviceWorker" in navigator && window.isSecureContext) {
     navigator.serviceWorker.register("/sw.js").catch(() => {});

@@ -71,6 +71,7 @@ export const state = {
 export function normalizeConfig(cfg) {
   const settings = {
     title: "Home Lab",
+    appName: "",
     accent: "",
     hiddenContainers: [],
     favorites: [],

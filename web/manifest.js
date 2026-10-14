@@ -4,11 +4,11 @@ const { LOCK_VIEW } = require("../lib/env");
 const { send } = require("../lib/http");
 const { readConfig } = require("../lib/config");
 
-/** PWA manifest; the title is only exposed when viewing doesn't need a login. */
+/** The optional install name is public; never expose a locked dashboard's title. */
 async function serveManifest(req, res) {
-  const title = LOCK_VIEW
-    ? "Dashboard"
-    : (await readConfig()).settings?.title || "Home Lab";
+  const { settings = {} } = await readConfig();
+  const appName = typeof settings.appName === "string" ? settings.appName.trim().slice(0, 60) : "";
+  const title = appName || (LOCK_VIEW ? "Dashboard" : settings.title || "Home Lab");
   const icon = (src, size, purpose = "any") => ({
     src,
     sizes: `${size}x${size}`,
@@ -17,7 +17,8 @@ async function serveManifest(req, res) {
   });
   const manifest = {
     name: title,
-    short_name: title.slice(0, 12),
+    // Do not truncate explicit names: deployment names often differ at the end.
+    short_name: appName || title.slice(0, 12),
     id: "/",
     start_url: "/",
     scope: "/",

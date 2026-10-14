@@ -204,6 +204,16 @@ The application serves HTTP only. No VPS Compose file, reverse-proxy configurati
 
 With the repository Compose file, set the password under `environment`, or replace its empty literal with `DASHBOARD_PASSWORD: "${DASHBOARD_PASSWORD:-}"` and create a private `.env` containing your password. Compose reads `.env` for substitution; it does **not** automatically pass all its variables into the container. Do not commit credentials. The application itself does not load `.env` files.
 
+## Install as an app
+
+Use **Settings → General → Install app** or your browser's **Install app / Add to Home screen** command. PWA installation requires HTTPS or localhost and browser support.
+
+Set **Install / app name** to distinguish deployments, for example **Home NAS**, **Lab**, or **VPS**. Save the setting, then reload before installing. This optional name is **public installation metadata**, including when viewing requires a password; do not put private information in it. It does not rename the dashboard title or weaken authentication.
+
+When left blank, password-protected viewing uses **Dashboard**; otherwise the dashboard title is used. Existing configurations retain these defaults. The app name is included in configuration backups, so adjust it after importing a backup onto another deployment.
+
+Different domains, IP addresses, or ports have separate app identities even when their names match. Servers inside one dashboard's switcher share that dashboard's app. Renaming does not change the app identity. Browsers and operating systems control when an already-installed name updates; reinstalling or manually renaming the shortcut may be necessary. Apple home-screen title metadata is also updated from the public install name when the page loads.
+
 ## Connect multiple dashboards
 
 Install an instance on each machine. Each instance monitors its own host and services; a main dashboard can display other instances as read-only remote servers.

@@ -13,7 +13,7 @@
       name="apple-mobile-web-app-status-bar-style"
       content="black-translucent"
     />
-    <meta name="apple-mobile-web-app-title" content="Home Lab" />
+    <meta name="apple-mobile-web-app-title" content="Dashboard" />
     <title>Dashboard</title>
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
@@ -748,6 +748,14 @@
             </div>
             <div class="field set-group">
               <h3>Install app</h3>
+              <label class="field" for="settingsAppName">
+                <span>Install / app name <span class="field-optional">Optional</span></span>
+                <input id="settingsAppName" name="appName" maxlength="60"
+                  placeholder="Home NAS, Lab, VPS…" aria-describedby="appNameHelp appNameDefault" />
+              </label>
+              <small id="appNameHelp">Public name shown when installing this dashboard, even when password-protected. Do not include private information. Save before installing.</small>
+              <small id="appNameDefault"></small>
+              <small>After saving, reload before installing. Existing app names may take time to update; your browser or OS may require reinstalling.</small>
               <button type="button" id="installBtn" class="btn sm primary" hidden>
                 <svg viewBox="0 0 24 24">
                   <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
@@ -993,7 +1001,7 @@
         </div>
         <footer class="dialog-foot">
           <span class="app-version" id="appVersion"></span>
-          <small id="settingsFeedback" class="grow settings-save-note" role="status" aria-live="polite">Save applies title, accent, and hidden containers. Other preferences save automatically.</small>
+          <small id="settingsFeedback" class="grow settings-save-note" role="status" aria-live="polite">Save applies title, app name, accent, and hidden containers. Other preferences save automatically.</small>
           <button type="button" class="btn ghost" data-close>Cancel</button>
           <button type="submit" class="btn primary" id="settingsSaveBtn">Save</button>
         </footer>
