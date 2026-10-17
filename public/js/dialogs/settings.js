@@ -338,7 +338,7 @@ function showAvailability(data) {
   $("#availInterval").disabled = $("#availThreshold").disabled = !data.enabled;
   const note = $("#availLimitNote");
   note.hidden = data.limit <= data.threshold;
-  note.textContent = `Gaps shorter than ${data.limit} minutes are ignored: the threshold always stays above the heartbeat interval.`;
+  note.textContent = `Other gaps must exceed ${data.limit} minutes: the threshold always stays above the heartbeat interval. Detected host reboots always count.`;
   $("#availInfo").textContent = plural(data.count, "outage") + " recorded";
   $("#availClearBtn").disabled = !data.records;
 }

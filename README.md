@@ -238,13 +238,13 @@ You can generate a token with `openssl rand -hex 24`. Environment-defined remote
 
 ## Outage tracking
 
-ShowY Dashboard records a heartbeat for its own machine every **1, 5, or 10 minutes** (default: 5 minutes; tracking enabled by default). On startup and delayed heartbeats, it checks gaps against a **5, 10, 15, or 30-minute** threshold (default: 10 minutes). The effective threshold is at least one minute longer than the heartbeat interval. History retains up to 500 outages.
+ShowY Dashboard records a heartbeat for its own machine every **1, 5, or 10 minutes** (default: 5 minutes; tracking enabled by default). On startup, it uses host uptime to detect a reboot. Other startup gaps and delayed heartbeats are checked against a **5, 10, 15, or 30-minute** threshold (default: 10 minutes). The effective threshold for those gaps is at least one minute longer than the heartbeat interval. History retains up to 500 outages.
 
-- If the host rebooted, the gap is recorded as a host outage.
+- If the host rebooted, the gap from the last saved heartbeat to the host's boot time is recorded as a host outage **regardless of the threshold**, including brief power cuts such as 30 seconds. Dashboard startup time after boot is not counted as host downtime.
 - If the host stayed up but the dashboard stopped, the gap is recorded separately and **does not count as host downtime**.
 - Late heartbeats caused by a suspended or paused host can also register as outages.
 
-The dashboard reports estimated availability over **24 hours, 7 days, and 30 days** based on the period actually monitored. Accuracy is limited by heartbeat frequency and the reliability of host uptime reporting. Configure or clear records in **Settings → Outage tracking**. This is **not** a substitute for independent, external uptime monitoring.
+The dashboard reports estimated availability over **24 hours, 7 days, and 30 days** based on the period actually monitored. The exact power-loss time is unknown, so the estimate can include uptime between the last heartbeat and the power cut; a shorter heartbeat interval reduces that uncertainty. Accuracy also depends on reliable host uptime reporting. Tracking must be enabled and a previous heartbeat must exist. Previously ignored outages cannot be reconstructed after their heartbeat has been replaced. Configure or clear records in **Settings → Outage tracking**. This is **not** a substitute for independent, external uptime monitoring.
 
 ## Password protection
 

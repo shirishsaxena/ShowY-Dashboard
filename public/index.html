@@ -861,9 +861,10 @@
                 <span
                   ><strong>Track approximate outages</strong><br /><small
                     class="muted"
-                    >A long gap before the next start is recorded as an outage.
-                    A reboot or power cut counts; the dashboard alone being
-                    stopped does not.</small
+                    >Host uptime detects reboots and power cuts, even below the
+                    gap threshold. Downtime is estimated from the last saved
+                    heartbeat to host boot. The dashboard alone being stopped
+                    does not count.</small
                   ></span
                 >
               </label>
@@ -877,7 +878,7 @@
                   </select>
                 </label>
                 <label class="field grow"
-                  >Outage if the gap exceeds
+                  >Other gaps recorded after
                   <select id="availThreshold">
                     <option value="5">5 minutes</option>
                     <option value="10">10 minutes</option>

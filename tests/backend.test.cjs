@@ -1441,6 +1441,79 @@ test("availability settings and clear commit only after successful persistence a
   assert.equal(persisted.outages.length, 0);
 });
 
+test("availability counts short host reboots regardless of the configured gap threshold", async (t) => {
+  const now = 1800000000000;
+  t.mock.method(Date, "now", () => now);
+  for (const threshold of [5, 10, 15, 30]) {
+    await t.test(`${threshold}-minute threshold`, async () => {
+      const boot = now - 120000; // The dashboard starts two minutes after the host.
+      const lastHeartbeat = boot - 30000; // A 30-second power cut before boot.
+      let persisted = {
+        since: now - 2 * 86400000, coverageSince: now - 2 * 86400000,
+        lastHeartbeat, settings: { enabled: true, interval: 5, threshold },
+        outages: [], paused: [],
+      };
+      const reload = () => loadLib("availability", {
+        "./env": {}, os: { uptime: () => (now - boot) / 1000 },
+        fs: { promises: { readFile: async () => JSON.stringify(persisted) } },
+        "./config": { writeAtomic: async (_, text) => { persisted = JSON.parse(text); } },
+      });
+      const a = await reload().getAvailability({ outages: 500 });
+      assert.deepEqual(a.outages, [{ start: lastHeartbeat, end: boot }]);
+      assert.equal(a.count, 1);
+      for (const w of Object.values(a.windows)) {
+        assert.equal(w.down, 30000);
+        assert.equal(w.longest, 30000);
+        assert.equal(w.count, 1);
+        assert.ok(w.pct < 100);
+      }
+      assert.equal(persisted.lastHeartbeat, now);
+      const restarted = await reload().getAvailability({ outages: 500 });
+      assert.deepEqual(restarted.outages, a.outages); // App restart must not count it twice.
+      assert.equal(restarted.windows.all.down, 30000);
+    });
+  }
+});
+
+test("availability keeps dashboard-only restarts out of host downtime", async (t) => {
+  const now = 1800000000000;
+  t.mock.method(Date, "now", () => now);
+  for (const gap of [30000, 20 * 60000]) {
+    await t.test(`${gap / 1000}-second dashboard gap`, async () => {
+      const lastHeartbeat = now - gap;
+      const availability = loadLib("availability", {
+        "./env": {}, os: { uptime: () => 86400 },
+        fs: { promises: { readFile: async () => JSON.stringify({
+          since: now - 86400000, coverageSince: now - 86400000, lastHeartbeat,
+        }) } }, "./config": { writeAtomic: async () => {} },
+      });
+      const a = await availability.getAvailability({ outages: 500 });
+      assert.equal(a.count, 0);
+      assert.equal(a.windows.all.down, 0);
+      assert.equal(a.windows.all.pct, 100);
+      assert.deepEqual(a.outages, gap > 10 * 60000
+        ? [{ start: lastHeartbeat, end: now, kind: "app" }] : []);
+    });
+  }
+});
+
+test("availability does not invent reboot downtime without an enabled previous heartbeat", async (t) => {
+  const now = 1800000000000;
+  t.mock.method(Date, "now", () => now);
+  for (const previous of [{}, { lastHeartbeat: now - 90000, settings: { enabled: false } }]) {
+    const availability = loadLib("availability", {
+      "./env": {}, os: { uptime: () => 60 },
+      fs: { promises: { readFile: async () => JSON.stringify({
+        since: now - 86400000, coverageSince: now - 86400000, ...previous,
+      }) } }, "./config": { writeAtomic: async () => {} },
+    });
+    const a = await availability.getAvailability({ outages: 500 });
+    assert.equal(a.count, 0);
+    assert.equal(a.windows.all.down, 0);
+    assert.deepEqual(a.outages, []);
+  }
+});
+
 test("availability migration preserves legacy records without claiming unknowable history", async () => {
   let persisted;
   const original = { since: 1, settings: { enabled: false }, outages: [{ start: 10, end: 20 }] };
