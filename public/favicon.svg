@@ -1,1 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c5cff"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs><rect width="64" height="64" rx="16" fill="url(#g)"/><g fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"><rect x="14" y="15" width="36" height="13" rx="4"/><rect x="14" y="36" width="36" height="13" rx="4"/></g><g fill="#fff"><circle cx="21" cy="21.5" r="2.5"/><circle cx="21" cy="42.5" r="2.5"/></g></svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">ShowY Dashboard — Ember Control Grid</title>
+  <desc id="desc">Four rounded dashboard tiles in warm apricot, rose, and amber, with monitoring bars and a status check.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#3a2929"/><stop offset="1" stop-color="#1b141b"/></linearGradient>
+    <linearGradient id="primary" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffe4b8"/><stop offset="1" stop-color="#f2b36e"/></linearGradient>
+    <linearGradient id="secondary" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffc8bf"/><stop offset="1" stop-color="#e7959a"/></linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ffda9a"/><stop offset="1" stop-color="#edb454"/></linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="58" fill="url(#bg)"/>
+  <rect x="1" y="1" width="254" height="254" rx="57" fill="none" stroke="#fff" stroke-opacity=".1" stroke-width="2"/>
+  <rect x="54" y="54" width="67" height="91" rx="19" fill="url(#primary)"/>
+  <rect x="135" y="54" width="67" height="57" rx="19" fill="url(#secondary)"/>
+  <rect x="54" y="159" width="67" height="43" rx="16" fill="url(#secondary)"/>
+  <rect x="135" y="125" width="67" height="77" rx="19" fill="url(#accent)"/>
+  <path d="M73 120V99m15 21V85m15 35v-15" fill="none" stroke="#7a4c29" stroke-width="7" stroke-linecap="round"/>
+  <path d="M153 165l10 10 20-24" fill="none" stroke="#77501d" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

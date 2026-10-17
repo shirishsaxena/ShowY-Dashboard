@@ -109,7 +109,7 @@ export function renderSwitcher() {
       box,
       active
         ? iconNode(active.icon, active.name, "ticon")
-        : h("img", { src: "/favicon.svg", alt: "" }),
+        : h("img", { src: "/favicon.svg?v=ember-1", alt: "" }),
     );
   }
 

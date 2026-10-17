@@ -606,7 +606,7 @@ test("worker precaches the complete local module graph and shell before activati
     if (url !== "/manifest.webmanifest") {
       assert.ok(
         fs.existsSync(
-          path.join(publicDir, url === "/" ? "index.html" : url.slice(1)),
+          path.join(publicDir, url === "/" ? "index.html" : new URL(url, "https://dashboard.test").pathname.slice(1)),
         ),
         url,
       );
