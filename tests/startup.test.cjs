@@ -76,6 +76,34 @@ test("isolated real startup serves assets, manifest, API and web edge cases", as
 
 module.exports = { start };
 
+test("branded manifest and all icon formats are public, versioned and correctly served", async (t) => {
+  const app = await start(t, { DASHBOARD_PASSWORD: "test-password" });
+  assert.equal((await app.request("/api/config")).status, 401);
+  const manifest = await (await app.request("/manifest.webmanifest")).json();
+  assert.equal(manifest.icons.length, 3);
+  for (const icon of manifest.icons) {
+    assert.match(icon.src, /\?v=ember-1$/);
+    const response = await app.request(icon.src);
+    assert.equal(response.status, 200, icon.src);
+    assert.equal(response.headers.get("content-type"), icon.type);
+    assert.equal(response.headers.get("cache-control"), "no-cache");
+    const png = Buffer.from(await response.arrayBuffer());
+    assert.equal(icon.sizes, `${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`);
+    assert.equal(icon.purpose, icon.src.includes("maskable") ? "maskable" : "any");
+  }
+  for (const [url, type] of [
+    ["/favicon.ico", "image/x-icon"],
+    ["/favicon.ico?v=ember-1", "image/x-icon"],
+    ["/favicon.svg?v=ember-1", "image/svg+xml"],
+    ["/icons/apple-touch-icon.png?v=ember-1", "image/png"],
+  ]) {
+    const response = await app.request(url);
+    assert.equal(response.status, 200, url);
+    assert.equal(response.headers.get("content-type"), type, url);
+    assert.ok((await response.arrayBuffer()).byteLength > 0);
+  }
+});
+
 test("password modes preserve login, logout, view and edit policies", async (t) => {
   for (const lockView of ["true", "false"]) {
     await t.test(`view lock ${lockView}`, async (t) => {
