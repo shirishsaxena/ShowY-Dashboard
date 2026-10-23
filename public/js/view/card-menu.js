@@ -3,6 +3,7 @@ import { $, h, fill, svg, toast } from "../dom.js";
 import { openContainerLogs } from "../dialogs/docker-logs.js";
 
 let opener = null;
+let rebuild = null;
 
 function currentOpener() {
   if (opener?.isConnected) return opener;
@@ -42,8 +43,8 @@ export function cardMenuButton(name, key, items) {
       if (same) return;
       opener = button;
       menu.setAttribute("aria-label", `Actions for ${name}`);
-      fill(menu, items.map((item) => h("button", {
-        type: "button", class: "card-menu-item", role: "menuitem", tabindex: "-1",
+      rebuild = () => fill(menu, (typeof items === "function" ? items() : items).map((item) => h("button", {
+        type: "button", class: `card-menu-item${item.danger ? " danger" : ""}`, role: "menuitem", tabindex: "-1",
         disabled: item.disabled, title: item.hint || null,
         onclick: async () => {
           closeMenu(true);
@@ -52,6 +53,7 @@ export function cardMenuButton(name, key, items) {
         },
       }, svg(item.icon), h("span", {}, item.label,
         item.hint ? h("small", {}, item.hint) : null))));
+      rebuild();
       menu.showPopover();
       button.setAttribute("aria-expanded", "true");
       const rect = button.getBoundingClientRect();
@@ -90,4 +92,10 @@ export function initCardMenu() {
   document.addEventListener("scroll", (event) => {
     if (!menu.contains(event.target)) closeMenu();
   }, true);
+  document.addEventListener("docker-control-changed", () => {
+    if (!menu.matches(":popover-open")) return;
+    const focused = menu.contains(document.activeElement);
+    rebuild?.();
+    if (focused) menu.querySelector("button:not(:disabled)")?.focus();
+  });
 }

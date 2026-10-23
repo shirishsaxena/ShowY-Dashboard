@@ -31,6 +31,8 @@ export async function api(method, url, body, signal, responseType = "json") {
     if (res.ok) throw new Error("Dashboard server returned an invalid response");
     data = {};
   }
+  if (!["GET", "HEAD"].includes(method) && typeof document !== "undefined")
+    document.dispatchEvent(new Event("activity-changed"));
   return { res, data };
 }
 

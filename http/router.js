@@ -4,6 +4,7 @@ const routes = require("../routes/index");
 const auth = require("../lib/auth");
 const { send } = require("../lib/http");
 const logger = require("../lib/logger");
+const { recordRequest } = require("../lib/activity");
 
 async function handleApi(context) {
   const { req, res, pathname } = context;
@@ -27,7 +28,14 @@ async function handleApi(context) {
       return send(res, 401, { error: "Login required" });
     }
   }
-  const result = await route.handler(req, res, context);
+  let result;
+  try {
+    result = await route.handler(req, res, context);
+  } catch (err) {
+    await recordRequest(`${req.method} ${pathname}`, err.status || 500);
+    throw err;
+  }
+  await recordRequest(`${req.method} ${pathname}`, res.statusCode || 200);
   if (!res.headersSent && result !== undefined) {
     return send(res, 200, result);
   }

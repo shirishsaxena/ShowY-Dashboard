@@ -145,6 +145,10 @@
         </label>
 
         <div class="actions">
+          <button id="activityBtn" type="button" class="icon-btn" title="Action history" aria-label="Action history" aria-haspopup="dialog">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></svg>
+            <span id="activityBadge" class="badge-dot" hidden></span>
+          </button>
           <button
             id="clipBtn"
             class="icon-btn"
@@ -1006,6 +1010,32 @@
           <small id="settingsFeedback" class="grow settings-save-note" role="status" aria-live="polite">Save applies title, app name, accent, and hidden containers. Other preferences save automatically.</small>
           <button type="button" class="btn ghost" data-close>Cancel</button>
           <button type="submit" class="btn primary" id="settingsSaveBtn">Save</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <dialog id="activityDialog" class="activity-dialog" aria-labelledby="activityTitle">
+      <form method="dialog">
+        <header class="dialog-head">
+          <div class="dialog-heading">
+            <h2 id="activityTitle">Action history</h2>
+            <p>Recent dashboard changes and container actions.</p>
+          </div>
+          <button type="button" id="activityRefresh" class="icon-btn" title="Refresh history" aria-label="Refresh history">
+            <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg>
+          </button>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+        <div class="dialog-body">
+          <p id="activityError" class="form-error" role="alert" hidden></p>
+          <div id="activityList" class="activity-list"></div>
+        </div>
+        <footer class="dialog-foot">
+          <small class="muted">Latest 200 actions from this dashboard. Routine reads are not recorded.</small>
+          <span class="grow"></span>
+          <button type="button" class="btn ghost" data-close>Close</button>
         </footer>
       </form>
     </dialog>

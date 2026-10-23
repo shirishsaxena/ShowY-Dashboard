@@ -45,7 +45,8 @@ Click a preview to view the full-size screenshot.
 | --- | --- |
 | **Service directory** | Icons, descriptions, multiple labeled URLs, groups, drag-and-drop sorting, favorites, and notes |
 | **Health checks** | Server-side HTTP checks; 404 and 5xx responses are errors, connection failures are down, and other HTTP responses count as reachable |
-| **Docker integration** | Automatic container matching, state, CPU/memory/network usage, snapshot logs, card actions, and a list of containers not yet on the dashboard |
+| **Docker integration** | Automatic container matching, state, CPU/memory/network usage, snapshot logs, opt-in Start/Restart/Stop, and a list of containers not yet on the dashboard |
+| **Action history** | Notification bell with persistent history of dashboard changes and container actions, outcomes, and per-device unread indicators |
 | **Server stats** | CPU, RAM, disks, uptime, network speed/history, temperatures, and fans |
 | **Server information** | Hostname, OS, kernel, CPU, IP addresses, network interfaces, and Docker engine details |
 | **Remote dashboards** | Read-only views of other dashboard instances, with configurable refresh and stale/unreachable indicators |
@@ -75,7 +76,30 @@ Local Docker cards have a **⋮ menu** with **Show logs** and **Edit service**, 
 
 Logs require Docker Engine **socket access**; the container-list CLI fallback does not provide logs. Requests use full container IDs, are time-limited, and allow at most four concurrent snapshots. Each Docker response is capped at **1 MiB**; oversized log snapshots are cut short and visibly marked, so some of the requested output may be omitted. Terminal formatting is removed and output is displayed as plain text. Closing the dialog cancels pending retrieval and discards its displayed snapshot. Log responses are not cached or included in remote shares.
 
-**Logs may contain secrets.** When a dashboard password is configured, viewing logs requires login even if normal dashboard viewing is public, matching the existing backend-log download policy. With no password, logs are accessible to anyone who can reach the dashboard; only use that configuration on a trusted network. This feature adds only read operations: no start, stop, restart, container modification, or Docker mount changes. A read-only socket mount still does not enforce read-only Docker API access.
+**Logs may contain secrets.** When a dashboard password is configured, viewing logs requires login even if normal dashboard viewing is public, matching the existing backend-log download policy. With no password, logs are accessible to anyone who can reach the dashboard; only use that configuration on a trusted network. Log viewing itself adds only read operations. A read-only socket mount still does not enforce read-only Docker API access.
+
+### Optional container lifecycle control
+
+Start/Restart/Stop is **disabled by default**. To enable it, set a strong `DASHBOARD_PASSWORD` and set `DOCKER_CONTROL: true` in the dashboard's deployment environment, then recreate the dashboard container. The sample Compose files include these settings. A valid login is mandatory for control, even when normal dashboard viewing is public. Control cannot be enabled through the browser or through a sharing token.
+
+- Existing stopped/created containers show **Start container**; running containers show **Restart container** and **Stop container**.
+- Stop and Restart require confirmation and allow Docker **10 seconds** for graceful shutdown before Docker forces the stop.
+- Lifecycle buttons are disabled while an action is being confirmed, submitted, or executed. Per-container server locks prevent overlapping requests from other tabs/devices; at most four different containers can be controlled concurrently.
+- Accepted actions run independently of the browser connection. The dashboard verifies the resulting state and refreshes container data. Running does not guarantee application readiness; health checks remain separate.
+- Timeouts or unverified outcomes appear as **Check outcome** in history, not a false success. There are no automatic mutation retries or CLI fallback. Re-check container state before intentionally retrying.
+- Remote dashboard cards remain read-only. This is container lifecycle control, not Compose up/down: it does not create, recreate, delete, update images, or execute commands in containers.
+
+The dashboard protects containers named `showy-dashboard` and `showy-dashy`, its matching hostname/container-ID prefix, and containers labelled `showy.protected=true`. Both supplied Compose files apply that label to the dashboard itself. **For custom deployments, retain the protection label**, especially when using a custom hostname. Set `DOCKER_PROTECTED_CONTAINERS` to additional comma-separated names or full container IDs, for example `database,reverse-proxy`. Protection is always rechecked against Docker inspection data before mutation.
+
+No socket mount changes are needed for a direct Docker socket connection: `:ro` does not limit API methods. If using an enforcing socket proxy/authorization policy, explicitly permit only the required lifecycle operations. Requests require a same-origin browser request; reverse proxies must preserve the external Host header. For HTTPS termination enable `TRUST_PROXY` only with the existing trusted-proxy/firewall precautions. Control of a rootful Docker daemon is highly privileged.
+
+### Notification bell and action history
+
+The top-bar bell shows the **latest 200 actions** initiated through this dashboard, including container operations and configuration, monitoring, clipboard, cache, sharing, and availability changes. Entries include time, outcome, and a short description. Configuration edits are recorded as a configuration update rather than a field-by-field audit. Reads, routine refreshes, login attempts, clipboard contents, passwords, sharing tokens, and container log contents are not recorded. Actions performed externally through Docker or other tools are not included.
+
+History is stored in `activity.json` in the existing data directory and survives restarts. Pending entries left by an interrupted dashboard process become **Check outcome** on recovery. An action's intent must be persisted before Docker receives a mutation; a history write failure after completion is shown as a persistence warning rather than misreporting the Docker result. The history is a convenience journal, not a tamper-proof audit trail; deploy one dashboard process per data directory and Docker endpoint.
+
+With a configured password, history requires login even if normal viewing is public; without a password it follows the existing passwordless editing policy. History is never included in remote shares. The unread marker is per browser and clears when history is viewed. While signed in and the page is visible, history refreshes every 15 seconds, or every 2 seconds while recorded container actions are pending. The dialog also has a manual refresh button.
 
 ### Multiple labeled service URLs
 
@@ -277,6 +301,8 @@ The repository's active Compose entries are literals, not `.env` substitutions. 
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `DASHBOARD_PASSWORD` | Empty | Optional dashboard password |
+| `DOCKER_CONTROL` | `false` | Enable local Start/Restart/Stop; also requires a password and login |
+| `DOCKER_PROTECTED_CONTAINERS` | Empty | Additional protected container names or full IDs, comma-separated |
 | `DASHBOARD_LOCK_VIEW` | `true` | Require login to view when a password is configured |
 | `PORT` | `8080` | Backend HTTP port; changing it in Docker also requires updating the published port's container side |
 | `DATA_DIR` | Repository-root `data/` (`/data` in Docker) | Backend persistent data directory; relative overrides resolve from the process working directory |

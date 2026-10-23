@@ -22,6 +22,8 @@ import { initAvailability } from "./dialogs/availability.js";
 import { initNotes } from "./view/notes.js";
 import { initCardMenu } from "./view/card-menu.js";
 import { initDockerLogs } from "./dialogs/docker-logs.js";
+import { initDockerControl } from "./docker-control.js";
+import { initActivity, refreshActivity } from "./activity.js";
 import { initClip } from "./clip.js";
 import { startLoad } from "./loading.js";
 import * as actions from "./actions.js";
@@ -56,6 +58,7 @@ function initTopbar() {
       await logout();
       if (state.auth.lockView) return location.reload();
       state.editing = false;
+      refreshActivity();
       render();
       toast("Locked — editing needs the password again");
     } catch (err) {
@@ -289,6 +292,7 @@ async function start() {
       timersStarted = true;
     }
     await refreshAll();
+    refreshActivity();
   } catch (err) {
     if (err instanceof LockedError) return showLockScreen();
     state.locked = true;
@@ -316,6 +320,8 @@ async function init() {
   initNotes();
   initCardMenu();
   initDockerLogs();
+  initDockerControl();
+  initActivity();
   initClip();
   initTopbar();
   anchorMenu($("#serverMenu"), $("#serverBtn"), "left");

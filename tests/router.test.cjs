@@ -28,6 +28,7 @@ function fixture({ view = true, edit = true } = {}) {
     },
     "../lib/http": { send },
     "../lib/logger": { debug() {} },
+    "../lib/activity": { recordRequest: async () => {} },
   };
   vm.runInNewContext(
     `(function(require, module) {\n${fs.readFileSync(filename, "utf8")}\n})`,
@@ -107,6 +108,8 @@ test("registry retains the complete API inventory and explicit policy", () => {
       "GET /api/remotes",
     ],
     edit: [
+      "GET /api/activity",
+      "POST /api/docker/action",
       "GET /api/docker/logs",
       "GET /api/logs",
       "DELETE /api/logs",

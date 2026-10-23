@@ -4,6 +4,7 @@ const { readJson } = require("../lib/http");
 const { getStats } = require("../lib/system");
 const { getContainers, getContainerStats } = require("../lib/docker");
 const { getContainerLogs } = require("../lib/docker-logs");
+const { controlState, protectedTarget } = require("../lib/docker-control");
 const { getHealth } = require("../lib/health");
 const { getStorage } = require("../lib/storage");
 const serverinfo = require("../lib/serverinfo");
@@ -12,7 +13,12 @@ module.exports = {
   "GET /api/docker": {
     access: "view",
     body: "none",
-    handler: () => getContainers(),
+    handler: async () => {
+      const result = await getContainers();
+      return { ...result, control: controlState(), containers: result.containers.map((container) => ({
+        ...container, protected: container.protected || protectedTarget(container.id || "", container.name),
+      })) };
+    },
   },
   "GET /api/docker/stats": {
     access: "view",

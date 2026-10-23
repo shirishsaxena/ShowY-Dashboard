@@ -7,6 +7,8 @@ services:
     image: ghcr.io/shirishsaxena/showy-dashboard:latest
     container_name: showy-dashboard
     restart: unless-stopped
+    labels:
+      showy.protected: "true"
     # Docker console-log rotation only; application files rotate separately.
     logging:
       driver: json-file
@@ -20,6 +22,10 @@ services:
       # Empty = anyone who can reach the dashboard can view and edit.
       # Set a strong password for public access; write literal $ as $$.
       DASHBOARD_PASSWORD: ""
+      # Optional local Start/Restart/Stop. Requires a nonempty password and login.
+      DOCKER_CONTROL: false
+      # Additional protected container names or full IDs, comma-separated.
+      # DOCKER_PROTECTED_CONTAINERS: "database,reverse-proxy"
       DASHBOARD_LOCK_VIEW: true
       # Enable only behind a trusted proxy with direct access blocked.
       TRUST_PROXY: false

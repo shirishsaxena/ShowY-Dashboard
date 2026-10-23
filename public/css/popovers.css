@@ -292,6 +292,20 @@ button.clip-entry-text:hover {
   color: var(--muted);
   cursor: default;
 }
+.card-menu-item.danger:not(:disabled) {
+  color: var(--red);
+}
+.container-operation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--amber);
+  font-size: 0.75rem;
+}
+.container-operation svg {
+  width: 13px;
+  height: 13px;
+}
 @media (pointer: coarse) {
   .card .card-menu-btn {
     min-width: 44px;
@@ -350,3 +364,55 @@ dialog.docker-logs-dialog {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
+
+/* ---------- Notification history ---------- */
+#activityBtn {
+  position: relative;
+}
+dialog.activity-dialog {
+  width: min(620px, calc(100vw - 24px));
+}
+.activity-dialog .dialog-heading {
+  flex: 1;
+}
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.activity-entry {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  overflow-wrap: anywhere;
+}
+.activity-entry-head, .activity-entry-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.activity-entry-head {
+  font-size: 0.85rem;
+}
+.activity-entry-head svg {
+  width: 15px;
+  height: 15px;
+}
+.activity-entry-meta {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.activity-entry p {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.activity-success .activity-entry-head svg { color: var(--green); }
+.activity-failed .activity-entry-head svg { color: var(--red); }
+.activity-uncertain .activity-entry-head svg,
+.activity-pending .activity-entry-head svg { color: var(--amber); }

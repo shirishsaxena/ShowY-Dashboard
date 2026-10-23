@@ -39,8 +39,9 @@ async function refreshLogs() {
     if (typeof data.text !== "string" || !Number.isFinite(data.fetchedAt))
       throw new Error("Invalid log response from dashboard server");
     output.textContent = data.text || "No log output available for this container.";
-    output.scrollTop = 0;
     status.textContent = `Fetched ${new Date(data.fetchedAt).toLocaleTimeString()} · Up to ${data.tail} lines · Manual refresh only${data.truncated ? " · Response cut short at 1 MiB; some requested output is omitted" : ""}`;
+    // Keep multiline entries in their original order and reveal the newest output.
+    output.scrollTop = output.scrollHeight;
   } catch (err) {
     if (!current()) return;
     status.textContent = "Log snapshot unavailable";

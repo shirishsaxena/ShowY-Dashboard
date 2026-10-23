@@ -10,7 +10,7 @@ const html = read("public/index.html");
 
 test("every dialog has an accessible heading and a labelled close control", () => {
   const dialogs = [...html.matchAll(/<dialog\b([^>]*)>([\s\S]*?)<\/dialog>/g)];
-  assert.equal(dialogs.length, 10);
+  assert.equal(dialogs.length, 11);
   for (const [, attrs, body] of dialogs) {
     const title = attrs.match(/aria-labelledby="([^"]+)"/)?.[1];
     assert.ok(title, attrs);

@@ -17,6 +17,7 @@ export const prefs = {
   collapsed: new Set(readPref("collapsed", [])), // "serverId::group"
   unlistedOpen: readPref("unlistedOpen", true),
   clipSeen: readPref("clipSeen", 0), // updatedAt of the last shared clipboard this device has seen
+  activitySeen: readPref("activitySeen", 0),
 };
 
 export function setPref(key, value) {

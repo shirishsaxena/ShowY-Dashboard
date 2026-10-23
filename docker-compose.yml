@@ -3,6 +3,8 @@ services:
     build: .
     container_name: showy-dashy
     restart: unless-stopped
+    labels:
+      showy.protected: "true"
     # Console history is separate from application file rotation/clear.
     logging:
       driver: json-file
@@ -19,6 +21,10 @@ services:
       # DASHBOARD_PASSWORD: ""
       # (in this file write a literal $ as $$).
       DASHBOARD_PASSWORD: ""
+      # Optional local Start/Restart/Stop. Requires a nonempty password and login.
+      DOCKER_CONTROL: false
+      # Additional protected container names or full IDs, comma-separated.
+      # DOCKER_PROTECTED_CONTAINERS: "database,reverse-proxy"
       # Only used when a password is set:
       #   true  = everything is behind a lock screen (use on a public VPS)
       #   false = anyone can view, only editing needs the password

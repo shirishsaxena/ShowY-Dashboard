@@ -15,6 +15,7 @@ import { openQr } from "../dialogs/qr.js";
 import { usageNode } from "./usage.js";
 import { openNote } from "./notes.js";
 import { cardMenuButton, containerLogItem } from "./card-menu.js";
+import { containerControlItems, containerOperationNode } from "../docker-control.js";
 
 function linkChips(svc, dupes) {
   const urls = serviceUrls(svc);
@@ -85,11 +86,12 @@ export function serviceCard(
   const editing = state.editing && !server.remote; // remote servers are read-only
   const container = containerFor(svc, server);
   const dockerMenu = !server.remote && server.local && (svc.type === "docker" || container)
-    ? cardMenuButton(svc.name, `service:${svc.id}`, [
+    ? cardMenuButton(svc.name, `service:${svc.id}`, () => [
         containerLogItem(container),
         { label: "Edit service", icon: "edit", run: async () => {
           if (await actions.ensureCanEdit()) openServiceEditor(server.id, svc.id);
         } },
+        ...containerControlItems(container),
       ]) : null;
   const href = primaryUrl(svc);
   const st = editing ? null : serviceStatus(svc, server);
@@ -133,6 +135,7 @@ export function serviceCard(
       editing ? editTools(svc, server) : null,
       dockerMenu,
     ),
+    !server.remote && server.local ? containerOperationNode(container) : null,
     editing ? null : usageNode(container, server),
     links.childElementCount ? links : null,
   );
