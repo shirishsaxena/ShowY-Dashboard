@@ -1010,6 +1010,45 @@
       </form>
     </dialog>
 
+    <!-- Shared container/service actions; kept outside periodically rebuilt cards. -->
+    <div id="cardMenu" class="menu card-menu" popover role="menu" aria-label="Container actions"></div>
+
+    <dialog id="dockerLogsDialog" class="docker-logs-dialog" aria-labelledby="dockerLogsTitle" aria-describedby="dockerLogsName">
+      <form method="dialog">
+        <header class="dialog-head">
+          <div class="dialog-heading">
+            <h2 id="dockerLogsTitle">Container logs</h2>
+            <p id="dockerLogsName"></p>
+          </div>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+        <div class="dialog-body docker-logs-body">
+          <div class="docker-logs-toolbar">
+            <label for="dockerLogsLines">Recent lines</label>
+            <select id="dockerLogsLines">
+              <option value="100">100</option>
+              <option value="250" selected>250</option>
+              <option value="500">500</option>
+            </select>
+            <span class="grow"></span>
+            <button type="button" id="dockerLogsRefresh" class="icon-btn" aria-label="Refresh logs" title="Refresh logs">
+              <svg viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1" /></svg>
+            </button>
+          </div>
+          <small id="dockerLogsStatus" class="muted" role="status" aria-live="polite"></small>
+          <p id="dockerLogsError" class="form-error" role="alert" hidden></p>
+          <pre id="dockerLogsOutput" class="docker-logs-output" tabindex="0" aria-label="Container log output" aria-busy="false"></pre>
+        </div>
+        <footer class="dialog-foot">
+          <small class="muted">Logs may contain sensitive information.</small>
+          <span class="grow"></span>
+          <button type="button" class="btn ghost" data-close>Close</button>
+        </footer>
+      </form>
+    </dialog>
+
     <!-- Outage history -->
     <dialog id="availabilityDialog" class="avail-dialog" aria-labelledby="availabilityTitle">
       <form method="dialog">
@@ -1078,7 +1117,7 @@
         <header class="dialog-head">
           <div class="dialog-heading">
             <h2 id="loginTitle">Password required</h2>
-            <p id="loginHint">Unlock editing to make changes to your dashboard.</p>
+            <p id="loginHint">Unlock to edit your dashboard or access protected logs.</p>
           </div>
           <button type="button" class="icon-btn" data-close aria-label="Close">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>

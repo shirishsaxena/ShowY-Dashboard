@@ -45,7 +45,7 @@ Click a preview to view the full-size screenshot.
 | --- | --- |
 | **Service directory** | Icons, descriptions, multiple labeled URLs, groups, drag-and-drop sorting, favorites, and notes |
 | **Health checks** | Server-side HTTP checks; 404 and 5xx responses are errors, connection failures are down, and other HTTP responses count as reachable |
-| **Docker integration** | Automatic container matching, state, CPU/memory/network usage, and a list of containers not yet on the dashboard |
+| **Docker integration** | Automatic container matching, state, CPU/memory/network usage, snapshot logs, card actions, and a list of containers not yet on the dashboard |
 | **Server stats** | CPU, RAM, disks, uptime, network speed/history, temperatures, and fans |
 | **Server information** | Hostname, OS, kernel, CPU, IP addresses, network interfaces, and Docker engine details |
 | **Remote dashboards** | Read-only views of other dashboard instances, with configurable refresh and stale/unreachable indicators |
@@ -66,6 +66,16 @@ Icons can come from [dashboard-icons](https://github.com/homarr-labs/dashboard-i
 - **Legacy** entries without a type keep their existing automatic Docker matching and HTTP fallback, including on ordinary edits. Select a type explicitly to convert them; there is no automatic migration. Types are preserved in saves, JSON import/export, and remote views.
 
 HTTP checks run **from the dashboard server**, not your browser (remote services are checked by their originating dashboard). Only the **first URL** in a labeled list is checked; other URLs are not monitored or used as failover targets. Legacy services without a labeled list check the local URL when present, otherwise the alternate URL. A reachable URL is not proof that every app feature works. Bookmarks are service cards within servers/groups; **quick actions** are separate dashboard-wide link/copy shortcuts and also have no health checks.
+
+### Docker card actions and logs
+
+Local Docker cards have a **⋮ menu** with **Show logs** and **Edit service**, available without entering dashboard edit mode. Edit opens the existing dashboard service editor; it does not change the Docker container. Discovered containers use **Add to dashboard** instead. Their existing Add and Hide/Unhide buttons remain available. Remote dashboard cards stay read-only and do not expose local log actions.
+
+**Show logs** opens a snapshot of stdout/stderr with timestamps. Choose **100, 250 (default), or 500 lines** and use the refresh icon for another snapshot. Changing the line count also fetches a snapshot. There is no live following or automatic log polling. Stopped containers work when Docker still has readable logs. Empty output, removed containers, unavailable sockets, and unsupported logging drivers are reported in the dialog.
+
+Logs require Docker Engine **socket access**; the container-list CLI fallback does not provide logs. Requests use full container IDs, are time-limited, and allow at most four concurrent snapshots. Each Docker response is capped at **1 MiB**; oversized log snapshots are cut short and visibly marked, so some of the requested output may be omitted. Terminal formatting is removed and output is displayed as plain text. Closing the dialog cancels pending retrieval and discards its displayed snapshot. Log responses are not cached or included in remote shares.
+
+**Logs may contain secrets.** When a dashboard password is configured, viewing logs requires login even if normal dashboard viewing is public, matching the existing backend-log download policy. With no password, logs are accessible to anyone who can reach the dashboard; only use that configuration on a trusted network. This feature adds only read operations: no start, stop, restart, container modification, or Docker mount changes. A read-only socket mount still does not enforce read-only Docker API access.
 
 ### Multiple labeled service URLs
 

@@ -228,6 +228,7 @@ test("unlisted discovery ignores Web/Bookmark membership and adds explicitly bou
     prefs: { unlistedOpen: true }, setPref() {}, hostOf: () => "host.test",
     location: { hostname: "localhost" }, svg: () => null, iconNode: () => null,
     iconBtn: () => null, external: {}, usageNode: () => null, groupUsageNode: () => null,
+    cardMenuButton: () => null, containerLogItem: () => ({}),
     actions: { ensureCanEdit: async () => true },
     openServiceEditor: (...args) => adds.push(args),
   });

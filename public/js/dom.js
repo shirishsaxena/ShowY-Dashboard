@@ -73,6 +73,8 @@ const PATHS = {
     "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18",
   home: "M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z",
   edit: "M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4",
+  more: "M12 5h.01M12 12h.01M12 19h.01",
+  logs: "M5 4h14v16H5zM8 8h8M8 12h8M8 16h5",
   trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
   plus: "M12 5v14M5 12h14",
   right: "M9 6l6 6-6 6",

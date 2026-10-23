@@ -7,6 +7,7 @@ import { containerFor, containerStatus, statusNode } from "../status.js";
 import * as actions from "../actions.js";
 import { openServiceEditor } from "../dialogs/service.js";
 import { usageNode, groupUsageNode } from "./usage.js";
+import { cardMenuButton, containerLogItem } from "./card-menu.js";
 
 export function renderUnlisted(server) {
   const section = $("#unlisted");
@@ -117,6 +118,10 @@ function containerCard(c, server, host, isHidden) {
         h("div", { class: "image", title: c.image }, c.image),
       ),
       statusNode(containerStatus(c)),
+      cardMenuButton(c.name, `container:${c.id || c.name}`, [
+        containerLogItem(c),
+        { label: "Add to dashboard", icon: "plus", run: add },
+      ]),
     ),
     usageNode(c),
     h(

@@ -20,6 +20,8 @@ import { openSettings, initSettingsForm } from "./dialogs/settings.js";
 import { initLinkForm } from "./dialogs/link.js";
 import { initAvailability } from "./dialogs/availability.js";
 import { initNotes } from "./view/notes.js";
+import { initCardMenu } from "./view/card-menu.js";
+import { initDockerLogs } from "./dialogs/docker-logs.js";
 import { initClip } from "./clip.js";
 import { startLoad } from "./loading.js";
 import * as actions from "./actions.js";
@@ -312,6 +314,8 @@ async function init() {
   initLinkForm();
   initAvailability();
   initNotes();
+  initCardMenu();
+  initDockerLogs();
   initClip();
   initTopbar();
   anchorMenu($("#serverMenu"), $("#serverBtn"), "left");
