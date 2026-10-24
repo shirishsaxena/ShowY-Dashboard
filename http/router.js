@@ -20,11 +20,17 @@ async function handleApi(context) {
   if (!route) return send(res, 404, { error: "Not found" });
   if (route.access !== "public") {
     if (!auth.canView(req)) {
-      logger.debug("[Auth] View access denied", { method: req.method, pathname });
+      logger.debug("[Auth] View access denied", {
+        method: req.method,
+        pathname,
+      });
       return send(res, 401, { error: "Locked" });
     }
     if (route.access === "edit" && !auth.isAuthenticated(req)) {
-      logger.debug("[Auth] Edit access denied", { method: req.method, pathname });
+      logger.debug("[Auth] Edit access denied", {
+        method: req.method,
+        pathname,
+      });
       return send(res, 401, { error: "Login required" });
     }
   }

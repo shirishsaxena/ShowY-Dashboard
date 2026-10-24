@@ -12,8 +12,9 @@ module.exports = {
     handler: async (req, res) => {
       logger.info("[Logging] Log download requested");
       let files;
-      try { files = await logger.snapshot(); }
-      catch (err) {
+      try {
+        files = await logger.snapshot();
+      } catch (err) {
         logger.error("[Logging] Cannot open log download", err);
         throw new HttpError(503, "Logs unavailable");
       }
@@ -27,14 +28,20 @@ module.exports = {
         async function* chunks() {
           for (const { handle, size } of files) {
             if (!size) continue;
-            yield* handle.createReadStream({ start: 0, end: size - 1, autoClose: false });
+            yield* handle.createReadStream({
+              start: 0,
+              end: size - 1,
+              autoClose: false,
+            });
           }
         }
         await pipeline(Readable.from(chunks()), res);
       } catch (err) {
         logger.warn("[Logging] Log download interrupted", err);
       } finally {
-        await Promise.all(files.map(({ handle }) => handle.close().catch(() => {})));
+        await Promise.all(
+          files.map(({ handle }) => handle.close().catch(() => {})),
+        );
       }
     },
   },
@@ -42,8 +49,9 @@ module.exports = {
     access: "edit",
     body: "json",
     handler: async () => {
-      try { await logger.clear(); }
-      catch (err) {
+      try {
+        await logger.clear();
+      } catch (err) {
         logger.error("[Logging] Cannot clear logs", err);
         throw new HttpError(503, "Could not clear logs");
       }

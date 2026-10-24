@@ -14,35 +14,64 @@ let pending = null;
 const fullId = (id) => /^[a-f0-9]{64}$/.test(id || "");
 
 function lookup(selection) {
-  const server = selection && allServers().find((item) => item.id === selection.serverId);
+  const server =
+    selection && allServers().find((item) => item.id === selection.serverId);
   if (!server) return null;
   if (selection.discovered) {
     if (!server.local || server.remote) return null;
-    const container = state.docker.containers.find((item) => selection.containerId
-      ? item.id === selection.containerId : item.name === selection.containerName);
+    const container = state.docker.containers.find((item) =>
+      selection.containerId
+        ? item.id === selection.containerId
+        : item.name === selection.containerName,
+    );
     if (!container) return null;
     const host = hostOf(server.mainUrl) || location.hostname;
-    const service = { name: container.name, type: "docker", container: container.name,
+    const service = {
+      name: container.name,
+      type: "docker",
+      container: container.name,
       icon: container.image.split("/").pop().split(/[:@]/)[0],
-      urls: container.ports.map((port) => ({ label: `Port ${port}`, url: `http://${host}:${port}` })) };
+      urls: container.ports.map((port) => ({
+        label: `Port ${port}`,
+        url: `http://${host}:${port}`,
+      })),
+    };
     return { server, service, container };
   }
-  const service = server.services.find((item) => item.id === selection.serviceId);
-  return service ? { server, service, container: containerFor(service, server) } : null;
+  const service = server.services.find(
+    (item) => item.id === selection.serviceId,
+  );
+  return service
+    ? { server, service, container: containerFor(service, server) }
+    : null;
 }
 
-const section = (title, content) => h("section", { class: "service-preview-section" }, h("h3", {}, title), content);
-const detail = (label, value) => value !== undefined && value !== null && value !== ""
-  ? [h("dt", {}, label), h("dd", {}, String(value))] : [];
+const section = (title, content) =>
+  h(
+    "section",
+    { class: "service-preview-section" },
+    h("h3", {}, title),
+    content,
+  );
+const detail = (label, value) =>
+  value !== undefined && value !== null && value !== ""
+    ? [h("dt", {}, label), h("dd", {}, String(value))]
+    : [];
 
 async function refreshContainer() {
   const selection = selected;
-  if (!selection?.dockerId || !$("#servicePreviewDialog").open || pending) return;
+  if (!selection?.dockerId || !$("#servicePreviewDialog").open || pending)
+    return;
   const found = lookup(selection);
-  if (!found || !found.server.local || found.server.remote || state.locked) return;
+  if (!found || !found.server.local || found.server.remote || state.locked)
+    return;
   const controller = new AbortController();
   pending = controller;
-  const current = () => selected === selection && pending === controller && $("#servicePreviewDialog").open && !state.locked;
+  const current = () =>
+    selected === selection &&
+    pending === controller &&
+    $("#servicePreviewDialog").open &&
+    !state.locked;
   const refresh = $("#servicePreviewRefresh");
   const feedback = $("#servicePreviewFeedback");
   const output = $("#servicePreviewDocker");
@@ -51,8 +80,12 @@ async function refreshContainer() {
   feedback.textContent = "Refreshing this container’s details and usage…";
   output.setAttribute("aria-busy", "true");
   try {
-    const result = await editApi("GET", `/api/docker/details?id=${encodeURIComponent(selection.dockerId)}`,
-      undefined, { signal: controller.signal, current, timeout: 16000 });
+    const result = await editApi(
+      "GET",
+      `/api/docker/details?id=${encodeURIComponent(selection.dockerId)}`,
+      undefined,
+      { signal: controller.signal, current, timeout: 16000 },
+    );
     if (!current()) return;
     if (!result) {
       feedback.textContent = "Container refresh cancelled.";
@@ -60,7 +93,10 @@ async function refreshContainer() {
     }
     const { res, data } = result;
     if (!res.ok) throw new Error(data.error || "Container details unavailable");
-    if (data.container?.id !== selection.dockerId || !Number.isFinite(data.fetchedAt))
+    if (
+      data.container?.id !== selection.dockerId ||
+      !Number.isFinite(data.fetchedAt)
+    )
       throw new Error("Invalid container preview response");
     fill(output, containerDetailsNode(data));
     selection.fetchedAt = data.fetchedAt;
@@ -80,7 +116,11 @@ async function refreshContainer() {
 
 function openPreview(selection) {
   const found = lookup(selection);
-  if (!found || state.locked) return toast("This service is no longer available. Refresh the dashboard.", true);
+  if (!found || state.locked)
+    return toast(
+      "This service is no longer available. Refresh the dashboard.",
+      true,
+    );
   pending?.abort();
   pending = null;
   selected = selection;
@@ -90,36 +130,111 @@ function openPreview(selection) {
   selection.dockerId = localDocker && fullId(container?.id) ? container.id : "";
   const status = selection.discovered ? null : serviceStatus(service, server);
   const urls = serviceUrls(service);
-  const health = service.type !== "bookmark" && !selection.discovered ? sourceOf(server).health?.[service.id] : null;
+  const health =
+    service.type !== "bookmark" && !selection.discovered
+      ? sourceOf(server).health?.[service.id]
+      : null;
   $("#servicePreviewTitle").textContent = service.name;
-  $("#servicePreviewServer").textContent = [server.name, service.group, server.remote ? "Remote · read-only" : ""].filter(Boolean).join(" · ");
+  $("#servicePreviewServer").textContent = [
+    server.name,
+    service.group,
+    server.remote ? "Remote · read-only" : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
   fill($("#servicePreviewIcon"), iconNode(service.icon, service.name));
-  fill($("#servicePreviewBody"),
+  fill(
+    $("#servicePreviewBody"),
     status ? statusNode(status) : null,
-    section("Description", h("p", { class: "service-preview-text" }, service.description || "No description added.")),
-    section("Service", h("dl", { class: "service-preview-details" },
-      detail("Type", service.type || "Legacy (automatic matching)"), detail("Server", server.name),
-      detail("Group", service.group || "Ungrouped"),
-      detail("Monitoring", service.type === "bookmark" ? "Not monitored" : docker ? "Docker container state" : "HTTP reachability"),
-      detail("HTTP state", health?.state), detail("HTTP status", health?.code),
-      detail("Response time", health?.ms != null ? `${health.ms} ms` : ""))),
-    urls.length ? section("Links", h("div", { class: "service-preview-links" },
-      urls.map(({ label, url }) => h("a", { href: url, ...external }, h("strong", {}, label), h("span", {}, url))))) : null,
-    service.notes ? section("Notes", h("p", { class: "service-preview-text" }, service.notes)) : null,
+    section(
+      "Description",
+      h(
+        "p",
+        { class: "service-preview-text" },
+        service.description || "No description added.",
+      ),
+    ),
+    section(
+      "Service",
+      h(
+        "dl",
+        { class: "service-preview-details" },
+        detail("Type", service.type || "Legacy (automatic matching)"),
+        detail("Server", server.name),
+        detail("Group", service.group || "Ungrouped"),
+        detail(
+          "Monitoring",
+          service.type === "bookmark"
+            ? "Not monitored"
+            : docker
+              ? "Docker container state"
+              : "HTTP reachability",
+        ),
+        detail("HTTP state", health?.state),
+        detail("HTTP status", health?.code),
+        detail("Response time", health?.ms != null ? `${health.ms} ms` : ""),
+      ),
+    ),
+    urls.length
+      ? section(
+          "Links",
+          h(
+            "div",
+            { class: "service-preview-links" },
+            urls.map(({ label, url }) =>
+              h(
+                "a",
+                { href: url, ...external },
+                h("strong", {}, label),
+                h("span", {}, url),
+              ),
+            ),
+          ),
+        )
+      : null,
+    service.notes
+      ? section(
+          "Notes",
+          h("p", { class: "service-preview-text" }, service.notes),
+        )
+      : null,
   );
   const output = $("#servicePreviewDocker");
   output.hidden = !docker;
   output.setAttribute("aria-busy", "false");
-  fill(output, docker ? [
-    section("Container", h("dl", { class: "service-preview-details" },
-      detail("Name", container?.name || service.container || "Not matched"), detail("Image", container?.image),
-      detail("State", container?.status || container?.state || "Unavailable"), detail("ID", container?.id),
-      detail("Published ports", container?.ports?.join(", ")))),
-    container ? usageNode(container, server) : null,
-  ] : []);
-  $("#servicePreviewFeedback").textContent = !docker ? "" : server.remote
-    ? "Remote dashboard snapshot. Direct container refresh is available on the originating dashboard."
-    : !selection.dockerId ? "Container details unavailable. Match a local container and refresh the dashboard." : "";
+  fill(
+    output,
+    docker
+      ? [
+          section(
+            "Container",
+            h(
+              "dl",
+              { class: "service-preview-details" },
+              detail(
+                "Name",
+                container?.name || service.container || "Not matched",
+              ),
+              detail("Image", container?.image),
+              detail(
+                "State",
+                container?.status || container?.state || "Unavailable",
+              ),
+              detail("ID", container?.id),
+              detail("Published ports", container?.ports?.join(", ")),
+            ),
+          ),
+          container ? usageNode(container, server) : null,
+        ]
+      : [],
+  );
+  $("#servicePreviewFeedback").textContent = !docker
+    ? ""
+    : server.remote
+      ? "Remote dashboard snapshot. Direct container refresh is available on the originating dashboard."
+      : !selection.dockerId
+        ? "Container details unavailable. Match a local container and refresh the dashboard."
+        : "";
   const refresh = $("#servicePreviewRefresh");
   refresh.hidden = !localDocker;
   refresh.disabled = !selection.dockerId;
@@ -138,7 +253,12 @@ export function openServicePreview(serverId, serviceId) {
 }
 
 export function openContainerPreview(serverId, container) {
-  return openPreview({ serverId, discovered: true, containerId: container.id, containerName: container.name });
+  return openPreview({
+    serverId,
+    discovered: true,
+    containerId: container.id,
+    containerName: container.name,
+  });
 }
 
 export function initServicePreview() {
@@ -150,14 +270,28 @@ export function initServicePreview() {
     const selection = selected;
     button.disabled = true;
     try {
-      if (!(await ensureCanEdit()) || selected !== selection || !dialog.open || state.locked) return;
+      if (
+        !(await ensureCanEdit()) ||
+        selected !== selection ||
+        !dialog.open ||
+        state.locked
+      )
+        return;
       const found = lookup(selection);
-      if (!found || found.server.remote) return toast("This service is no longer editable on this server.", true);
+      if (!found || found.server.remote)
+        return toast(
+          "This service is no longer editable on this server.",
+          true,
+        );
       dialog.close();
-      if (selection.discovered) openServiceEditor(selection.serverId, null, {
-        type: "docker", name: found.service.name, container: found.container.name,
-        icon: found.service.icon, url: serviceUrls(found.service)[0]?.url || "",
-      });
+      if (selection.discovered)
+        openServiceEditor(selection.serverId, null, {
+          type: "docker",
+          name: found.service.name,
+          container: found.container.name,
+          icon: found.service.icon,
+          url: serviceUrls(found.service)[0]?.url || "",
+        });
       else openServiceEditor(selection.serverId, selection.serviceId);
     } catch (err) {
       toast(err.message || "Could not open the service editor", true);
@@ -170,7 +304,12 @@ export function initServicePreview() {
     pending?.abort();
     pending = null;
     selected = null;
-    for (const id of ["#servicePreviewBody", "#servicePreviewDocker", "#servicePreviewIcon"]) fill($(id));
+    for (const id of [
+      "#servicePreviewBody",
+      "#servicePreviewDocker",
+      "#servicePreviewIcon",
+    ])
+      fill($(id));
     $("#servicePreviewTitle").textContent = "Service preview";
     $("#servicePreviewServer").textContent = "";
     $("#servicePreviewFeedback").textContent = "";

@@ -52,7 +52,9 @@ async function temporaryDirectory(t) {
 function iconLibrary(dir, quota, icons) {
   return loadLib("icons", {
     "./env": { ICON_DIR: dir, ICON_CACHE_MAX_BYTES: quota },
-    "./config": { readConfig: async () => ({ servers: icons.map((icon) => ({ icon })) }) },
+    "./config": {
+      readConfig: async () => ({ servers: icons.map((icon) => ({ icon })) }),
+    },
     "./remotes": { remoteServers: () => [] },
   });
 }
@@ -69,7 +71,10 @@ test("icon quota prunes legacy files, bounds concurrent commits and supports no 
   assert.deepEqual(await icons.iconCacheInfo(), { count: 0, bytes: 0 });
   await Promise.all(["one", "two", "three"].map((icon) => icons.getIcon(icon)));
   assert.deepEqual(await icons.iconCacheInfo(), { count: 2, bytes: 16 });
-  assert.equal(await fs.promises.readFile(path.join(dir, "unrelated"), "utf8"), "keep");
+  assert.equal(
+    await fs.promises.readFile(path.join(dir, "unrelated"), "utf8"),
+    "keep",
+  );
   const disabled = iconLibrary(dir, 0, ["one"]);
   assert.equal((await disabled.getIcon("one")).data.length, 8);
   assert.deepEqual(await disabled.iconCacheInfo(), { count: 0, bytes: 0 });
@@ -85,7 +90,8 @@ test("icon clear isolates old success/failure and does not detach a new pending 
   });
   const icons = iconLibrary(dir, 32, ["one"]);
   const waitFor = async (count) => {
-    while (requests.length < count) await new Promise((resolve) => setImmediate(resolve));
+    while (requests.length < count)
+      await new Promise((resolve) => setImmediate(resolve));
   };
   const old = icons.getIcon("one");
   await waitFor(1);
@@ -120,10 +126,14 @@ test("icon failure retention expires, caps records and rejects unconfigured targ
   let calls = 0;
   let now = Date.now();
   t.mock.method(Date, "now", () => now);
-  t.mock.method(globalThis, "fetch", async () => { calls++; throw new Error("offline"); });
+  t.mock.method(globalThis, "fetch", async () => {
+    calls++;
+    throw new Error("offline");
+  });
   await assert.rejects(icons.getIcon("http://private.invalid/"), /not used/);
   assert.equal(calls, 0);
-  for (const name of names) await assert.rejects(icons.getIcon(name), /Icon unavailable/);
+  for (const name of names)
+    await assert.rejects(icons.getIcon(name), /Icon unavailable/);
   await assert.rejects(icons.getIcon(names[1]), /Icon unavailable/);
   assert.equal(calls, 1025); // retained failure suppresses retry
   await assert.rejects(icons.getIcon(names[0]), /Icon unavailable/);
@@ -142,10 +152,18 @@ test("icon clear reports deletion failure and its disk queue recovers", async (t
     "./env": { ICON_DIR: dir, ICON_CACHE_MAX_BYTES: 32 },
     "./config": { readConfig: async () => ({}) },
     "./remotes": { remoteServers: () => [] },
-    fs: { promises: { ...fs.promises, async rm(...args) {
-      if (broken) throw Object.assign(new Error("permission denied"), { code: "EACCES" });
-      return fs.promises.rm(...args);
-    } } },
+    fs: {
+      promises: {
+        ...fs.promises,
+        async rm(...args) {
+          if (broken)
+            throw Object.assign(new Error("permission denied"), {
+              code: "EACCES",
+            });
+          return fs.promises.rm(...args);
+        },
+      },
+    },
   });
   await assert.rejects(icons.clearIconCache(), { code: "EACCES" });
   assert.equal(await fs.promises.readFile(file, "utf8"), "cached");
@@ -156,9 +174,14 @@ test("icon clear reports deletion failure and its disk queue recovers", async (t
 
 test("log writer preserves queued rotation, snapshot downloads and clear ordering", async (t) => {
   const dir = await temporaryDirectory(t);
-  const logger = loadLib("logger", { "./env": {
-    LOG_DIR: dir, LOG_FILE: "backend.log", LOG_MAX_BYTES: 1024, LOG_LEVEL: "INFO",
-  } });
+  const logger = loadLib("logger", {
+    "./env": {
+      LOG_DIR: dir,
+      LOG_FILE: "backend.log",
+      LOG_MAX_BYTES: 1024,
+      LOG_LEVEL: "INFO",
+    },
+  });
   logger.debug("read suppressed");
   logger.info("before rotation", "x".repeat(800));
   logger.info("after rotation", "y".repeat(800));
@@ -174,25 +197,42 @@ test("log writer preserves queued rotation, snapshot downloads and clear orderin
       const data = Buffer.alloc(size);
       await handle.read(data, 0, size, 0);
       old.push(data.toString());
-    } finally { await handle.close(); }
+    } finally {
+      await handle.close();
+    }
   }
   assert.match(old[0], /before rotation/);
   assert.match(old[1], /Rotated active log.*\n.*after rotation/);
   assert.doesNotMatch(old.join(""), /read suppressed|after clear/);
   const active = await fs.promises.readFile(logger.filename, "utf8");
   assert.match(active, /Logs cleared.*\n.*after clear/);
-  await assert.rejects(fs.promises.stat(`${logger.filename}.1`), { code: "ENOENT" });
+  await assert.rejects(fs.promises.stat(`${logger.filename}.1`), {
+    code: "ENOENT",
+  });
 });
 
 test("log file failures propagate for clear and snapshots and allow recovery", async (t) => {
   const dir = await temporaryDirectory(t);
   let broken = true;
   const logger = loadLib("logger", {
-    "./env": { LOG_DIR: dir, LOG_FILE: "backend.log", LOG_MAX_BYTES: 1024, LOG_LEVEL: "INFO" },
-    fs: { promises: { ...fs.promises, async mkdir(...args) {
-      if (broken) throw Object.assign(new Error("isolated failure"), { code: "EACCES" });
-      return fs.promises.mkdir(...args);
-    } } },
+    "./env": {
+      LOG_DIR: dir,
+      LOG_FILE: "backend.log",
+      LOG_MAX_BYTES: 1024,
+      LOG_LEVEL: "INFO",
+    },
+    fs: {
+      promises: {
+        ...fs.promises,
+        async mkdir(...args) {
+          if (broken)
+            throw Object.assign(new Error("isolated failure"), {
+              code: "EACCES",
+            });
+          return fs.promises.mkdir(...args);
+        },
+      },
+    },
   });
   logger.info("console survives disk failure");
   await assert.rejects(logger.snapshot(), { code: "EACCES" });
@@ -201,7 +241,10 @@ test("log file failures propagate for clear and snapshots and allow recovery", a
   await logger.clear();
   logger.warn("disk recovered");
   await logger.close();
-  assert.match(await fs.promises.readFile(logger.filename, "utf8"), /Logs cleared.*\n.*disk recovered/);
+  assert.match(
+    await fs.promises.readFile(logger.filename, "utf8"),
+    /Logs cleared.*\n.*disk recovered/,
+  );
 });
 
 test("atomic writes use distinct temporary files and leave complete JSON", async (t) => {
@@ -281,22 +324,44 @@ test("malformed server and service entries produce HTTP 400 errors", () => {
 
 test("service types validate explicitly, preserve legacy, and clear inactive bindings", () => {
   const { sanitizeConfig } = loadLib("config", { "./env": {} });
-  const service = (fields) => sanitizeConfig({ servers: [{ name: "Host", services: [
-    { id: "svc", name: "Service", ...fields },
-  ] }] }).servers[0].services[0];
+  const service = (fields) =>
+    sanitizeConfig({
+      servers: [
+        { name: "Host", services: [{ id: "svc", name: "Service", ...fields }] },
+      ],
+    }).servers[0].services[0];
   for (const type of [null, "", "tcp", "Docker", false, 0, {}, undefined])
-    assert.throws(() => service({ type, url: "http://example.test", container: "app" }), { status: 400 });
+    assert.throws(
+      () => service({ type, url: "http://example.test", container: "app" }),
+      { status: 400 },
+    );
   assert.equal(Object.hasOwn(service({}), "type"), false);
   assert.equal(service({ container: "legacy" }).container, "legacy");
   for (const container of [undefined, "", "  ", null, 123])
-    assert.throws(() => service({ type: "docker", container }), { status: 400 });
-  assert.equal(service({ type: "docker", container: " app " }).container, "app");
+    assert.throws(() => service({ type: "docker", container }), {
+      status: 400,
+    });
+  assert.equal(
+    service({ type: "docker", container: " app " }).container,
+    "app",
+  );
   for (const type of ["web", "bookmark"]) {
     assert.throws(() => service({ type }), { status: 400 });
-    assert.throws(() => service({ type, url: "ftp://example.test" }), { status: 400 });
-    assert.throws(() => service({ type, altUrl: "not a URL" }), { status: 400 });
-    const result = service({ type, altUrl: "https://example.test", container: "inactive",
-      icon: "🌐", notes: "notes", description: "description", group: "Apps" });
+    assert.throws(() => service({ type, url: "ftp://example.test" }), {
+      status: 400,
+    });
+    assert.throws(() => service({ type, altUrl: "not a URL" }), {
+      status: 400,
+    });
+    const result = service({
+      type,
+      altUrl: "https://example.test",
+      container: "inactive",
+      icon: "🌐",
+      notes: "notes",
+      description: "description",
+      group: "Apps",
+    });
     assert.equal(result.type, type);
     assert.equal(result.container, "");
     assert.equal(result.altUrl, "https://example.test");
@@ -308,35 +373,61 @@ test("service types validate explicitly, preserve legacy, and clear inactive bin
 const labeledUrls = () => [
   { label: "Local", url: "http://app.test:8080" },
   { label: "Public", url: "https://app.test" },
-  { label: "Admin <&> \"panel\"", url: "https://app.test/admin" },
+  { label: 'Admin <&> "panel"', url: "https://app.test/admin" },
   { label: "VPN", url: "http://vpn.test:8080" },
 ];
 
 test("canonical service URLs are ordered and authoritative, with derived compatibility fields", () => {
   const { sanitizeConfig } = loadLib("config", { "./env": {} });
-  const service = (fields) => sanitizeConfig({ servers: [{ name: "Host", services: [
-    { id: "svc", name: "Service", ...fields },
-  ] }] }).servers[0].services[0];
+  const service = (fields) =>
+    sanitizeConfig({
+      servers: [
+        { name: "Host", services: [{ id: "svc", name: "Service", ...fields }] },
+      ],
+    }).servers[0].services[0];
   for (const type of [undefined, "docker", "web", "bookmark"]) {
-    const result = service({ ...(type ? { type } : {}), container: "app", urls: labeledUrls(),
-      url: "javascript:stale", altUrl: { invalid: true } });
+    const result = service({
+      ...(type ? { type } : {}),
+      container: "app",
+      urls: labeledUrls(),
+      url: "javascript:stale",
+      altUrl: { invalid: true },
+    });
     assert.deepEqual(result.urls, labeledUrls());
     assert.equal(result.url, labeledUrls()[0].url);
     assert.equal(result.altUrl, labeledUrls()[1].url);
     assert.deepEqual(service(result), result);
   }
-  const empty = service({ type: "docker", container: "app", urls: [], url: "https://stale.test", altUrl: "https://stale.test" });
+  const empty = service({
+    type: "docker",
+    container: "app",
+    urls: [],
+    url: "https://stale.test",
+    altUrl: "https://stale.test",
+  });
   assert.deepEqual(empty.urls, []);
   assert.equal(empty.url, "");
   assert.equal(empty.altUrl, "");
   assert.deepEqual(service({ urls: [] }).urls, []);
-  const single = service({ type: "web", urls: [labeledUrls()[2]], altUrl: "https://stale.test" });
+  const single = service({
+    type: "web",
+    urls: [labeledUrls()[2]],
+    altUrl: "https://stale.test",
+  });
   assert.equal(single.url, labeledUrls()[2].url);
   assert.equal(single.altUrl, "");
   for (const type of ["web", "bookmark"])
-    assert.throws(() => service({ type, urls: [], url: "https://stale.test" }), { status: 400 });
-  assert.throws(() => service({ type: "docker", urls: labeledUrls() }), { status: 400 });
-  const legacy = service({ url: "http://local.test", altUrl: "https://public.test" });
+    assert.throws(
+      () => service({ type, urls: [], url: "https://stale.test" }),
+      { status: 400 },
+    );
+  assert.throws(() => service({ type: "docker", urls: labeledUrls() }), {
+    status: 400,
+  });
+  const legacy = service({
+    url: "http://local.test",
+    altUrl: "https://public.test",
+  });
   assert.equal(Object.hasOwn(legacy, "urls"), false);
   assert.equal(legacy.url, "http://local.test");
   assert.equal(legacy.altUrl, "https://public.test");
@@ -344,35 +435,97 @@ test("canonical service URLs are ordered and authoritative, with derived compati
 
 test("URL arrays reject malformed entries and excess counts or lengths without truncation", () => {
   const { sanitizeConfig } = loadLib("config", { "./env": {} });
-  const sanitize = (urls) => sanitizeConfig({ servers: [{ name: "Host", services: [
-    { name: "Service", type: "web", urls, url: "https://legacy.test" },
-  ] }] }).servers[0].services[0];
-  for (const urls of [null, undefined, false, 4, "https://app.test", {},
-    [null], [false], ["https://app.test"], [[]], [{}],
-    [{ label: 4, url: "https://app.test" }], [{ label: "  ", url: "https://app.test" }],
+  const sanitize = (urls) =>
+    sanitizeConfig({
+      servers: [
+        {
+          name: "Host",
+          services: [
+            { name: "Service", type: "web", urls, url: "https://legacy.test" },
+          ],
+        },
+      ],
+    }).servers[0].services[0];
+  for (const urls of [
+    null,
+    undefined,
+    false,
+    4,
+    "https://app.test",
+    {},
+    [null],
+    [false],
+    ["https://app.test"],
+    [[]],
+    [{}],
+    [{ label: 4, url: "https://app.test" }],
+    [{ label: "  ", url: "https://app.test" }],
     [{ label: "x".repeat(61), url: "https://app.test" }],
-    ...[null, 4, {}, "", " ", "not a URL", "/relative", "javascript:alert(1)", "file:///private", "ftp://app.test", `https://app.test/${"x".repeat(2000)}`]
-      .map((url) => [{ label: "Local", url }]),
+    ...[
+      null,
+      4,
+      {},
+      "",
+      " ",
+      "not a URL",
+      "/relative",
+      "javascript:alert(1)",
+      "file:///private",
+      "ftp://app.test",
+      `https://app.test/${"x".repeat(2000)}`,
+    ].map((url) => [{ label: "Local", url }]),
     [labeledUrls()[0], { label: "Bad", url: "no" }, labeledUrls()[2]],
-    Array(51).fill(labeledUrls()[0]), Array(1),
-  ]) assert.throws(() => sanitize(urls), { status: 400 }, JSON.stringify(urls));
+    Array(51).fill(labeledUrls()[0]),
+    Array(1),
+  ])
+    assert.throws(() => sanitize(urls), { status: 400 }, JSON.stringify(urls));
   assert.equal(sanitize(Array(50).fill(labeledUrls()[0])).urls.length, 50);
-  const exact = { label: "x".repeat(60), url: `https://app.test/${"x".repeat(1983)}` };
+  const exact = {
+    label: "x".repeat(60),
+    url: `https://app.test/${"x".repeat(1983)}`,
+  };
   assert.equal(exact.url.length, 2000);
   assert.deepEqual(sanitize([exact]).urls, [exact]);
-  assert.deepEqual(sanitize([{ label: "  Admin  ", url: " https://app.test/admin  " }]).urls,
-    [{ label: "Admin", url: "https://app.test/admin" }]);
+  assert.deepEqual(
+    sanitize([{ label: "  Admin  ", url: " https://app.test/admin  " }]).urls,
+    [{ label: "Admin", url: "https://app.test/admin" }],
+  );
 });
 
 test("typed services and untyped legacy survive persistence and JSON export/import", async (t) => {
   const dir = await temporaryDirectory(t);
-  const store = loadLib("config", { "./env": { DATA_DIR: dir, CONFIG_FILE: path.join(dir, "config.json") } });
-  const input = { settings: { favorites: ["bookmark"] }, servers: [{ id: "host", name: "Host", groups: ["Apps"], services: [
-    { id: "docker", name: "Docker", type: "docker", container: "app" },
-    { id: "web", name: "Web", type: "web", urls: labeledUrls(), url: "https://stale.test" },
-    { id: "bookmark", name: "Bookmark", type: "bookmark", altUrl: "https://link.test", group: "Apps", notes: "keep" },
-    { id: "legacy", name: "Legacy", container: "auto" },
-  ] }] };
+  const store = loadLib("config", {
+    "./env": { DATA_DIR: dir, CONFIG_FILE: path.join(dir, "config.json") },
+  });
+  const input = {
+    settings: { favorites: ["bookmark"] },
+    servers: [
+      {
+        id: "host",
+        name: "Host",
+        groups: ["Apps"],
+        services: [
+          { id: "docker", name: "Docker", type: "docker", container: "app" },
+          {
+            id: "web",
+            name: "Web",
+            type: "web",
+            urls: labeledUrls(),
+            url: "https://stale.test",
+          },
+          {
+            id: "bookmark",
+            name: "Bookmark",
+            type: "bookmark",
+            altUrl: "https://link.test",
+            group: "Apps",
+            notes: "keep",
+          },
+          { id: "legacy", name: "Legacy", container: "auto" },
+        ],
+      },
+    ],
+  };
   const sanitized = store.sanitizeConfig(input);
   await store.writeConfig(sanitized);
   const saved = await store.readConfig();
@@ -381,11 +534,18 @@ test("typed services and untyped legacy survive persistence and JSON export/impo
   assert.equal(Object.hasOwn(saved.servers[0].services[3], "urls"), false);
   const imported = store.sanitizeConfig(JSON.parse(JSON.stringify(saved)));
   assert.deepEqual(imported, saved);
-  imported.servers[0].services[0] = { ...imported.servers[0].services[0], type: "bookmark", url: "https://app.test" };
+  imported.servers[0].services[0] = {
+    ...imported.servers[0].services[0],
+    type: "bookmark",
+    url: "https://app.test",
+  };
   const converted = store.sanitizeConfig(imported);
   await store.writeConfig(converted);
   assert.equal((await store.readConfig()).servers[0].services[0].container, "");
-  assert.equal(Object.hasOwn((await store.readConfig()).servers[0].services[3], "type"), false);
+  assert.equal(
+    Object.hasOwn((await store.readConfig()).servers[0].services[3], "type"),
+    false,
+  );
   assert.deepEqual((await store.readConfig()).settings.favorites, ["bookmark"]);
 });
 
@@ -393,30 +553,55 @@ test("health probes only URL-bearing monitored entries and invalidation drops bo
   const contacted = [];
   const services = [
     { id: "bookmark", type: "bookmark", url: "http://bookmark.test" },
-    { id: "web", type: "web", url: "http://web.test", altUrl: "http://unused.test" },
+    {
+      id: "web",
+      type: "web",
+      url: "http://web.test",
+      altUrl: "http://unused.test",
+    },
     { id: "alt", type: "web", altUrl: "https://alternate.test" },
     { id: "docker", type: "docker", container: "app" },
-    { id: "docker-url", type: "docker", container: "app", url: "http://docker.test" },
+    {
+      id: "docker-url",
+      type: "docker",
+      container: "app",
+      url: "http://docker.test",
+    },
     { id: "legacy", url: "http://legacy.test" },
     { id: "empty" },
     { id: "unknown", type: "future", url: "http://unknown.test" },
     { id: "duplicate", type: "bookmark", url: "http://web.test" },
   ];
-  const client = { request(url, options, callback) {
-    contacted.push(url.href);
-    const req = new EventEmitter();
-    req.end = () => queueMicrotask(() => callback({ statusCode: 200, destroy() {} }));
-    req.destroy = (err) => req.emit("error", err);
-    return req;
-  } };
+  const client = {
+    request(url, options, callback) {
+      contacted.push(url.href);
+      const req = new EventEmitter();
+      req.end = () =>
+        queueMicrotask(() => callback({ statusCode: 200, destroy() {} }));
+      req.destroy = (err) => req.emit("error", err);
+      return req;
+    },
+  };
   const health = loadLib("health", {
     "./config": { readConfig: async () => ({ servers: [{ services }] }) },
     "./tunables": { get: () => 60 },
-    "./logger": { info() {}, warn() {} }, http: client, https: client,
+    "./logger": { info() {}, warn() {} },
+    http: client,
+    https: client,
   });
   const first = await health.getHealth();
-  assert.deepEqual(Object.keys(first.results).sort(), ["alt", "docker-url", "legacy", "web"]);
-  assert.deepEqual(contacted.sort(), ["http://docker.test/", "http://legacy.test/", "http://web.test/", "https://alternate.test/"]);
+  assert.deepEqual(Object.keys(first.results).sort(), [
+    "alt",
+    "docker-url",
+    "legacy",
+    "web",
+  ]);
+  assert.deepEqual(contacted.sort(), [
+    "http://docker.test/",
+    "http://legacy.test/",
+    "http://web.test/",
+    "https://alternate.test/",
+  ]);
   services.find((s) => s.id === "web").type = "bookmark";
   contacted.length = 0;
   health.invalidateHealth();
@@ -428,27 +613,49 @@ test("health probes only URL-bearing monitored entries and invalidation drops bo
 test("health checks only canonical first URLs for Web, Docker and legacy, never bookmark or shadows", async () => {
   const contacted = [];
   const services = ["web", "docker", "legacy", "bookmark"].map((type) => ({
-    id: type, ...(type === "legacy" ? {} : { type }), container: "app",
+    id: type,
+    ...(type === "legacy" ? {} : { type }),
+    container: "app",
     urls: [{ label: "Primary", url: `http://${type}.test` }, ...labeledUrls()],
-    url: "https://stale.test", altUrl: "https://stale-alt.test",
+    url: "https://stale.test",
+    altUrl: "https://stale-alt.test",
   }));
-  services.push({ id: "empty", urls: [], url: "http://stale.test" },
-    { id: "invalid", urls: [{ label: "Bad", url: "javascript:bad" }, ...labeledUrls()], url: "http://stale.test" },
-    { id: "invalid-array", urls: null, url: "http://stale.test" });
-  const client = { request(url, options, callback) {
-    contacted.push(url.href);
-    const req = new EventEmitter();
-    req.end = () => queueMicrotask(() => callback({ statusCode: 200, destroy() {} }));
-    req.destroy = (err) => req.emit("error", err);
-    return req;
-  } };
+  services.push(
+    { id: "empty", urls: [], url: "http://stale.test" },
+    {
+      id: "invalid",
+      urls: [{ label: "Bad", url: "javascript:bad" }, ...labeledUrls()],
+      url: "http://stale.test",
+    },
+    { id: "invalid-array", urls: null, url: "http://stale.test" },
+  );
+  const client = {
+    request(url, options, callback) {
+      contacted.push(url.href);
+      const req = new EventEmitter();
+      req.end = () =>
+        queueMicrotask(() => callback({ statusCode: 200, destroy() {} }));
+      req.destroy = (err) => req.emit("error", err);
+      return req;
+    },
+  };
   const health = loadLib("health", {
     "./config": { readConfig: async () => ({ servers: [{ services }] }) },
     "./tunables": { get: () => 60 },
-    "./logger": { info() {}, warn() {} }, http: client, https: client,
+    "./logger": { info() {}, warn() {} },
+    http: client,
+    https: client,
   });
-  assert.deepEqual(Object.keys((await health.getHealth()).results).sort(), ["docker", "legacy", "web"]);
-  assert.deepEqual(contacted.sort(), ["http://docker.test/", "http://legacy.test/", "http://web.test/"]);
+  assert.deepEqual(Object.keys((await health.getHealth()).results).sort(), [
+    "docker",
+    "legacy",
+    "web",
+  ]);
+  assert.deepEqual(contacted.sort(), [
+    "http://docker.test/",
+    "http://legacy.test/",
+    "http://web.test/",
+  ]);
   services[0].urls.unshift(services[0].urls.pop());
   health.invalidateHealth();
   contacted.length = 0;
@@ -614,24 +821,74 @@ function remoteFixture(writeAtomic, extra = {}) {
 }
 
 function validPeerSnapshot() {
-  const window = { from: 1, observed: 100, down: 0, count: 0, longest: 0, pct: 100 };
-  const availability = { enabled: true, since: 1, now: 101, count: 0, last: null,
-    windows: Object.fromEntries(["day", "week", "month", "all"].map((key) => [key, { ...window }])),
-    outages: [], records: 0 };
+  const window = {
+    from: 1,
+    observed: 100,
+    down: 0,
+    count: 0,
+    longest: 0,
+    pct: 100,
+  };
+  const availability = {
+    enabled: true,
+    since: 1,
+    now: 101,
+    count: 0,
+    last: null,
+    windows: Object.fromEntries(
+      ["day", "week", "month", "all"].map((key) => [key, { ...window }]),
+    ),
+    outages: [],
+    records: 0,
+  };
   return {
-    version: "1.0", title: "Peer", refreshError: "",
-    servers: [{ id: "host", name: "Host", local: true, services: [
-      { id: "web", name: "Web", url: "http://web.test", container: "web" },
-    ] }],
-    stats: { cpu: 10, cores: 4, uptime: 100, cpuModel: "CPU", interval: 5,
-      load: [0, 0, 0], mem: { used: 100, total: 1000 }, disks: [],
-      net: { rx: 10, tx: 20, rxRate: 1, txRate: 2, ifaces: ["eth0"] }, temps: [], fans: [], availability },
-    docker: { available: true, containers: [
-      { name: "web", image: "web:latest", state: "running", status: "Up", ports: [80] },
-    ] },
-    usage: { interval: 10, ok: true, collectedAt: 100,
-      stats: { web: { cpu: 150, mem: 100, memLimit: 1000, rx: 10, tx: 20 } } },
-    health: { web: { state: "up", code: 200, ms: 5 } }, availability,
+    version: "1.0",
+    title: "Peer",
+    refreshError: "",
+    servers: [
+      {
+        id: "host",
+        name: "Host",
+        local: true,
+        services: [
+          { id: "web", name: "Web", url: "http://web.test", container: "web" },
+        ],
+      },
+    ],
+    stats: {
+      cpu: 10,
+      cores: 4,
+      uptime: 100,
+      cpuModel: "CPU",
+      interval: 5,
+      load: [0, 0, 0],
+      mem: { used: 100, total: 1000 },
+      disks: [],
+      net: { rx: 10, tx: 20, rxRate: 1, txRate: 2, ifaces: ["eth0"] },
+      temps: [],
+      fans: [],
+      availability,
+    },
+    docker: {
+      available: true,
+      containers: [
+        {
+          name: "web",
+          image: "web:latest",
+          state: "running",
+          status: "Up",
+          ports: [80],
+        },
+      ],
+    },
+    usage: {
+      interval: 10,
+      ok: true,
+      collectedAt: 100,
+      stats: { web: { cpu: 150, mem: 100, memLimit: 1000, rx: 10, tx: 20 } },
+    },
+    health: { web: { state: "up", code: 200, ms: 5 } },
+    availability,
   };
 }
 
@@ -644,16 +901,31 @@ async function snapshotFixture(t) {
     return new Response(JSON.stringify(response));
   });
   const remotes = remoteFixture(async () => {}, {
-    "./config": { writeAtomic: async () => {}, sanitizeConfig: require("../lib/config").sanitizeConfig },
+    "./config": {
+      writeAtomic: async () => {},
+      sanitizeConfig: require("../lib/config").sanitizeConfig,
+    },
     "./serverinfo": { sanitizeInfo: require("../lib/serverinfo").sanitizeInfo },
-    "./logger": { warn: (...args) => logs.push(args), info: (...args) => logs.push(args) },
+    "./logger": {
+      warn: (...args) => logs.push(args),
+      info: (...args) => logs.push(args),
+    },
   });
   const saved = await remotes.saveRemotes({
-    remotes: [{ name: "Peer", url: "http://peer.test", token: "private-token" }],
+    remotes: [
+      { name: "Peer", url: "http://peer.test", token: "private-token" },
+    ],
   });
   const id = saved.remotes[0].id;
-  return { remotes, id, logs, set: (value) => { response = value; },
-    read: async () => (await remotes.getRemotes({ fresh: id })).remotes[0] };
+  return {
+    remotes,
+    id,
+    logs,
+    set: (value) => {
+      response = value;
+    },
+    read: async () => (await remotes.getRemotes({ fresh: id })).remotes[0],
+  };
 }
 
 test("peer snapshots copy known bounded fields and support older optional fields", async (t) => {
@@ -674,7 +946,14 @@ test("peer snapshots copy known bounded fields and support older optional fields
   assert.equal(current.usage.stats.web.cpu, 150); // multi-core container CPU can exceed 100%
   assert.deepEqual(current.stats.net.ifaces, ["eth0"]);
   const older = validPeerSnapshot();
-  for (const key of ["net", "temps", "fans", "availability", "interval", "cpuModel"])
+  for (const key of [
+    "net",
+    "temps",
+    "fans",
+    "availability",
+    "interval",
+    "cpuModel",
+  ])
     delete older.stats[key];
   for (const key of ["ok", "collectedAt", "error"]) delete older.usage[key];
   delete older.availability;
@@ -698,15 +977,29 @@ test("remote service types preserve legacy and do not require bookmark health", 
   const fixture = await snapshotFixture(t);
   const data = validPeerSnapshot();
   data.servers[0].services.push(
-    { id: "bookmark", name: "Bookmark", type: "bookmark", url: "https://bookmark.test", container: "web" },
-    { id: "alt", name: "Alternate", type: "web", altUrl: "https://alternate.test" },
+    {
+      id: "bookmark",
+      name: "Bookmark",
+      type: "bookmark",
+      url: "https://bookmark.test",
+      container: "web",
+    },
+    {
+      id: "alt",
+      name: "Alternate",
+      type: "web",
+      altUrl: "https://alternate.test",
+    },
     { id: "docker", name: "Docker", type: "docker", container: "web" },
   );
   data.health.alt = { state: "up", code: 200, ms: 1 };
   fixture.set(data);
   const result = await fixture.read();
   assert.equal(result.refreshError, "");
-  assert.deepEqual(result.servers[0].services.map((s) => s.type), [undefined, "bookmark", "web", "docker"]);
+  assert.deepEqual(
+    result.servers[0].services.map((s) => s.type),
+    [undefined, "bookmark", "web", "docker"],
+  );
   assert.equal(result.servers[0].services[1].container, "");
   delete data.health.alt;
   fixture.set(data);
@@ -723,7 +1016,12 @@ test("remote snapshots preserve all labeled URLs, derive shadows and validate li
   svc.urls = labeledUrls();
   svc.url = "javascript:stale";
   svc.altUrl = "invalid shadow";
-  data.servers[0].services.push({ id: "bookmark", name: "Bookmark", type: "bookmark", urls: labeledUrls() });
+  data.servers[0].services.push({
+    id: "bookmark",
+    name: "Bookmark",
+    type: "bookmark",
+    urls: labeledUrls(),
+  });
   fixture.set(data);
   const result = await fixture.read();
   assert.equal(result.refreshError, "");
@@ -737,7 +1035,10 @@ test("remote snapshots preserve all labeled URLs, derive shadows and validate li
   svc.urls = [];
   fixture.set(data);
   assert.equal((await fixture.read()).refreshError, "");
-  for (const urls of [Array(51).fill(labeledUrls()[0]), [labeledUrls()[0], { label: "Bad", url: "javascript:bad" }]]) {
+  for (const urls of [
+    Array(51).fill(labeledUrls()[0]),
+    [labeledUrls()[0], { label: "Bad", url: "javascript:bad" }],
+  ]) {
     svc.urls = urls;
     fixture.set(data);
     assert.match((await fixture.read()).refreshError, /servers/);
@@ -748,34 +1049,174 @@ test("invalid and incomplete peer sections are render-safe and never advance las
   const fixture = await snapshotFixture(t);
   const good = await fixture.read();
   const cases = [
-    ["servers", (d) => { delete d.servers; }],
-    ["servers", (d) => { d.servers[0].services[0].url = "file:///private-secret"; }],
-    ["servers", (d) => { d.servers = Array(101).fill(d.servers[0]); }],
-    ["stats", (d) => { delete d.stats; }],
-    ["stats", (d) => { d.stats.mem = null; }],
-    ["stats", (d) => { d.stats.load = "bad"; }],
-    ["stats", (d) => { d.stats.net.rxRate = -1; }],
-    ["stats", (d) => { d.stats.net.ifaces = [null]; }],
-    ["stats", (d) => { d.stats.temps = [null]; }],
-    ["stats", (d) => { d.stats.fans = Array(129).fill({ name: "fan", rpm: 1 }); }],
-    ["stats", (d) => { d.stats.disks = [{ label: "disk", used: 2, total: 1 }]; }],
-    ["docker", (d) => { d.docker.containers = {}; }],
-    ["docker", (d) => { d.docker.containers[0].name = {}; }],
-    ["docker", (d) => { d.docker.containers[0].image = null; }],
-    ["docker", (d) => { d.docker.containers[0].state = "unknown"; }],
-    ["docker", (d) => { d.docker.containers[0].ports = [65536]; }],
-    ["docker", (d) => { d.docker.available = "true"; }],
-    ["usage", (d) => { d.usage.stats.web.mem = "100"; }],
-    ["usage", (d) => { d.usage.stats = JSON.parse('{"__proto__": {}}'); }],
-    ["usage", (d) => { d.usage.ok = false; }],
-    ["usage", (d) => { d.usage.stats = {}; }],
-    ["health", (d) => { d.health.web.state = "unknown"; }],
-    ["health", (d) => { d.health = {}; }],
-    ["availability", (d) => { d.availability.outages = "bad"; }],
-    ["availability", (d) => { d.availability.windows.day.pct = 101; }],
-    ["availability", (d) => { d.availability.last = { start: 2, end: 1 }; }],
-    ["title", (d) => { d.title = {}; }],
-    ["refreshError", (d) => { d.refreshError = {}; }],
+    [
+      "servers",
+      (d) => {
+        delete d.servers;
+      },
+    ],
+    [
+      "servers",
+      (d) => {
+        d.servers[0].services[0].url = "file:///private-secret";
+      },
+    ],
+    [
+      "servers",
+      (d) => {
+        d.servers = Array(101).fill(d.servers[0]);
+      },
+    ],
+    [
+      "stats",
+      (d) => {
+        delete d.stats;
+      },
+    ],
+    [
+      "stats",
+      (d) => {
+        d.stats.mem = null;
+      },
+    ],
+    [
+      "stats",
+      (d) => {
+        d.stats.load = "bad";
+      },
+    ],
+    [
+      "stats",
+      (d) => {
+        d.stats.net.rxRate = -1;
+      },
+    ],
+    [
+      "stats",
+      (d) => {
+        d.stats.net.ifaces = [null];
+      },
+    ],
+    [
+      "stats",
+      (d) => {
+        d.stats.temps = [null];
+      },
+    ],
+    [
+      "stats",
+      (d) => {
+        d.stats.fans = Array(129).fill({ name: "fan", rpm: 1 });
+      },
+    ],
+    [
+      "stats",
+      (d) => {
+        d.stats.disks = [{ label: "disk", used: 2, total: 1 }];
+      },
+    ],
+    [
+      "docker",
+      (d) => {
+        d.docker.containers = {};
+      },
+    ],
+    [
+      "docker",
+      (d) => {
+        d.docker.containers[0].name = {};
+      },
+    ],
+    [
+      "docker",
+      (d) => {
+        d.docker.containers[0].image = null;
+      },
+    ],
+    [
+      "docker",
+      (d) => {
+        d.docker.containers[0].state = "unknown";
+      },
+    ],
+    [
+      "docker",
+      (d) => {
+        d.docker.containers[0].ports = [65536];
+      },
+    ],
+    [
+      "docker",
+      (d) => {
+        d.docker.available = "true";
+      },
+    ],
+    [
+      "usage",
+      (d) => {
+        d.usage.stats.web.mem = "100";
+      },
+    ],
+    [
+      "usage",
+      (d) => {
+        d.usage.stats = JSON.parse('{"__proto__": {}}');
+      },
+    ],
+    [
+      "usage",
+      (d) => {
+        d.usage.ok = false;
+      },
+    ],
+    [
+      "usage",
+      (d) => {
+        d.usage.stats = {};
+      },
+    ],
+    [
+      "health",
+      (d) => {
+        d.health.web.state = "unknown";
+      },
+    ],
+    [
+      "health",
+      (d) => {
+        d.health = {};
+      },
+    ],
+    [
+      "availability",
+      (d) => {
+        d.availability.outages = "bad";
+      },
+    ],
+    [
+      "availability",
+      (d) => {
+        d.availability.windows.day.pct = 101;
+      },
+    ],
+    [
+      "availability",
+      (d) => {
+        d.availability.last = { start: 2, end: 1 };
+      },
+    ],
+    [
+      "title",
+      (d) => {
+        d.title = {};
+      },
+    ],
+    [
+      "refreshError",
+      (d) => {
+        d.refreshError = {};
+      },
+    ],
   ];
   for (const [section, mutate] of cases) {
     const data = validPeerSnapshot();
@@ -802,26 +1243,59 @@ test("invalid and incomplete peer sections are render-safe and never advance las
 test("accepted peer sections execute frontend stats, status and usage consumers safely", async (t) => {
   const fixture = await snapshotFixture(t);
   let snapshot;
-  const node = () => ({ append() {}, setAttribute() {}, lastChild: { setAttribute() {} } });
+  const node = () => ({
+    append() {},
+    setAttribute() {},
+    lastChild: { setAttribute() {} },
+  });
   const globals = {
-    sourceOf: () => snapshot, h: node, svg: node,
+    sourceOf: () => snapshot,
+    h: node,
+    svg: node,
     document: { createElementNS: node },
-    fmtBytes: String, fmtUptime: String, fmtDuration: String, fmtDateTime: String,
-    fmtPercent: String, plural: String, norm: (v) => v.toLowerCase(), portOf: () => 80,
+    fmtBytes: String,
+    fmtUptime: String,
+    fmtDuration: String,
+    fmtDateTime: String,
+    fmtPercent: String,
+    plural: String,
+    norm: (v) => v.toLowerCase(),
+    portOf: () => 80,
     monitoringUrl: require("../lib/service-urls").monitoringUrl,
   };
   const consumer = (file, names) => {
-    const code = fs.readFileSync(path.join(__dirname, "../public/js", file), "utf8")
+    const code = fs
+      .readFileSync(path.join(__dirname, "../public/js", file), "utf8")
       .replace(/^import\s[\s\S]*?;\r?$/gm, "")
       .replace(/\bexport (?=(?:async )?(?:function|const|let)\b)/g, "");
     return vm.runInNewContext(`${code}\n;({ ${names.join(", ")} });`, globals);
   };
-  const stats = consumer("view/stats.js", ["systemCard", "networkCard", "sensorsCard", "availabilityCard"]);
+  const stats = consumer("view/stats.js", [
+    "systemCard",
+    "networkCard",
+    "sensorsCard",
+    "availabilityCard",
+  ]);
   const status = consumer("status.js", ["serviceStatus"]);
   const usage = consumer("view/usage.js", ["usageNode", "groupUsageNode"]);
-  for (const mutate of [() => {}, (d) => { d.stats.net.ifaces = null; },
-    (d) => { d.docker.containers[0].ports = {}; }, (d) => { d.usage.stats.web = null; },
-    (d) => { d.health.web = []; }, (d) => { d.availability.outages = {}; }]) {
+  for (const mutate of [
+    () => {},
+    (d) => {
+      d.stats.net.ifaces = null;
+    },
+    (d) => {
+      d.docker.containers[0].ports = {};
+    },
+    (d) => {
+      d.usage.stats.web = null;
+    },
+    (d) => {
+      d.health.web = [];
+    },
+    (d) => {
+      d.availability.outages = {};
+    },
+  ]) {
     const data = validPeerSnapshot();
     mutate(data);
     fixture.set(data);
@@ -834,8 +1308,10 @@ test("accepted peer sections execute frontend stats, status and usage consumers 
       if (snapshot.stats) {
         stats.systemCard(snapshot.stats);
         stats.sensorsCard(snapshot.stats);
-        if (snapshot.stats.net) stats.networkCard(snapshot.stats.net, 5, [{ rx: 1, tx: 2, at: 1 }]);
-        if (snapshot.stats.availability) stats.availabilityCard(snapshot.stats, server);
+        if (snapshot.stats.net)
+          stats.networkCard(snapshot.stats.net, 5, [{ rx: 1, tx: 2, at: 1 }]);
+        if (snapshot.stats.availability)
+          stats.availabilityCard(snapshot.stats, server);
       }
     });
   }
@@ -847,9 +1323,14 @@ test("peer failure diagnostics never expose response bodies, redirects, or raw e
   const initial = await fixture.read();
   assert.equal(initial.ok, false);
   assert.equal(initial.lastOk, 0);
-  fixture.set(new Response('private-token not json'));
+  fixture.set(new Response("private-token not json"));
   assert.equal((await fixture.read()).error, "Could not read peer response");
-  fixture.set(new Response(null, { status: 302, headers: { location: "http://private-token.test" } }));
+  fixture.set(
+    new Response(null, {
+      status: 302,
+      headers: { location: "http://private-token.test" },
+    }),
+  );
   assert.match((await fixture.read()).error, /redirected/);
   fixture.set(new Error("private-token payload"));
   assert.equal((await fixture.read()).error, "Could not read peer response");
@@ -858,7 +1339,10 @@ test("peer failure diagnostics never expose response bodies, redirects, or raw e
   fixture.set(validPeerSnapshot());
   const recovered = await fixture.read();
   assert.ok(recovered.lastOk > 0);
-  fixture.set({ ...validPeerSnapshot(), refreshError: "private-token payload" });
+  fixture.set({
+    ...validPeerSnapshot(),
+    refreshError: "private-token payload",
+  });
   const partial = await fixture.read();
   assert.equal(partial.lastOk, recovered.lastOk);
   assert.equal(partial.refreshError, "Peer reported an incomplete refresh");
@@ -867,12 +1351,20 @@ test("peer failure diagnostics never expose response bodies, redirects, or raw e
 
 test("peer server info validates before caching and preserves optional older fields", async (t) => {
   const fixture = await snapshotFixture(t);
-  for (const data of [null, {}, { system: [] }, { system: {} },
+  for (const data of [
+    null,
+    {},
+    { system: [] },
+    { system: {} },
     { system: { hostname: "host" }, network: { ipv4: [null] } },
     { system: { hostname: "host" }, docker: { available: "yes" } },
-    { system: { hostname: "host", uptime: "bad" } }]) {
+    { system: { hostname: "host", uptime: "bad" } },
+  ]) {
     fixture.set(data);
-    await assert.rejects(fixture.remotes.getRemoteInfo(fixture.id), /Invalid peer server info/);
+    await assert.rejects(
+      fixture.remotes.getRemoteInfo(fixture.id),
+      /Invalid peer server info/,
+    );
   }
   fixture.set({ system: { hostname: "x".repeat(1000) }, extra: "secret" });
   const info = await fixture.remotes.getRemoteInfo(fixture.id);
@@ -1022,31 +1514,56 @@ async function authSecurityFixture(env = {}) {
   let initialized = false;
   const password = env.PASSWORD || "correct";
   const auth = loadLib("auth", {
-    "./env": { PASSWORD: password, SESSION_DAYS: 30, LOGIN_MAX_FAILURES: 2,
-      LOGIN_LOCKOUT: 60, ...env },
+    "./env": {
+      PASSWORD: password,
+      SESSION_DAYS: 30,
+      LOGIN_MAX_FAILURES: 2,
+      LOGIN_LOCKOUT: 60,
+      ...env,
+    },
     fs: { promises: { readFile: async () => "saved-key" } },
     "./config": {},
     "./logger": { info() {}, warn() {} },
-    crypto: { ...crypto, scrypt(input, salt, size, callback) {
-      if (!initialized) {
-        initialized = true;
-        callback(null, Buffer.alloc(size, 1));
-      } else jobs.push((error) => callback(error,
-        Buffer.alloc(size, input === password ? 1 : 2)));
-    } },
+    crypto: {
+      ...crypto,
+      scrypt(input, salt, size, callback) {
+        if (!initialized) {
+          initialized = true;
+          callback(null, Buffer.alloc(size, 1));
+        } else
+          jobs.push((error) =>
+            callback(error, Buffer.alloc(size, input === password ? 1 : 2)),
+          );
+      },
+    },
   });
   await auth.initAuth();
-  function attempt(input = "wrong", ip = "client", headers = {}, encrypted = false) {
-    const req = Readable.from([Buffer.from(JSON.stringify({ password: input }))]);
+  function attempt(
+    input = "wrong",
+    ip = "client",
+    headers = {},
+    encrypted = false,
+  ) {
+    const req = Readable.from([
+      Buffer.from(JSON.stringify({ password: input })),
+    ]);
     req.headers = headers;
     req.socket = { remoteAddress: ip, encrypted };
-    const res = { writeHead(status, responseHeaders) {
-      this.status = status;
-      this.headers = responseHeaders;
-    }, end() {} };
+    const res = {
+      writeHead(status, responseHeaders) {
+        this.status = status;
+        this.headers = responseHeaders;
+      },
+      end() {},
+    };
     return auth.handleLogin(req, res).then(() => res);
   }
-  async function finish(input = "wrong", ip = "client", headers = {}, encrypted = false) {
+  async function finish(
+    input = "wrong",
+    ip = "client",
+    headers = {},
+    encrypted = false,
+  ) {
     const result = attempt(input, ip, headers, encrypted);
     await new Promise(setImmediate);
     jobs.splice(0).forEach((done) => done());
@@ -1071,8 +1588,11 @@ test("login admission bounds global work, leaves shared-IP fairness, and release
   assert.equal((await b).status, 200);
   jobs.shift()();
   assert.equal((await c).status, 200);
-  assert.equal((await finish("wrong", "shared")).status, 401,
-    "admission rejection is not a failure and success resets shared-IP count");
+  assert.equal(
+    (await finish("wrong", "shared")).status,
+    401,
+    "admission rejection is not a failure and success resets shared-IP count",
+  );
   const broken = attempt("correct", "broken");
   const rejection = assert.rejects(broken, /derivation failed/);
   await new Promise(setImmediate);
@@ -1082,7 +1602,9 @@ test("login admission bounds global work, leaves shared-IP fairness, and release
 });
 
 test("login validates input before derivation and preserves long UTF-8 configured passwords", async () => {
-  const { jobs, attempt, finish, auth } = await authSecurityFixture({ PASSWORD: "é".repeat(700) });
+  const { jobs, attempt, finish, auth } = await authSecurityFixture({
+    PASSWORD: "é".repeat(700),
+  });
   for (const input of [null, 4, {}, "é".repeat(701)]) {
     assert.equal((await attempt(input)).status, 400);
     assert.equal(jobs.length, 0);
@@ -1092,8 +1614,11 @@ test("login validates input before derivation and preserves long UTF-8 configure
   req.headers = {};
   req.socket = { remoteAddress: "client" };
   await assert.rejects(auth.handleLogin(req, {}), { status: 400 });
-  assert.equal((await finish("é".repeat(700))).status, 200,
-    "invalid bodies release admission slots");
+  assert.equal(
+    (await finish("é".repeat(700))).status,
+    200,
+    "invalid bodies release admission slots",
+  );
 });
 
 test("failure records expire, are capped without evicting protections, and recover capacity", async (t) => {
@@ -1110,8 +1635,11 @@ test("failure records expire, are capped without evicting protections, and recov
   await new Promise(setImmediate);
   jobs.shift()();
   assert.equal((await success).status, 200);
-  assert.equal((await attempt("correct", "new")).status, 429,
-    "success retains capacity reservation while a same-IP request is pending");
+  assert.equal(
+    (await attempt("correct", "new")).status,
+    429,
+    "success retains capacity reservation while a same-IP request is pending",
+  );
   jobs.shift()();
   assert.equal((await pendingFailure).status, 401);
   assert.equal((await finish("wrong", "client-0")).status, 401);
@@ -1119,15 +1647,20 @@ test("failure records expire, are capped without evicting protections, and recov
   now += 15 * 60 * 1000 + 1;
   assert.equal((await finish("correct", "new")).status, 200);
   assert.equal((await finish("wrong", "client-0")).status, 401);
-  assert.equal((await finish("wrong", "client-0")).status, 401,
-    "expired partial failures do not carry forward");
+  assert.equal(
+    (await finish("wrong", "client-0")).status,
+    401,
+    "expired partial failures do not carry forward",
+  );
   assert.equal((await attempt("wrong", "client-0")).status, 429);
 });
 
 test("long lockouts outlive failure TTL and concurrent success does not lose later failures", async (t) => {
   let now = 1_000_000;
   t.mock.method(Date, "now", () => now);
-  const { finish, attempt, jobs } = await authSecurityFixture({ LOGIN_LOCKOUT: 3600 });
+  const { finish, attempt, jobs } = await authSecurityFixture({
+    LOGIN_LOCKOUT: 3600,
+  });
   const success = attempt("correct");
   const failure = attempt("wrong");
   await new Promise(setImmediate);
@@ -1144,11 +1677,21 @@ test("long lockouts outlive failure TTL and concurrent success does not lose lat
 
 test("forwarded IP and secure login/logout cookies require explicit proxy trust", async () => {
   for (const trusted of [false, true]) {
-    const { auth, finish, attempt } = await authSecurityFixture({ TRUST_PROXY: trusted });
-    const headers = { "x-forwarded-for": "spoof, visitor-a", "x-forwarded-proto": "https" };
+    const { auth, finish, attempt } = await authSecurityFixture({
+      TRUST_PROXY: trusted,
+    });
+    const headers = {
+      "x-forwarded-for": "spoof, visitor-a",
+      "x-forwarded-proto": "https",
+    };
     const login = await finish("correct", "proxy", headers);
     assert.equal(login.headers["Set-Cookie"].includes("; Secure"), trusted);
-    const res = { writeHead(status, responseHeaders) { this.headers = responseHeaders; }, end() {} };
+    const res = {
+      writeHead(status, responseHeaders) {
+        this.headers = responseHeaders;
+      },
+      end() {},
+    };
     auth.handleLogout({ headers, socket: {} }, res);
     assert.equal(res.headers["Set-Cookie"].includes("; Secure"), trusted);
     const tls = await finish("correct", "tls", {}, true);
@@ -1156,7 +1699,8 @@ test("forwarded IP and secure login/logout cookies require explicit proxy trust"
     await finish("wrong", "proxy", headers);
     await finish("wrong", "proxy", headers);
     const changed = { ...headers, "x-forwarded-for": "visitor-a, visitor-b" };
-    if (trusted) assert.equal((await finish("correct", "proxy", changed)).status, 200);
+    if (trusted)
+      assert.equal((await finish("correct", "proxy", changed)).status, 200);
     else assert.equal((await attempt("correct", "proxy", changed)).status, 429);
   }
 });
@@ -1203,22 +1747,47 @@ test("health pool deadlines release workers and completion survives a departed c
   const requests = [];
   const timers = [];
   const health = loadLib("health", {
-    "./config": { readConfig: async () => ({ servers: [{ services:
-      [1, 2, 3].map((id) => ({ id: String(id), url: `http://service${id}.test` })) }] }) },
-    "./tunables": { get: (key) => ({ healthParallel: 2, healthTimeout: 6,
-      healthCache: 45, refreshGap: 5 })[key] },
+    "./config": {
+      readConfig: async () => ({
+        servers: [
+          {
+            services: [1, 2, 3].map((id) => ({
+              id: String(id),
+              url: `http://service${id}.test`,
+            })),
+          },
+        ],
+      }),
+    },
+    "./tunables": {
+      get: (key) =>
+        ({
+          healthParallel: 2,
+          healthTimeout: 6,
+          healthCache: 45,
+          refreshGap: 5,
+        })[key],
+    },
     "./logger": { info() {}, warn() {} },
     timers: {
-      setTimeout(fn, ms) { const timer = { fn, ms, cleared: false }; timers.push(timer); return timer; },
-      clearTimeout(timer) { timer.cleared = true; },
+      setTimeout(fn, ms) {
+        const timer = { fn, ms, cleared: false };
+        timers.push(timer);
+        return timer;
+      },
+      clearTimeout(timer) {
+        timer.cleared = true;
+      },
     },
-    http: { request(url, options, callback) {
-      const req = new EventEmitter();
-      req.end = () => {};
-      req.destroy = (err) => req.emit("error", err);
-      requests.push({ req, callback });
-      return req;
-    } },
+    http: {
+      request(url, options, callback) {
+        const req = new EventEmitter();
+        req.end = () => {};
+        req.destroy = (err) => req.emit("error", err);
+        requests.push({ req, callback });
+        return req;
+      },
+    },
   });
   const collection = health.getHealth();
   await new Promise(setImmediate);
@@ -1226,16 +1795,24 @@ test("health pool deadlines release workers and completion survives a departed c
   assert.equal(timers[0].ms, 6000);
   // A consumer cancels its wait, without attaching cancellation to shared work.
   const consumer = new AbortController();
-  const departed = Promise.race([collection, new Promise((resolve, reject) => {
-    consumer.signal.addEventListener("abort", () => reject(new Error("consumer aborted")), { once: true });
-  })]);
+  const departed = Promise.race([
+    collection,
+    new Promise((resolve, reject) => {
+      consumer.signal.addEventListener(
+        "abort",
+        () => reject(new Error("consumer aborted")),
+        { once: true },
+      );
+    }),
+  ]);
   consumer.abort();
   await assert.rejects(departed, /consumer aborted/);
   const joined = health.getHealth({ fresh: true });
   timers[0].fn(); // No socket timeout event: absolute deadline alone releases the worker.
   await new Promise(setImmediate);
   assert.equal(requests.length, 3);
-  for (const request of requests.slice(1)) request.callback({ statusCode: 200, destroy() {} });
+  for (const request of requests.slice(1))
+    request.callback({ statusCode: 200, destroy() {} });
   const result = await collection;
   assert.equal(await joined, result);
   assert.equal(result.results["1"].state, "down");
@@ -1252,16 +1829,24 @@ test("Docker usage bounds full responses, retains successful samples on timeout,
     "./env": { CONTAINER_STATS_INTERVAL: 30 },
     "./tunables": { get: (key) => ({ dockerParallel: 2, refreshGap: 0 })[key] },
     timers: {
-      setTimeout(fn, ms) { const timer = { fn, ms, cleared: false }; timers.push(timer); return timer; },
-      clearTimeout(timer) { timer.cleared = true; },
+      setTimeout(fn, ms) {
+        const timer = { fn, ms, cleared: false };
+        timers.push(timer);
+        return timer;
+      },
+      clearTimeout(timer) {
+        timer.cleared = true;
+      },
     },
-    http: { request(options, callback) {
-      const req = new EventEmitter();
-      req.end = () => {};
-      req.destroy = (err) => req.emit("error", err);
-      requests.push({ req, callback, options });
-      return req;
-    } },
+    http: {
+      request(options, callback) {
+        const req = new EventEmitter();
+        req.end = () => {};
+        req.destroy = (err) => req.emit("error", err);
+        requests.push({ req, callback, options });
+        return req;
+      },
+    },
   });
   const reply = (index, data) => {
     const res = new EventEmitter();
@@ -1309,14 +1894,27 @@ test("Docker usage bounds full responses, retains successful samples on timeout,
 test("disabled container monitoring never starts collection, including forced refresh", async () => {
   const docker = loadLib("docker", {
     "./env": { CONTAINER_STATS_INTERVAL: 0 },
-    http: { request() { assert.fail("disabled collection must not contact Docker"); } },
+    http: {
+      request() {
+        assert.fail("disabled collection must not contact Docker");
+      },
+    },
   });
-  assert.deepEqual(await docker.getContainerStats(), { interval: 0, stats: {} });
-  assert.deepEqual(await docker.getContainerStats({ fresh: true }), { interval: 0, stats: {} });
+  assert.deepEqual(await docker.getContainerStats(), {
+    interval: 0,
+    stats: {},
+  });
+  assert.deepEqual(await docker.getContainerStats({ fresh: true }), {
+    interval: 0,
+    stats: {},
+  });
 });
 
 test("collection timeout defaults and saved legacy values reach the browser", () => {
-  for (const [saved, remote, browser] of [[{}, 60, 75], [{ remoteTimeout: 8, loadTimeout: 15 }, 8, 15]]) {
+  for (const [saved, remote, browser] of [
+    [{}, 60, 75],
+    [{ remoteTimeout: 8, loadTimeout: 15 }, 8, 15],
+  ]) {
     const tunables = loadLib("tunables", {
       fs: { readFileSync: () => JSON.stringify(saved) },
     });
@@ -1365,31 +1963,61 @@ test("host stats share in-flight collection and refresh on the next request", as
   assert.equal((await fresh).availability.now, 456);
 });
 
-
 test("persisted loaders reject corrupt and inaccessible stores without writing", async () => {
-  for (const failure of [new SyntaxError("private parse details"),
-    Object.assign(new Error("private path"), { code: "EACCES" })]) {
+  for (const failure of [
+    new SyntaxError("private parse details"),
+    Object.assign(new Error("private path"), { code: "EACCES" }),
+  ]) {
     let writes = 0;
-    const config = { writeAtomic: async () => { writes++; } };
-    const disk = { promises: { readFile: async () => { throw failure; } } };
+    const config = {
+      writeAtomic: async () => {
+        writes++;
+      },
+    };
+    const disk = {
+      promises: {
+        readFile: async () => {
+          throw failure;
+        },
+      },
+    };
     const clip = loadLib("clip", { fs: disk, "./env": {}, "./config": config });
     await assert.rejects(clip.readClip(), (err) => err === failure);
-    await assert.rejects(clip.writeClip({ text: "replacement" }), (err) => err === failure);
+    await assert.rejects(
+      clip.writeClip({ text: "replacement" }),
+      (err) => err === failure,
+    );
     const remotes = remoteFixture(config.writeAtomic, { fs: disk });
     await assert.rejects(remotes.setSharing(true), (err) => err === failure);
-    const info = loadLib("serverinfo", { fs: { ...fs, ...disk }, "./config": config });
+    const info = loadLib("serverinfo", {
+      fs: { ...fs, ...disk },
+      "./config": config,
+    });
     // A valid manual address must not bypass loading the existing store.
-    await assert.rejects(info.saveSettings({ mode: "manual", manualIp: "127.0.0.1" }),
-      (err) => err === failure);
+    await assert.rejects(
+      info.saveSettings({ mode: "manual", manualIp: "127.0.0.1" }),
+      (err) => err === failure,
+    );
     const availability = loadLib("availability", {
-      fs: disk, "./env": {}, "./config": config,
+      fs: disk,
+      "./env": {},
+      "./config": config,
     });
     await assert.rejects(availability.init(), (err) => err === failure);
     await assert.rejects(availability.clearHistory(), (err) => err === failure);
     const tunables = loadLib("tunables", {
-      fs: { readFileSync: () => { throw failure; } }, "./env": {}, "./config": config,
+      fs: {
+        readFileSync: () => {
+          throw failure;
+        },
+      },
+      "./env": {},
+      "./config": config,
     });
-    assert.throws(() => tunables.list(), (err) => err === failure);
+    assert.throws(
+      () => tunables.list(),
+      (err) => err === failure,
+    );
     await assert.rejects(tunables.save({}), (err) => err === failure);
     assert.equal(writes, 0);
   }
@@ -1397,20 +2025,39 @@ test("persisted loaders reject corrupt and inaccessible stores without writing",
 
 test("missing stores retain first-run defaults", async () => {
   const missing = Object.assign(new Error("missing"), { code: "ENOENT" });
-  const disk = { promises: { readFile: async () => { throw missing; } } };
+  const disk = {
+    promises: {
+      readFile: async () => {
+        throw missing;
+      },
+    },
+  };
   const config = { writeAtomic: async () => {} };
   const clip = loadLib("clip", { fs: disk, "./env": {}, "./config": config });
   assert.equal((await clip.readClip()).text, "");
   const remotes = remoteFixture(config.writeAtomic, { fs: disk });
   assert.equal((await remotes.remoteSettings()).refreshInterval, 10);
-  const info = loadLib("serverinfo", { fs: { ...fs, ...disk }, "./config": config });
+  const info = loadLib("serverinfo", {
+    fs: { ...fs, ...disk },
+    "./config": config,
+  });
   assert.equal((await info.getSettings()).mode, "off");
-  const availability = loadLib("availability", { fs: disk, "./env": {}, "./config": config });
+  const availability = loadLib("availability", {
+    fs: disk,
+    "./env": {},
+    "./config": config,
+  });
   await availability.init();
   await availability.saveSettings({ enabled: false });
   assert.equal((await availability.getAvailability()).enabled, false);
   const tunables = loadLib("tunables", {
-    fs: { readFileSync: () => { throw missing; } }, "./env": {}, "./config": config,
+    fs: {
+      readFileSync: () => {
+        throw missing;
+      },
+    },
+    "./env": {},
+    "./config": config,
   });
   assert.ok(tunables.list().length);
 });
@@ -1420,17 +2067,29 @@ test("availability settings and clear commit only after successful persistence a
   let persisted;
   const availability = loadLib("availability", {
     "./env": {},
-    fs: { promises: { readFile: async () => JSON.stringify({
-      since: 1, settings: { enabled: false }, outages: [{ start: 1, end: 2 }],
-    }) } },
-    "./config": { writeAtomic: async (file, text) => {
-      if (fail) throw new Error("disk full");
-      persisted = JSON.parse(text);
-    } },
+    fs: {
+      promises: {
+        readFile: async () =>
+          JSON.stringify({
+            since: 1,
+            settings: { enabled: false },
+            outages: [{ start: 1, end: 2 }],
+          }),
+      },
+    },
+    "./config": {
+      writeAtomic: async (file, text) => {
+        if (fail) throw new Error("disk full");
+        persisted = JSON.parse(text);
+      },
+    },
   });
   await availability.init();
   fail = true;
-  await assert.rejects(availability.saveSettings({ interval: 10 }), /disk full/);
+  await assert.rejects(
+    availability.saveSettings({ interval: 10 }),
+    /disk full/,
+  );
   assert.equal((await availability.getAvailability()).interval, 5);
   await assert.rejects(availability.clearHistory(), /disk full/);
   assert.equal((await availability.getAvailability()).records, 1);
@@ -1449,15 +2108,24 @@ test("availability counts short host reboots regardless of the configured gap th
       const boot = now - 120000; // The dashboard starts two minutes after the host.
       const lastHeartbeat = boot - 30000; // A 30-second power cut before boot.
       let persisted = {
-        since: now - 2 * 86400000, coverageSince: now - 2 * 86400000,
-        lastHeartbeat, settings: { enabled: true, interval: 5, threshold },
-        outages: [], paused: [],
+        since: now - 2 * 86400000,
+        coverageSince: now - 2 * 86400000,
+        lastHeartbeat,
+        settings: { enabled: true, interval: 5, threshold },
+        outages: [],
+        paused: [],
       };
-      const reload = () => loadLib("availability", {
-        "./env": {}, os: { uptime: () => (now - boot) / 1000 },
-        fs: { promises: { readFile: async () => JSON.stringify(persisted) } },
-        "./config": { writeAtomic: async (_, text) => { persisted = JSON.parse(text); } },
-      });
+      const reload = () =>
+        loadLib("availability", {
+          "./env": {},
+          os: { uptime: () => (now - boot) / 1000 },
+          fs: { promises: { readFile: async () => JSON.stringify(persisted) } },
+          "./config": {
+            writeAtomic: async (_, text) => {
+              persisted = JSON.parse(text);
+            },
+          },
+        });
       const a = await reload().getAvailability({ outages: 500 });
       assert.deepEqual(a.outages, [{ start: lastHeartbeat, end: boot }]);
       assert.equal(a.count, 1);
@@ -1482,17 +2150,30 @@ test("availability keeps dashboard-only restarts out of host downtime", async (t
     await t.test(`${gap / 1000}-second dashboard gap`, async () => {
       const lastHeartbeat = now - gap;
       const availability = loadLib("availability", {
-        "./env": {}, os: { uptime: () => 86400 },
-        fs: { promises: { readFile: async () => JSON.stringify({
-          since: now - 86400000, coverageSince: now - 86400000, lastHeartbeat,
-        }) } }, "./config": { writeAtomic: async () => {} },
+        "./env": {},
+        os: { uptime: () => 86400 },
+        fs: {
+          promises: {
+            readFile: async () =>
+              JSON.stringify({
+                since: now - 86400000,
+                coverageSince: now - 86400000,
+                lastHeartbeat,
+              }),
+          },
+        },
+        "./config": { writeAtomic: async () => {} },
       });
       const a = await availability.getAvailability({ outages: 500 });
       assert.equal(a.count, 0);
       assert.equal(a.windows.all.down, 0);
       assert.equal(a.windows.all.pct, 100);
-      assert.deepEqual(a.outages, gap > 10 * 60000
-        ? [{ start: lastHeartbeat, end: now, kind: "app" }] : []);
+      assert.deepEqual(
+        a.outages,
+        gap > 10 * 60000
+          ? [{ start: lastHeartbeat, end: now, kind: "app" }]
+          : [],
+      );
     });
   }
 });
@@ -1500,12 +2181,24 @@ test("availability keeps dashboard-only restarts out of host downtime", async (t
 test("availability does not invent reboot downtime without an enabled previous heartbeat", async (t) => {
   const now = 1800000000000;
   t.mock.method(Date, "now", () => now);
-  for (const previous of [{}, { lastHeartbeat: now - 90000, settings: { enabled: false } }]) {
+  for (const previous of [
+    {},
+    { lastHeartbeat: now - 90000, settings: { enabled: false } },
+  ]) {
     const availability = loadLib("availability", {
-      "./env": {}, os: { uptime: () => 60 },
-      fs: { promises: { readFile: async () => JSON.stringify({
-        since: now - 86400000, coverageSince: now - 86400000, ...previous,
-      }) } }, "./config": { writeAtomic: async () => {} },
+      "./env": {},
+      os: { uptime: () => 60 },
+      fs: {
+        promises: {
+          readFile: async () =>
+            JSON.stringify({
+              since: now - 86400000,
+              coverageSince: now - 86400000,
+              ...previous,
+            }),
+        },
+      },
+      "./config": { writeAtomic: async () => {} },
     });
     const a = await availability.getAvailability({ outages: 500 });
     assert.equal(a.count, 0);
@@ -1516,10 +2209,19 @@ test("availability does not invent reboot downtime without an enabled previous h
 
 test("availability migration preserves legacy records without claiming unknowable history", async () => {
   let persisted;
-  const original = { since: 1, settings: { enabled: false }, outages: [{ start: 10, end: 20 }] };
+  const original = {
+    since: 1,
+    settings: { enabled: false },
+    outages: [{ start: 10, end: 20 }],
+  };
   const availability = loadLib("availability", {
-    "./env": {}, fs: { promises: { readFile: async () => JSON.stringify(original) } },
-    "./config": { writeAtomic: async (_, text) => { persisted = JSON.parse(text); } },
+    "./env": {},
+    fs: { promises: { readFile: async () => JSON.stringify(original) } },
+    "./config": {
+      writeAtomic: async (_, text) => {
+        persisted = JSON.parse(text);
+      },
+    },
   });
   const a = await availability.getAvailability({ outages: 500 });
   assert.deepEqual(a.outages, original.outages);
@@ -1531,24 +2233,48 @@ test("availability migration preserves legacy records without claiming unknowabl
   assert.equal(a.windows.all.pct, null);
   assert.equal(persisted.coverageSince, a.coverageSince);
   const reloaded = loadLib("availability", {
-    "./env": {}, fs: { promises: { readFile: async () => JSON.stringify(persisted) } },
+    "./env": {},
+    fs: { promises: { readFile: async () => JSON.stringify(persisted) } },
     "./config": { writeAtomic: async () => {} },
   });
-  assert.equal((await reloaded.getAvailability()).coverageSince, a.coverageSince);
+  assert.equal(
+    (await reloaded.getAvailability()).coverageSince,
+    a.coverageSince,
+  );
 });
 
 test("availability caps advance coverage for both outages and pauses and clip rolling metrics", async () => {
   const now = Date.now();
   const day = 86400000;
   let persisted;
-  const outages = Array.from({ length: 501 }, (_, i) => ({ start: now - 2 * day + i * 1000, end: now - 2 * day + i * 1000 + 500 }));
-  const paused = Array.from({ length: 101 }, (_, i) => ({ start: now - day + i * 1000, end: now - day + i * 1000 + 500 }));
+  const outages = Array.from({ length: 501 }, (_, i) => ({
+    start: now - 2 * day + i * 1000,
+    end: now - 2 * day + i * 1000 + 500,
+  }));
+  const paused = Array.from({ length: 101 }, (_, i) => ({
+    start: now - day + i * 1000,
+    end: now - day + i * 1000 + 500,
+  }));
   const availability = loadLib("availability", {
-    "./env": {}, fs: { promises: { readFile: async () => JSON.stringify({
-      since: now - 40 * day, coverageSince: now - 40 * day, settings: { enabled: true },
-      lastHeartbeat: now, outages, paused,
-    }) } },
-    "./config": { writeAtomic: async (_, text) => { persisted = JSON.parse(text); } },
+    "./env": {},
+    fs: {
+      promises: {
+        readFile: async () =>
+          JSON.stringify({
+            since: now - 40 * day,
+            coverageSince: now - 40 * day,
+            settings: { enabled: true },
+            lastHeartbeat: now,
+            outages,
+            paused,
+          }),
+      },
+    },
+    "./config": {
+      writeAtomic: async (_, text) => {
+        persisted = JSON.parse(text);
+      },
+    },
   });
   const a = await availability.getAvailability();
   assert.equal(persisted.outages.length, 500);
@@ -1569,10 +2295,20 @@ test("availability rolling windows count only retained intersecting downtime", a
   const now = Date.now();
   const day = 86400000;
   const availability = loadLib("availability", {
-    "./env": {}, fs: { promises: { readFile: async () => JSON.stringify({
-      since: now - 40 * day, coverageSince: now - 10 * day, lastHeartbeat: now,
-      outages: [{ start: now - 2 * day, end: now - day / 2 }], paused: [],
-    }) } }, "./config": { writeAtomic: async () => {} },
+    "./env": {},
+    fs: {
+      promises: {
+        readFile: async () =>
+          JSON.stringify({
+            since: now - 40 * day,
+            coverageSince: now - 10 * day,
+            lastHeartbeat: now,
+            outages: [{ start: now - 2 * day, end: now - day / 2 }],
+            paused: [],
+          }),
+      },
+    },
+    "./config": { writeAtomic: async () => {} },
   });
   const a = await availability.getAvailability();
   assert.equal(a.windows.day.limited, false);
@@ -1585,15 +2321,35 @@ test("availability rolling windows count only retained intersecting downtime", a
 
 test("availability live pruning and disabled clear never restore discarded coverage", async () => {
   const now = Date.now();
-  const outages = Array.from({ length: 500 }, (_, i) => ({ start: now - 2000000 + i * 1000, end: now - 2000000 + i * 1000 + 500 }));
-  const paused = Array.from({ length: 100 }, (_, i) => ({ start: now - 1000000 + i * 1000, end: now - 1000000 + i * 1000 + 500 }));
+  const outages = Array.from({ length: 500 }, (_, i) => ({
+    start: now - 2000000 + i * 1000,
+    end: now - 2000000 + i * 1000 + 500,
+  }));
+  const paused = Array.from({ length: 100 }, (_, i) => ({
+    start: now - 1000000 + i * 1000,
+    end: now - 1000000 + i * 1000 + 500,
+  }));
   let persisted;
   const availability = loadLib("availability", {
-    "./env": {}, os: { uptime: () => 1000000 },
-    fs: { promises: { readFile: async () => JSON.stringify({
-      since: now - 3000000, coverageSince: now - 3000000,
-      lastHeartbeat: now - 700000, outages, paused,
-    }) } }, "./config": { writeAtomic: async (_, text) => { persisted = JSON.parse(text); } },
+    "./env": {},
+    os: { uptime: () => 1000000 },
+    fs: {
+      promises: {
+        readFile: async () =>
+          JSON.stringify({
+            since: now - 3000000,
+            coverageSince: now - 3000000,
+            lastHeartbeat: now - 700000,
+            outages,
+            paused,
+          }),
+      },
+    },
+    "./config": {
+      writeAtomic: async (_, text) => {
+        persisted = JSON.parse(text);
+      },
+    },
   });
   const started = await availability.getAvailability();
   assert.equal(started.records, 500);
@@ -1604,7 +2360,9 @@ test("availability live pruning and disabled clear never restore discarded cover
   const cleared = await availability.clearHistory();
   assert.equal(cleared.windows.all.observed, 0);
   assert.equal(cleared.windows.all.pct, null);
-  assert.deepEqual(persisted.paused, [{ start: cleared.coverageSince, end: null }]);
+  assert.deepEqual(persisted.paused, [
+    { start: cleared.coverageSince, end: null },
+  ]);
   const enabled = await availability.saveSettings({ enabled: true });
   assert.equal(enabled.coverageSince, cleared.coverageSince);
   assert.ok(persisted.paused[0].end >= cleared.coverageSince);
@@ -1616,7 +2374,13 @@ test("peer availability coverage is preserved and inconsistent metadata rejected
   for (const a of [data.availability, data.stats.availability]) {
     a.coverageSince = 51;
     a.legacyHistory = true;
-    for (const w of Object.values(a.windows)) Object.assign(w, { from: 51, requestedFrom: 1, limited: true, observed: 50 });
+    for (const w of Object.values(a.windows))
+      Object.assign(w, {
+        from: 51,
+        requestedFrom: 1,
+        limited: true,
+        observed: 50,
+      });
   }
   fixture.set(data);
   const good = await fixture.read();
@@ -1634,15 +2398,23 @@ test("configuration protects corrupt files and requires a successful backup", as
   let denyBackup = false;
   const config = loadLib("config", {
     "./env": { DATA_DIR: dir, CONFIG_FILE: target },
-    fs: { promises: { ...fs.promises, copyFile: async (...args) => {
-      if (denyBackup) throw failure;
-      return fs.promises.copyFile(...args);
-    } } },
+    fs: {
+      promises: {
+        ...fs.promises,
+        copyFile: async (...args) => {
+          if (denyBackup) throw failure;
+          return fs.promises.copyFile(...args);
+        },
+      },
+    },
   });
   await config.writeConfig({ servers: [] }); // Missing source is a normal first save.
   const original = await fs.promises.readFile(target, "utf8");
   denyBackup = true;
-  await assert.rejects(config.writeConfig({ servers: [{ name: "new" }] }), (err) => err === failure);
+  await assert.rejects(
+    config.writeConfig({ servers: [{ name: "new" }] }),
+    (err) => err === failure,
+  );
   assert.equal(await fs.promises.readFile(target, "utf8"), original);
   denyBackup = false;
   await config.writeConfig({ servers: [{ name: "retry" }] });
@@ -1656,20 +2428,26 @@ test("configuration protects corrupt files and requires a successful backup", as
 test("configuration revision compare-and-write shares the write queue", async (t) => {
   const dir = await temporaryDirectory(t);
   const target = path.join(dir, "config.json");
-  const store = loadLib("config", { "./env": { DATA_DIR: dir, CONFIG_FILE: target } });
+  const store = loadLib("config", {
+    "./env": { DATA_DIR: dir, CONFIG_FILE: target },
+  });
   const base = { settings: { title: "base" }, servers: [] };
   const revision = await store.writeConfig(base);
   assert.equal(revision, store.configRevision(await store.readConfig()));
   const first = { ...base, settings: { title: "first" } };
   const second = { ...base, settings: { title: "second" } };
   const results = await Promise.allSettled([
-    store.writeConfig(first, revision), store.writeConfig(second, revision),
+    store.writeConfig(first, revision),
+    store.writeConfig(second, revision),
   ]);
   assert.equal(results[0].status, "fulfilled");
   assert.equal(results[1].status, "rejected");
   assert.equal(results[1].reason.status, 409);
   assert.deepEqual(await store.readConfig(), first);
-  assert.deepEqual(JSON.parse(await fs.promises.readFile(`${target}.bak`, "utf8")), base);
+  assert.deepEqual(
+    JSON.parse(await fs.promises.readFile(`${target}.bak`, "utf8")),
+    base,
+  );
   const latest = store.configRevision(first);
   await assert.rejects(store.writeConfig(second, null), { status: 409 });
   await store.writeConfig(second, latest); // A rejected conflict does not poison the queue.
@@ -1683,15 +2461,23 @@ test("failed configuration persistence does not advance the revision", async (t)
   let fail = false;
   const store = loadLib("config", {
     "./env": { DATA_DIR: dir, CONFIG_FILE: target },
-    fs: { promises: { ...fs.promises, rename: async (...args) => {
-      if (fail) throw new Error("disk failure");
-      return fs.promises.rename(...args);
-    } } },
+    fs: {
+      promises: {
+        ...fs.promises,
+        rename: async (...args) => {
+          if (fail) throw new Error("disk failure");
+          return fs.promises.rename(...args);
+        },
+      },
+    },
   });
   const base = { servers: [] };
   const revision = await store.writeConfig(base);
   fail = true;
-  await assert.rejects(store.writeConfig({ servers: [{ name: "new" }] }, revision), /disk failure/);
+  await assert.rejects(
+    store.writeConfig({ servers: [{ name: "new" }] }, revision),
+    /disk failure/,
+  );
   assert.equal(store.configRevision(await store.readConfig()), revision);
   fail = false;
   await store.writeConfig({ servers: [{ name: "retry" }] }, revision);

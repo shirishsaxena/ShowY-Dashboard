@@ -177,4 +177,3 @@ body.editing main {
 body.editing .toast {
   bottom: calc(max(16px, env(safe-area-inset-bottom)) + 66px);
 }
-

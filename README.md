@@ -12,17 +12,17 @@ Node.js backend, plain HTML/CSS/JavaScript frontend, local JSON storage. **No da
 
 ## Features
 
-| Area | Included |
-| --- | --- |
-| Service directory | Docker, Web, and Bookmark cards; groups, favorites, drag-and-drop ordering, icons, notes, and multiple labeled URLs |
-| Card previews | Full descriptions and notes, links, status, and an edit shortcut; available across service types |
-| Docker inspection | Container discovery, health, configuration, ports, networks, mount destinations, and per-container CPU/RAM/network/disk I/O snapshots |
-| Docker logs & control | Numbered log snapshots with refresh/download; opt-in Start/Restart/Stop with confirmations and busy-state protection |
-| Host monitoring | CPU, RAM, disks, network speed/history, uptime, temperatures, fans, and system information |
-| Remote dashboards | Read-only aggregation of other instances, with stale/unreachable indicators |
-| History | Estimated host availability and outages; persistent action history in the notification bell |
-| Everyday tools | Shared clipboard with history, link/copy shortcuts, search, QR codes, and configuration import/export |
-| Appearance & access | Card/compact/list layouts, light/dark themes, accents, installable PWA, and optional password protection |
+| Area                  | Included                                                                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Service directory     | Docker, Web, and Bookmark cards; groups, favorites, drag-and-drop ordering, icons, notes, and multiple labeled URLs                   |
+| Card previews         | Full descriptions and notes, links, status, and an edit shortcut; available across service types                                      |
+| Docker inspection     | Container discovery, health, configuration, ports, networks, mount destinations, and per-container CPU/RAM/network/disk I/O snapshots |
+| Docker logs & control | Numbered log snapshots with refresh/download; opt-in Start/Restart/Stop with confirmations and busy-state protection                  |
+| Host monitoring       | CPU, RAM, disks, network speed/history, uptime, temperatures, fans, and system information                                            |
+| Remote dashboards     | Read-only aggregation of other instances, with stale/unreachable indicators                                                           |
+| History               | Estimated host availability and outages; persistent action history in the notification bell                                           |
+| Everyday tools        | Shared clipboard with history, link/copy shortcuts, search, QR codes, and configuration import/export                                 |
+| Appearance & access   | Card/compact/list layouts, light/dark themes, accents, installable PWA, and optional password protection                              |
 
 ## Quick start
 
@@ -55,12 +55,12 @@ Keep the same data volume, back it up before upgrades, and reload open dashboard
 
 The example mounts the Docker socket, host root for disk capacity, and host process information. Remove mounts for features you do not need; prefer narrower disk mounts where practical.
 
-| Container path | Purpose |
-| --- | --- |
-| `/data` | Writable configuration, history, sessions, icon cache, and backend logs |
-| `/var/run/docker.sock` | Docker discovery, inspection, logs, and optional control |
-| `/disks/<label>` | Read-only disk mount; each label becomes a capacity tile |
-| `/host/proc` | Read-only host `/proc` for network monitoring |
+| Container path         | Purpose                                                                 |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `/data`                | Writable configuration, history, sessions, icon cache, and backend logs |
+| `/var/run/docker.sock` | Docker discovery, inspection, logs, and optional control                |
+| `/disks/<label>`       | Read-only disk mount; each label becomes a capacity tile                |
+| `/host/proc`           | Read-only host `/proc` for network monitoring                           |
 
 Sensors depend on available kernel/hardware interfaces. Docker Desktop reports its Linux VM rather than full macOS/Windows host metrics.
 
@@ -68,18 +68,18 @@ Sensors depend on available kernel/hardware interfaces. Docker Desktop reports i
 
 Most preferences are available in **Settings**. Set deployment overrides in the Compose environment and recreate the container afterward.
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `DASHBOARD_PASSWORD` | Empty | Base64-encoded UTF-8 password; empty disables protection. Login uses the decoded password |
-| `DASHBOARD_LOCK_VIEW` | `true` | With a password, require login to view; `false` allows public viewing but protects edits, logs, and action history |
-| `DOCKER_CONTROL` | `false` | Enable local container lifecycle actions; also requires a password and login |
-| `DOCKER_PROTECTED_CONTAINERS` | Empty | Additional protected names or full container IDs, comma-separated |
-| `TRUST_PROXY` | `false` | Trust forwarded HTTPS/client-IP headers; enable only behind a properly isolated trusted proxy |
-| `LOCAL_DASHBOARD_REFRESH_INTERVAL` | `30` | Local dashboard polling interval, seconds |
-| `CONTAINER_STATS_INTERVAL` | `30` | Shared Docker usage cache interval, seconds; `0` disables shared collection, not targeted preview refresh |
-| `DOCKER_SOCKET` | `/var/run/docker.sock` | Engine Unix socket path inside the container |
-| `SHARE_TOKEN` | Empty | Optional fixed remote-sharing token, at least 16 characters |
-| `LOG_LEVEL` | `INFO` | Backend log severity: DEBUG, INFO, WARN, or ERROR |
+| Variable                           | Default                | Purpose                                                                                                            |
+| ---------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `DASHBOARD_PASSWORD`               | Empty                  | Base64-encoded UTF-8 password; empty disables protection. Login uses the decoded password                          |
+| `DASHBOARD_LOCK_VIEW`              | `true`                 | With a password, require login to view; `false` allows public viewing but protects edits, logs, and action history |
+| `DOCKER_CONTROL`                   | `false`                | Enable local container lifecycle actions; also requires a password and login                                       |
+| `DOCKER_PROTECTED_CONTAINERS`      | Empty                  | Additional protected names or full container IDs, comma-separated                                                  |
+| `TRUST_PROXY`                      | `false`                | Trust forwarded HTTPS/client-IP headers; enable only behind a properly isolated trusted proxy                      |
+| `LOCAL_DASHBOARD_REFRESH_INTERVAL` | `30`                   | Local dashboard polling interval, seconds                                                                          |
+| `CONTAINER_STATS_INTERVAL`         | `30`                   | Shared Docker usage cache interval, seconds; `0` disables shared collection, not targeted preview refresh          |
+| `DOCKER_SOCKET`                    | `/var/run/docker.sock` | Engine Unix socket path inside the container                                                                       |
+| `SHARE_TOKEN`                      | Empty                  | Optional fixed remote-sharing token, at least 16 characters                                                        |
+| `LOG_LEVEL`                        | `INFO`                 | Backend log severity: DEBUG, INFO, WARN, or ERROR                                                                  |
 
 Valid timing overrides take precedence over saved Settings and lock the corresponding controls. The annotated [Compose example](docker-compose.example.yml), [environment settings](lib/env.js), and [monitoring tunables](lib/tunables.js) list advanced options, including timeouts, parallelism, login limits, and log retention.
 

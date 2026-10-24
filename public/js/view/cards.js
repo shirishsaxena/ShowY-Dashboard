@@ -16,7 +16,10 @@ import { openQr } from "../dialogs/qr.js";
 import { usageNode } from "./usage.js";
 import { openNote } from "./notes.js";
 import { cardMenuButton, containerLogItem } from "./card-menu.js";
-import { containerControlItems, containerOperationNode } from "../docker-control.js";
+import {
+  containerControlItems,
+  containerOperationNode,
+} from "../docker-control.js";
 
 function linkChips(svc, dupes) {
   const urls = serviceUrls(svc);
@@ -31,18 +34,20 @@ function linkChips(svc, dupes) {
         urls.length ? iconBtn("qr", "Show QR code", () => openQr(svc)) : null,
       ].filter(Boolean);
   return [
-    ...urls.map(({ label, url }) => h(
-      "a",
-      {
-        class: `chip${url === primary ? " primary-link" : ""}`,
-        href: url,
-        title: url,
-        "aria-label": `Open ${label} link: ${url}`,
-        ...external,
-      },
-      svg("globe"),
-      h("span", { class: "link-label" }, label),
-    )),
+    ...urls.map(({ label, url }) =>
+      h(
+        "a",
+        {
+          class: `chip${url === primary ? " primary-link" : ""}`,
+          href: url,
+          title: url,
+          "aria-label": `Open ${label} link: ${url}`,
+          ...external,
+        },
+        svg("globe"),
+        h("span", { class: "link-label" }, label),
+      ),
+    ),
     shared
       ? h(
           "span",
@@ -86,12 +91,21 @@ export function serviceCard(
 ) {
   const editing = state.editing && !server.remote; // remote servers are read-only
   const container = containerFor(svc, server);
-  const localDocker = !server.remote && server.local && (svc.type === "docker" || container);
-  const menu = cardMenuButton(svc.name, `service:${server.id}:${svc.id}`, () => [
-        ...(localDocker ? [containerLogItem(container)] : []),
-        { label: "Preview", icon: "eye", run: () => openServicePreview(server.id, svc.id) },
-        ...(localDocker ? containerControlItems(container) : []),
-      ]);
+  const localDocker =
+    !server.remote && server.local && (svc.type === "docker" || container);
+  const menu = cardMenuButton(
+    svc.name,
+    `service:${server.id}:${svc.id}`,
+    () => [
+      ...(localDocker ? [containerLogItem(container)] : []),
+      {
+        label: "Preview",
+        icon: "eye",
+        run: () => openServicePreview(server.id, svc.id),
+      },
+      ...(localDocker ? containerControlItems(container) : []),
+    ],
+  );
   const href = primaryUrl(svc);
   const st = editing ? null : serviceStatus(svc, server);
   let cover = null;

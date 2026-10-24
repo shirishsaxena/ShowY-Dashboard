@@ -14,20 +14,52 @@ function showLines(output, text) {
     return;
   }
   const lines = text.split("\n");
-  fill(output, lines.map((line, index) => h("span", { class: "docker-log-line" },
-    h("span", { class: "docker-log-number", "data-line": index + 1, "aria-hidden": "true" }),
-    h("span", { class: "docker-log-text" }, line + (index < lines.length - 1 ? "\n" : "")),
-  )));
+  fill(
+    output,
+    lines.map((line, index) =>
+      h(
+        "span",
+        { class: "docker-log-line" },
+        h("span", {
+          class: "docker-log-number",
+          "data-line": index + 1,
+          "aria-hidden": "true",
+        }),
+        h(
+          "span",
+          { class: "docker-log-text" },
+          line + (index < lines.length - 1 ? "\n" : ""),
+        ),
+      ),
+    ),
+  );
 }
 
 function downloadLogs() {
-  if (!snapshot?.text || pending || state.locked || !$("#dockerLogsDialog").open) return;
+  if (
+    !snapshot?.text ||
+    pending ||
+    state.locked ||
+    !$("#dockerLogsDialog").open
+  )
+    return;
   let url;
   try {
-    const name = snapshot.name.replace(/[^a-zA-Z0-9_.-]/g, "-").replace(/^[.-]+/, "").slice(0, 80) || "container";
-    const timestamp = new Date(snapshot.fetchedAt).toISOString().replace(/[:.]/g, "-");
-    url = URL.createObjectURL(new Blob([snapshot.text], { type: "text/plain;charset=utf-8" }));
-    h("a", { href: url, download: `${name}-logs-${timestamp}${snapshot.truncated ? "-truncated" : ""}.txt` }).click();
+    const name =
+      snapshot.name
+        .replace(/[^a-zA-Z0-9_.-]/g, "-")
+        .replace(/^[.-]+/, "")
+        .slice(0, 80) || "container";
+    const timestamp = new Date(snapshot.fetchedAt)
+      .toISOString()
+      .replace(/[:.]/g, "-");
+    url = URL.createObjectURL(
+      new Blob([snapshot.text], { type: "text/plain;charset=utf-8" }),
+    );
+    h("a", {
+      href: url,
+      download: `${name}-logs-${timestamp}${snapshot.truncated ? "-truncated" : ""}.txt`,
+    }).click();
   } catch {
     toast("Could not download this log snapshot. Try again.", true);
   } finally {
@@ -57,20 +89,29 @@ async function refreshLogs() {
   status.textContent = "Loading log snapshot…";
   error.hidden = true;
   try {
-    const result = await editApi("GET",
+    const result = await editApi(
+      "GET",
       `/api/docker/logs?id=${encodeURIComponent(target.id)}&tail=${lines.value}`,
-      undefined, { signal: controller.signal, current, timeout: 20000 });
+      undefined,
+      { signal: controller.signal, current, timeout: 20000 },
+    );
     if (!current()) return;
     if (!result) {
       status.textContent = "Log access cancelled. Refresh to try again.";
       return;
     }
     const { res, data } = result;
-    if (!res.ok) throw new Error(data.error || `Could not load logs (${res.status})`);
+    if (!res.ok)
+      throw new Error(data.error || `Could not load logs (${res.status})`);
     if (typeof data.text !== "string" || !Number.isFinite(data.fetchedAt))
       throw new Error("Invalid log response from dashboard server");
     showLines(output, data.text);
-    snapshot = { text: data.text, name: target.name, fetchedAt: data.fetchedAt, truncated: data.truncated };
+    snapshot = {
+      text: data.text,
+      name: target.name,
+      fetchedAt: data.fetchedAt,
+      truncated: data.truncated,
+    };
     $("#dockerLogsDownload").disabled = !data.text;
     status.textContent = `Fetched ${new Date(data.fetchedAt).toLocaleTimeString()} · Up to ${data.tail} lines · Manual refresh only${data.truncated ? " · Response cut short at 1 MiB; some requested output is omitted" : ""}`;
     // Keep multiline entries in their original order and reveal the newest output.
@@ -78,7 +119,8 @@ async function refreshLogs() {
   } catch (err) {
     if (!current()) return;
     status.textContent = "Log snapshot unavailable";
-    error.textContent = err instanceof TypeError ? "Dashboard server unreachable" : err.message;
+    error.textContent =
+      err instanceof TypeError ? "Dashboard server unreachable" : err.message;
     error.hidden = false;
   } finally {
     if (pending === controller) {
@@ -115,9 +157,11 @@ export function initDockerLogs() {
     $("#dockerLogsStatus").textContent = "";
     $("#dockerLogsError").textContent = "";
     $("#dockerLogsName").textContent = "";
-    const button = opener?.isConnected ? opener
-      : [...document.querySelectorAll("[data-card-menu-key]")]
-        .find((node) => node.dataset.cardMenuKey === opener?.dataset.cardMenuKey);
+    const button = opener?.isConnected
+      ? opener
+      : [...document.querySelectorAll("[data-card-menu-key]")].find(
+          (node) => node.dataset.cardMenuKey === opener?.dataset.cardMenuKey,
+        );
     button?.focus();
     opener = null;
   });

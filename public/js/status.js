@@ -65,12 +65,23 @@ function describeCheck(check) {
  */
 export function serviceStatus(svc, server) {
   if (svc.type === "bookmark")
-    return { level: "neutral", label: "Bookmark", title: "Saved link · not monitored" };
+    return {
+      level: "neutral",
+      label: "Bookmark",
+      title: "Saved link · not monitored",
+    };
   if (Object.hasOwn(svc, "type") && !["docker", "web"].includes(svc.type))
-    return { level: "unknown", label: "Unknown type", title: "Unsupported service type" };
+    return {
+      level: "unknown",
+      label: "Unknown type",
+      title: "Unsupported service type",
+    };
   const container = containerFor(svc, server);
-  const check = (!Object.hasOwn(svc, "type") && !Object.hasOwn(svc, "urls")) || monitoringUrl(svc)
-    ? sourceOf(server).health[svc.id] : null;
+  const check =
+    (!Object.hasOwn(svc, "type") && !Object.hasOwn(svc, "urls")) ||
+    monitoringUrl(svc)
+      ? sourceOf(server).health[svc.id]
+      : null;
   const http = describeCheck(check);
 
   if (container) {
@@ -84,8 +95,14 @@ export function serviceStatus(svc, server) {
     return {
       level: "unknown",
       label: container === null ? "Not in Docker" : "Docker unavailable",
-      title: [container === null ? "No matching container" : "Docker state unavailable on this server", http]
-        .filter(Boolean).join("\n"),
+      title: [
+        container === null
+          ? "No matching container"
+          : "Docker state unavailable on this server",
+        http,
+      ]
+        .filter(Boolean)
+        .join("\n"),
     };
   if (check) {
     const note = container === null ? "\nNo matching Docker container" : "";

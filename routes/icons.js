@@ -4,7 +4,9 @@ const { getIcon, iconCacheInfo, clearIconCache } = require("../lib/icons");
 const { SECURITY_HEADERS } = require("../lib/http");
 
 async function handleIcon(req, res, context) {
-  const { data, etag, contentType } = await getIcon(context.query.get("icon") || "");
+  const { data, etag, contentType } = await getIcon(
+    context.query.get("icon") || "",
+  );
   const headers = {
     ...SECURITY_HEADERS,
     // SVGs must remain sandboxed even when opened directly.

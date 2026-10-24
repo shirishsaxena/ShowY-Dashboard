@@ -99,4 +99,3 @@ main.stale :is(#services, #stats, #unlisted) {
   opacity: 0.55;
   filter: saturate(0.6);
 }
-

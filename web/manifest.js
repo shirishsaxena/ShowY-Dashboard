@@ -7,8 +7,12 @@ const { readConfig } = require("../lib/config");
 /** The optional install name is public; never expose a locked dashboard's title. */
 async function serveManifest(req, res) {
   const { settings = {} } = await readConfig();
-  const appName = typeof settings.appName === "string" ? settings.appName.trim().slice(0, 60) : "";
-  const title = appName || (LOCK_VIEW ? "Dashboard" : settings.title || "Home Lab");
+  const appName =
+    typeof settings.appName === "string"
+      ? settings.appName.trim().slice(0, 60)
+      : "";
+  const title =
+    appName || (LOCK_VIEW ? "Dashboard" : settings.title || "Home Lab");
   const icon = (src, size, purpose = "any") => ({
     src: `${src}?v=ember-1`,
     sizes: `${size}x${size}`,

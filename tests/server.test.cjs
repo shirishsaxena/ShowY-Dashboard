@@ -26,7 +26,10 @@ test("request context parses queries once and matches only the first exact fresh
     assert.equal(context.query, context.url.searchParams);
     assert.deepEqual(req, { url });
   }
-  const context = createContext({ url: "/api/remotes?id=a%2Fb&fresh=remote" }, {});
+  const context = createContext(
+    { url: "/api/remotes?id=a%2Fb&fresh=remote" },
+    {},
+  );
   assert.equal(context.query.get("id"), "a/b");
   assert.equal(context.query.get("fresh"), "remote");
 });
@@ -68,19 +71,38 @@ function createServerFixture() {
     cache.set(filename, module);
     vm.runInNewContext(
       `(function(require, module, exports, __dirname, __filename) {\n${fs.readFileSync(filename, "utf8")}\n})`,
-      { process: { on() {}, hrtime: process.hrtime }, console, URL, Buffer, setTimeout, clearTimeout },
+      {
+        process: { on() {}, hrtime: process.hrtime },
+        console,
+        URL,
+        Buffer,
+        setTimeout,
+        clearTimeout,
+      },
       { filename },
-    )((name) => {
-      if (Object.hasOwn(modules, name)) return modules[name];
-      if (name.startsWith(".")) {
-        const resolved = path.resolve(path.dirname(filename), name + ".js");
-        const original = "./" + path.relative(root, resolved).replace(/\\/g, "/").replace(/\.js$/, "");
-        if (Object.hasOwn(modules, original)) return modules[original];
-        if (/^(http|routes|web)\//.test(path.relative(root, resolved))) return load(resolved);
-        return {};
-      }
-      return require(name);
-    }, module, module.exports, path.dirname(filename), filename);
+    )(
+      (name) => {
+        if (Object.hasOwn(modules, name)) return modules[name];
+        if (name.startsWith(".")) {
+          const resolved = path.resolve(path.dirname(filename), name + ".js");
+          const original =
+            "./" +
+            path
+              .relative(root, resolved)
+              .replace(/\\/g, "/")
+              .replace(/\.js$/, "");
+          if (Object.hasOwn(modules, original)) return modules[original];
+          if (/^(http|routes|web)\//.test(path.relative(root, resolved)))
+            return load(resolved);
+          return {};
+        }
+        return require(name);
+      },
+      module,
+      module.exports,
+      path.dirname(filename),
+      filename,
+    );
     return module.exports;
   }
   handler = load(path.join(root, "http/handler.js")).handleRequest;
@@ -89,19 +111,22 @@ function createServerFixture() {
       return reads;
     },
     async request(url, method = "GET", headers = {}) {
-      const response = Object.assign(new Writable({
-        write(chunk, encoding, callback) {
-          this.body = this.body ? Buffer.concat([this.body, chunk]) : chunk;
-          callback();
+      const response = Object.assign(
+        new Writable({
+          write(chunk, encoding, callback) {
+            this.body = this.body ? Buffer.concat([this.body, chunk]) : chunk;
+            callback();
+          },
+        }),
+        {
+          writeHead(status, responseHeaders) {
+            this.status = status;
+            this.statusCode = status;
+            this.headers = responseHeaders;
+            this.headersSent = true;
+          },
         },
-      }), {
-        writeHead(status, responseHeaders) {
-          this.status = status;
-          this.statusCode = status;
-          this.headers = responseHeaders;
-          this.headersSent = true;
-        },
-      });
+      );
       await handler({ url, method, headers }, response);
       return response;
     },
@@ -146,33 +171,58 @@ test("request completion keeps read traces opt-in and mutations, failures and ab
   let failure = null;
   const modules = {
     "./context": { createContext },
-    "../web/manifest": {}, "../web/static": {},
+    "../web/manifest": {},
+    "../web/static": {},
     "../lib/http": { HttpError, send },
-    "./router": { async handleApi() { if (failure) throw failure; } },
-    "../lib/logger": Object.fromEntries(["debug", "info", "warn", "error"].map(
-      (level) => [level, (message, context) => logs.push({ level, message, context })],
-    )),
+    "./router": {
+      async handleApi() {
+        if (failure) throw failure;
+      },
+    },
+    "../lib/logger": Object.fromEntries(
+      ["debug", "info", "warn", "error"].map((level) => [
+        level,
+        (message, context) => logs.push({ level, message, context }),
+      ]),
+    ),
   };
   const module = { exports: {} };
-  vm.runInNewContext(`(function(require,module,exports){${fs.readFileSync(
-    path.resolve(__dirname, "../http/handler.js"), "utf8",
-  )}\n})`, { process, URL })((id) => modules[id], module, module.exports);
+  vm.runInNewContext(
+    `(function(require,module,exports){${fs.readFileSync(
+      path.resolve(__dirname, "../http/handler.js"),
+      "utf8",
+    )}\n})`,
+    { process, URL },
+  )((id) => modules[id], module, module.exports);
   async function request(method, code, aborted = false) {
     logs.length = 0;
     const res = Object.assign(new EventEmitter(), {
-      statusCode: code, writableEnded: !aborted,
-      writeHead(code) { this.statusCode = code; this.headersSent = true; },
-      end() { this.writableEnded = true; },
+      statusCode: code,
+      writableEnded: !aborted,
+      writeHead(code) {
+        this.statusCode = code;
+        this.headersSent = true;
+      },
+      end() {
+        this.writableEnded = true;
+      },
     });
-    await module.exports.handleRequest({ method, url: "/api/stats?token=secret" }, res);
+    await module.exports.handleRequest(
+      { method, url: "/api/stats?token=secret" },
+      res,
+    );
     res.emit("close");
     return logs.filter((entry) => entry.message !== "[HTTP] Incoming request");
   }
   for (const [method, code, aborted, level] of [
-    ["GET", 200, false, "debug"], ["HEAD", 200, false, "debug"],
-    ["GET", 304, false, "debug"], ["PUT", 200, false, "info"],
-    ["POST", 201, false, "info"], ["DELETE", 204, false, "info"],
-    ["GET", 401, false, "warn"], ["GET", 500, false, "error"],
+    ["GET", 200, false, "debug"],
+    ["HEAD", 200, false, "debug"],
+    ["GET", 304, false, "debug"],
+    ["PUT", 200, false, "info"],
+    ["POST", 201, false, "info"],
+    ["DELETE", 204, false, "info"],
+    ["GET", 401, false, "warn"],
+    ["GET", 500, false, "error"],
     ["GET", 200, true, "warn"],
   ]) {
     const entries = await request(method, code, aborted);

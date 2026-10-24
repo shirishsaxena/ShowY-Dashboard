@@ -3,13 +3,7 @@
 import { state, prefs, activeServer } from "./state.js";
 import { initInstallMetadata } from "./pwa.js";
 import { $, toast } from "./dom.js";
-import {
-  logout,
-  login,
-  LockedError,
-  loadAuth,
-  loadConfig,
-} from "./api.js";
+import { logout, login, LockedError, loadAuth, loadConfig } from "./api.js";
 import { render } from "./view/render.js";
 import { setRenderer } from "./render-interface.js";
 import { makeSortable } from "./sortable.js";
@@ -29,12 +23,7 @@ import { initClip } from "./clip.js";
 import { startLoad } from "./loading.js";
 import * as actions from "./actions.js";
 import { refreshAll, startTimers } from "./refresh.js";
-import {
-  applyTheme,
-  applyLayout,
-  applyAccent,
-  syncAccent,
-} from "./theme.js";
+import { applyTheme, applyLayout, applyAccent, syncAccent } from "./theme.js";
 
 // ---------- Top bar ----------
 

@@ -16,8 +16,13 @@ export async function ensureCanEdit() {
 
 async function putConfig(cfg) {
   if (!state.configRevision)
-    throw new Error("Not saved — reload the page and use a server with configuration revision support");
-  const result = await editApi("PUT", "/api/config", { ...cfg, _revision: state.configRevision });
+    throw new Error(
+      "Not saved — reload the page and use a server with configuration revision support",
+    );
+  const result = await editApi("PUT", "/api/config", {
+    ...cfg,
+    _revision: state.configRevision,
+  });
   if (!result) throw new Error("Not saved — password required");
   const { res, data } = result;
   if (res.status === 409) {
@@ -100,14 +105,11 @@ export function arrangeServices(serverId, lists) {
 // ---------- Services ----------
 
 export function toggleFavorite(svcId) {
-  return update(
-    (c) => {
-      const on = !c.settings.favorites.includes(svcId);
-      const favs = c.settings.favorites.filter((f) => f !== svcId);
-      c.settings.favorites = on ? [...favs, svcId] : favs;
-    },
-    "Favourites updated",
-  );
+  return update((c) => {
+    const on = !c.settings.favorites.includes(svcId);
+    const favs = c.settings.favorites.filter((f) => f !== svcId);
+    c.settings.favorites = on ? [...favs, svcId] : favs;
+  }, "Favourites updated");
 }
 
 /** Create or update a service, possibly moving it to another server. */
@@ -124,7 +126,8 @@ export function saveService({
       const from = serverIn(c, fromServerId);
       const to = serverIn(c, toServerId);
       const idx = svcId ? from.services.findIndex((s) => s.id === svcId) : -1;
-      if (svcId && idx < 0) throw new Error("Service no longer exists. Reopen the editor.");
+      if (svcId && idx < 0)
+        throw new Error("Service no longer exists. Reopen the editor.");
       if (idx >= 0 && from === to) to.services[idx] = svc;
       else {
         if (idx >= 0) from.services.splice(idx, 1);
@@ -261,7 +264,8 @@ export function saveLink(linkId, fields) {
     (c) => {
       const links = c.settings.links;
       const i = links.findIndex((l) => l.id === linkId);
-      if (linkId && i < 0) throw new Error("Quick action no longer exists. Reopen the editor.");
+      if (linkId && i < 0)
+        throw new Error("Quick action no longer exists. Reopen the editor.");
       if (i >= 0) links[i] = { ...links[i], ...fields };
       else links.push({ id: uid(), ...fields });
     },

@@ -28,7 +28,8 @@ export async function api(method, url, body, signal, responseType = "json") {
     if (data === null || typeof data !== "object") throw new Error();
   } catch (err) {
     if (signal?.aborted) throw err;
-    if (res.ok) throw new Error("Dashboard server returned an invalid response");
+    if (res.ok)
+      throw new Error("Dashboard server returned an invalid response");
     data = {};
   }
   if (!["GET", "HEAD"].includes(method) && typeof document !== "undefined")
@@ -60,7 +61,9 @@ async function performLoad(url, apply, current) {
   const controller = new AbortController();
   const timer = setTimeout(
     () => controller.abort(),
-    collectionTimeout({ fresh: url.startsWith("/api/remotes?") && url.includes("fresh=") }),
+    collectionTimeout({
+      fresh: url.startsWith("/api/remotes?") && url.includes("fresh="),
+    }),
   );
   try {
     const { res, data } = await api("GET", url, undefined, controller.signal);
@@ -106,7 +109,11 @@ const dashboardContext = () => {
 
 export async function loadDocker() {
   const current = dashboardContext();
-  const ok = await load("/api/docker", (data) => (state.docker = data), current);
+  const ok = await load(
+    "/api/docker",
+    (data) => (state.docker = data),
+    current,
+  );
   if (!ok && current())
     state.docker = {
       available: false,
@@ -121,7 +128,12 @@ export const loadStats = () =>
 
 /** Outage history of this dashboard (settings, availability per period, outage list). */
 export async function fetchAvailability(signal) {
-  const { res, data } = await api("GET", "/api/availability", undefined, signal);
+  const { res, data } = await api(
+    "GET",
+    "/api/availability",
+    undefined,
+    signal,
+  );
   return res.ok ? data : null;
 }
 
@@ -178,11 +190,13 @@ export async function loadRemote(id, { fresh = false, signal } = {}) {
     signal,
   );
   if (!res.ok) throw new Error(`Dashboard server answered HTTP ${res.status}`);
-  if (signal?.aborted || !current()) throw new Error("Dashboard load cancelled");
+  if (signal?.aborted || !current())
+    throw new Error("Dashboard load cancelled");
   if (!data.remotes?.[0]) return null;
   if (data.interval) state.remotesInterval = data.interval;
   const i = state.remotes.findIndex((r) => r.id === id);
-  if (i >= 0 && state.remotes[i].requestVersion > version) return state.remotes[i];
+  if (i >= 0 && state.remotes[i].requestVersion > version)
+    return state.remotes[i];
   const entry = remoteEntry(data.remotes[0], version, state.remotes[i]);
   if (i < 0) state.remotes.push(entry);
   else state.remotes[i] = entry;

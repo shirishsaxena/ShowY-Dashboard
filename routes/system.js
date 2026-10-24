@@ -16,16 +16,22 @@ module.exports = {
     body: "none",
     handler: async () => {
       const result = await getContainers();
-      return { ...result, control: controlState(), containers: result.containers.map((container) => ({
-        ...container, protected: container.protected || protectedTarget(container.id || "", container.name),
-      })) };
+      return {
+        ...result,
+        control: controlState(),
+        containers: result.containers.map((container) => ({
+          ...container,
+          protected:
+            container.protected ||
+            protectedTarget(container.id || "", container.name),
+        })),
+      };
     },
   },
   "GET /api/docker/stats": {
     access: "view",
     body: "none",
-    handler: (req, res, context) =>
-      getContainerStats({ fresh: context.fresh }),
+    handler: (req, res, context) => getContainerStats({ fresh: context.fresh }),
   },
   "GET /api/docker/logs": {
     // Logs can contain secrets: require the same access as backend log downloads.
@@ -54,7 +60,9 @@ module.exports = {
       const abort = () => controller.abort();
       res.once("close", abort);
       try {
-        return await getContainerDetails(query.get("id"), { signal: controller.signal });
+        return await getContainerDetails(query.get("id"), {
+          signal: controller.signal,
+        });
       } finally {
         res.removeListener("close", abort);
       }
@@ -68,8 +76,7 @@ module.exports = {
   "GET /api/health": {
     access: "view",
     body: "none",
-    handler: (req, res, context) =>
-      getHealth({ fresh: context.fresh }),
+    handler: (req, res, context) => getHealth({ fresh: context.fresh }),
   },
   "GET /api/storage": {
     access: "view",

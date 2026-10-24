@@ -10,20 +10,49 @@ const source = (file) =>
 test("availability dialog explains partial coverage and keeps legacy records visible", () => {
   const elements = new Map();
   const $ = (id) => {
-    if (!elements.has(id)) elements.set(id, { textContent: "", setAttribute() {}, getAttribute() { return null; } });
+    if (!elements.has(id))
+      elements.set(id, {
+        textContent: "",
+        setAttribute() {},
+        getAttribute() {
+          return null;
+        },
+      });
     return elements.get(id);
   };
   const h = (tag, attrs, ...children) => ({ tag, attrs, children });
   const modal = load("js/dialogs/availability.js", ["view", "renderModal"], {
-    $, h, fill: (el, ...children) => { el.children = children; },
-    fmtDuration: String, fmtDateTime: String, fmtPercent: String,
-    Date, state: {},
+    $,
+    h,
+    fill: (el, ...children) => {
+      el.children = children;
+    },
+    fmtDuration: String,
+    fmtDateTime: String,
+    fmtPercent: String,
+    Date,
+    state: {},
   });
   modal.view.period = "all";
   modal.view.detail = {
-    enabled: true, since: 1, coverageSince: 50, legacyHistory: true, now: 100,
-    windows: { all: { from: 50, observed: 50, down: 0, count: 0, longest: 0, pct: 100, limited: true } },
-    outages: [{ start: 10, end: 20 }], records: 1,
+    enabled: true,
+    since: 1,
+    coverageSince: 50,
+    legacyHistory: true,
+    now: 100,
+    windows: {
+      all: {
+        from: 50,
+        observed: 50,
+        down: 0,
+        count: 0,
+        longest: 0,
+        pct: 100,
+        limited: true,
+      },
+    },
+    outages: [{ start: 10, end: 20 }],
+    records: 1,
   };
   modal.renderModal();
   assert.match($("#availObserved").textContent, /partial coverage/);
@@ -135,9 +164,10 @@ function fixture(mobile = true) {
     sourceOf: () => ({ stats }),
     $: () => section,
     h,
-    fill: (el, ...children) => el.replaceChildren(
-      ...children.flat(Infinity).filter((v) => v != null && v !== false),
-    ),
+    fill: (el, ...children) =>
+      el.replaceChildren(
+        ...children.flat(Infinity).filter((v) => v != null && v !== false),
+      ),
     svg: () => h("svg"),
     fmtBytes: String,
     fmtUptime: String,
@@ -162,7 +192,12 @@ test("mobile keeps system and optional stats directly visible", () => {
   assert.equal(f.section.querySelector("details.stats-details"), null);
   assert.deepEqual(
     Array.from(f.section.children, (c) => c.className),
-    ["stat-card system", "stat-card network", "stat-card availability", "stat-card sensors"],
+    [
+      "stat-card system",
+      "stat-card network",
+      "stat-card availability",
+      "stat-card sensors",
+    ],
   );
 });
 
@@ -250,7 +285,8 @@ test("preferred service link is distinguished without changing destinations", ()
     svg: f.svg,
     state: { editing: true },
     ...load("js/utils.js", ["serviceUrls", "monitoringUrl", "primaryUrl"], {
-      URL, location: { hostname: "dashboard.example.com" },
+      URL,
+      location: { hostname: "dashboard.example.com" },
     }),
     hostPort: () => "",
     hostLabel: (v) => v,

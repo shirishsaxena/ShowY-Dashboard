@@ -12,13 +12,17 @@ export async function editApi(method, url, body, options = {}) {
     const controller = new AbortController();
     const abort = () => controller.abort();
     signal?.addEventListener("abort", abort, { once: true });
-    const timer = setTimeout(abort, options.timeout ?? (state.tunables?.loadTimeout || 75) * 1000);
+    const timer = setTimeout(
+      abort,
+      options.timeout ?? (state.tunables?.loadTimeout || 75) * 1000,
+    );
     let result;
     try {
       result = await api(method, url, body, controller.signal, responseType);
     } catch (err) {
       if (signal?.aborted || !current()) return null;
-      if (controller.signal.aborted) throw new Error("Request timed out. Try again.");
+      if (controller.signal.aborted)
+        throw new Error("Request timed out. Try again.");
       throw err;
     } finally {
       clearTimeout(timer);

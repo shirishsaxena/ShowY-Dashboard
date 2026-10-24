@@ -355,7 +355,12 @@ dialog.docker-logs-dialog {
   border-radius: 10px;
   background: var(--bg);
   color: var(--text);
-  font: 0.78rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font:
+    0.78rem/1.6 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   tab-size: 4;
@@ -413,7 +418,9 @@ dialog.service-preview-dialog {
   font-size: 0.8rem;
   line-height: 1.5;
 }
-.service-preview-details dt { color: var(--muted); }
+.service-preview-details dt {
+  color: var(--muted);
+}
 .service-preview-details dd {
   margin: 0;
   overflow-wrap: anywhere;
@@ -434,9 +441,14 @@ dialog.service-preview-dialog {
   text-decoration: none;
   overflow-wrap: anywhere;
 }
-.service-preview-links a:hover { background: var(--card-hover); }
-.service-preview-links a span { color: var(--muted); }
-.preview-service-details, .preview-docker-details {
+.service-preview-links a:hover {
+  background: var(--card-hover);
+}
+.service-preview-links a span {
+  color: var(--muted);
+}
+.preview-service-details,
+.preview-docker-details {
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -501,7 +513,8 @@ dialog.service-preview-dialog {
   background: var(--card);
   overflow-wrap: anywhere;
 }
-.activity-entry-head, .activity-entry-meta {
+.activity-entry-head,
+.activity-entry-meta {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -526,7 +539,13 @@ dialog.service-preview-dialog {
   line-height: 1.5;
   color: var(--muted);
 }
-.activity-success .activity-entry-head svg { color: var(--green); }
-.activity-failed .activity-entry-head svg { color: var(--red); }
+.activity-success .activity-entry-head svg {
+  color: var(--green);
+}
+.activity-failed .activity-entry-head svg {
+  color: var(--red);
+}
 .activity-uncertain .activity-entry-head svg,
-.activity-pending .activity-entry-head svg { color: var(--amber); }
+.activity-pending .activity-entry-head svg {
+  color: var(--amber);
+}
