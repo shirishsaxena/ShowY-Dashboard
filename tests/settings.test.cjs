@@ -755,7 +755,7 @@ test("logging keeps edit authorization, destructive confirmation, and download b
   const js = read("public/js/dialogs/settings.js");
   assert.match(
     js,
-    /async function manageLogs[\s\S]*?settingsOperation\("logs"/,
+    /async function manageLogs[\s\S]*?settingsOperation\(\s*"logs"/,
   );
   assert.match(
     read("public/js/dialogs/settings-session.js"),
@@ -764,7 +764,7 @@ test("logging keeps edit authorization, destructive confirmation, and download b
   assert.match(js, /Clear backend logs\?[\s\S]*?danger: true/);
   assert.match(
     js,
-    /settingsRequest\(scope, clear \? "DELETE" : "GET", "\/api\/logs"/,
+    /settingsRequest\(\s*scope,\s*clear\s*\?\s*"DELETE"\s*:\s*"GET",\s*"\/api\/logs"/,
   );
   assert.match(js, /download: "backend-logs.txt"/);
   assert.match(js, /URL.revokeObjectURL/);

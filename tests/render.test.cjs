@@ -592,9 +592,11 @@ test("compact and list CSS keeps actions visible and long content bounded", () =
     path.join(__dirname, "../public/index.html"),
     "utf8",
   );
-  assert.match(html, /id="serviceAddUrl">Add URL/);
+  assert.match(html, /id="serviceAddUrl"[^>]*>\s*Add URL/);
+  const normalizedHtml = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+
   assert.match(
-    html,
+    normalizedHtml,
     /Only the first\s+URL is health-checked; bookmarks are never monitored/,
   );
   assert.doesNotMatch(html, /name="altUrl"/);

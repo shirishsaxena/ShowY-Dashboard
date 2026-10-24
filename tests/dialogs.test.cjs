@@ -10,7 +10,9 @@ const read = (file) =>
 const html = read("public/index.html");
 
 test("every dialog has an accessible heading and a labelled close control", () => {
-  const dialogs = [...html.matchAll(/<dialog\b([^>]*)>([\s\S]*?)<\/dialog>/g)];
+  const dialogs = [
+    ...html.matchAll(/<dialog\b([^>]*)>([\s\S]*?)<\/dialog\s*>/g),
+  ];
   assert.equal(dialogs.length, 11);
   for (const [, attrs, body] of dialogs) {
     const title = attrs.match(/aria-labelledby="([^"]+)"/)?.[1];
@@ -25,14 +27,27 @@ test("long editors have named sections and optional labels remain inline", () =>
     ["serviceDialog", ["Details", "Connection", "Organisation"]],
     ["serverDialog", ["Details", "Host"]],
   ]) {
-    const body = html.match(
-      new RegExp(`<dialog id="${id}"[\\s\\S]*?<\\/dialog>`),
-    )[0];
-    assert.equal((body.match(/<fieldset/g) || []).length, sections.length);
-    assert.equal((body.match(/<\/fieldset>/g) || []).length, sections.length);
-    for (const section of sections)
+    const match = html.match(
+      new RegExp(
+        String.raw`<dialog\b(?=[^>]*\bid="${id}")[^>]*>[\s\S]*?</dialog\s*>`,
+      ),
+    );
+
+    assert.ok(match, `Expected dialog "${id}" to exist`);
+
+    const body = match[0];
+
+    assert.equal((body.match(/<fieldset\b/g) || []).length, sections.length);
+    assert.equal(
+      (body.match(/<\/fieldset\s*>/g) || []).length,
+      sections.length,
+    );
+
+    for (const section of sections) {
       assert.ok(body.includes(`<legend>${section}</legend>`));
+    }
   }
+
   assert.doesNotMatch(
     html,
     />(?:Group|Main URL|Icon|Notes) <span class="muted">\(optional\)/,
@@ -43,7 +58,7 @@ test("remote fields have separate labels and icon suggestions are outside labels
   const remote = html.match(
     /<div class="settings-remote-fields">([\s\S]*?)<\/div>/,
   )[1];
-  const labels = [...remote.matchAll(/<label\b[^>]*>([\s\S]*?)<\/label>/g)];
+  const labels = [...remote.matchAll(/<label\b[^>]*>([\s\S]*?)<\/label\s*>/g)];
   assert.equal(labels.length, 3);
   for (const [, label] of labels) {
     assert.doesNotMatch(label, /<label|<button/);
@@ -53,12 +68,16 @@ test("remote fields have separate labels and icon suggestions are outside labels
     assert.match(
       html,
       new RegExp(
-        `<label for="${name}Icon">[\\s\\S]*?<\\/label>\\s*<input\\s+id="${name}Icon"`,
+        String.raw`<label\b(?=[^>]*\bfor="${name}Icon")[^>]*>[\s\S]*?</label\s*>\s*<input\b(?=[^>]*\bid="${name}Icon")[^>]*>`,
       ),
+      `Expected ${name} icon input to follow its label`,
     );
   }
-  for (const [, label] of html.matchAll(/<label\b[^>]*>([\s\S]*?)<\/label>/g))
+  for (const [, label] of html.matchAll(
+    /<label\b[^>]*>([\s\S]*?)<\/label\s*>/g,
+  )) {
     assert.doesNotMatch(label, /class="icon-suggest"|<label\b/);
+  }
 });
 
 test("shared dialogs contain scrolling and use interaction-aware validation", () => {
@@ -143,23 +162,58 @@ test("ordinary confirmations keep their primary action focused", async () => {
 
 test("editor tabs and panels have matching accessible relationships", () => {
   for (const editor of ["service", "server"]) {
-    const body = html.match(
-      new RegExp(`<dialog id="${editor}Dialog"[\\s\\S]*?<\\/dialog>`),
-    )[0];
-    const tabs = [...body.matchAll(/<button[^>]+role="tab"[^>]*>/g)];
+    const match = html.match(
+      new RegExp(
+        String.raw`<dialog\b(?=[^>]*\bid="${editor}Dialog")[^>]*>[\s\S]*?</dialog\s*>`,
+      ),
+    );
+
+    assert.ok(match, `Expected dialog "${editor}Dialog" to exist`);
+    const body = match[0];
+
+    const tabs = [
+      ...body.matchAll(/<button\b(?=[^>]*\brole="tab")[^>]*>/g),
+    ];
+
     assert.equal(tabs.length, editor === "service" ? 3 : 2);
+
     for (const [index, [tab]] of tabs.entries()) {
-      const id = tab.match(/id="([^"]+)"/)[1];
-      const panel = tab.match(/aria-controls="([^"]+)"/)[1];
-      assert.match(tab, new RegExp(`aria-selected="${index === 0}"`));
-      const markup = body.match(
-        new RegExp(`<fieldset[^>]*id="${panel}"[^>]*>`),
-      )[0];
+      const id = tab.match(/\bid="([^"]+)"/)?.[1];
+      const panel = tab.match(/\baria-controls="([^"]+)"/)?.[1];
+
+      assert.ok(id, `Expected tab ${index + 1} in ${editor} dialog to have an id`);
+      assert.ok(
+        panel,
+        `Expected tab "${id}" in ${editor} dialog to have aria-controls`,
+      );
+
+      assert.match(
+        tab,
+        new RegExp(String.raw`\baria-selected="${index === 0}"`),
+      );
+
+      const panelMatch = body.match(
+        new RegExp(
+          String.raw`<fieldset\b(?=[^>]*\bid="${panel}")[^>]*>`,
+        ),
+      );
+
+      assert.ok(panelMatch, `Expected panel "${panel}" to exist`);
+
+      const markup = panelMatch[0];
+
+      assert.match(markup, /\brole="tabpanel"/);
       assert.match(
         markup,
-        new RegExp(`role="tabpanel" aria-labelledby="${id}"`),
+        new RegExp(String.raw`\baria-labelledby="${id}"`),
       );
-      assert.equal(markup.includes(" hidden"), index !== 0);
+
+      const isHidden = /\bhidden(?:\s|=|>)/.test(markup);
+      assert.equal(
+        isHidden,
+        index !== 0,
+        `Expected panel "${panel}" ${index === 0 ? "to be visible" : "to be hidden"}`,
+      );
     }
   }
 });

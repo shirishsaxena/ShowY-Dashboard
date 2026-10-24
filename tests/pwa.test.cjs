@@ -248,9 +248,11 @@ test("a slow earlier metadata response cannot overwrite the latest name", async 
 
 test("Settings presents public naming disclosure and saves the name with General settings", () => {
   const html = read("public/index.html");
-  assert.match(html, /name="appName" maxlength="60"/);
+  assert.match(html, /name="appName"\s+maxlength="60"/);
+  const normalizedHtml = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+
   assert.match(
-    html,
+    normalizedHtml,
     /Public name shown when installing this dashboard, even when password-protected/,
   );
   assert.match(html, /name="apple-mobile-web-app-title" content="Dashboard"/);
@@ -260,7 +262,7 @@ test("Settings presents public naming disclosure and saves the name with General
     js,
     /field\(form, "appName"\)\.value = settings.appName \|\| ""/,
   );
-  assert.match(js, /const GENERAL_CONTROLS = .*name="appName"/);
+  assert.match(js, /const GENERAL_CONTROLS = [\s\S]*?name="appName"/);
   assert.match(
     read("public/js/main.js"),
     /function initPwa\(\) \{\s*initInstallMetadata\(\)/,
