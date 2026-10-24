@@ -1,3 +1,4 @@
+
 name: Pull Request Build
 
 on:
@@ -15,27 +16,45 @@ concurrency:
 jobs:
   build:
     name: PR Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
 
     steps:
       - name: Checkout proposed changes
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Set up latest Node.js
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: latest
+          check-latest: true
+          package-manager-cache: false
+
+      - name: Show environment diagnostics
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cat /etc/os-release
+          node --version
+          npm --version
+          git rev-parse --short HEAD
+          pwd
 
       - name: Check JavaScript syntax
         shell: bash
         run: |
           set -euo pipefail
-          while IFS= read -r -d '' file; do
-            node --check "$file"
-          done < <(find server.js lib http web routes public/js public/sw.js -type f -name '*.js' -print0)
+
+          find server.js lib http web routes public/js public/sw.js \
+            -type f -name '*.js' -print0 |
+            xargs -0 -r -n 1 node --check
+
+          echo "JavaScript syntax check passed."
 
       - name: Run application tests
-        run: node --test tests/*.test.cjs
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test --test-reporter=spec tests/*.test.cjs
