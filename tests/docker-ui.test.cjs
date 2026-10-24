@@ -28,7 +28,9 @@ function domFixture() {
     const node = {
       tag, attrs: {}, dataset: {}, style: {}, classes: new Set(), listeners: {},
       children: children.flat(Infinity).filter((item) => item != null && item !== false),
-      textContent: "", isConnected: true, offsetWidth: 230, offsetHeight: 100,
+      get textContent() { return this.children.map((child) => typeof child === "object" ? child.textContent : String(child)).join(""); },
+      set textContent(value) { this.children = value ? [String(value)] : []; },
+      isConnected: true, offsetWidth: 230, offsetHeight: 100,
       classList: {
         add: (...values) => values.forEach((value) => node.classes.add(value)),
         remove: (...values) => values.forEach((value) => node.classes.delete(value)),
@@ -74,9 +76,23 @@ function domFixture() {
 function logsFixture() {
   const dom = domFixture();
   const requests = [];
+  const downloads = [];
+  const blobs = [];
+  const revoked = [];
+  const timers = [];
   const state = { locked: false };
   const api = browserModule("dialogs/docker-logs.js", ["openContainerLogs", "initDockerLogs"], {
-    ...dom, state, AbortController,
+    ...dom, state, AbortController, Blob, toast() {},
+    h: (tag, attrs, ...children) => {
+      const element = dom.h(tag, attrs, ...children);
+      element.click = () => downloads.push(attrs);
+      return element;
+    },
+    URL: {
+      createObjectURL: (blob) => { blobs.push(blob); return `blob:snapshot-${blobs.length}`; },
+      revokeObjectURL: (url) => revoked.push(url),
+    },
+    setTimeout: (callback, ms) => timers.push({ callback, ms }),
     editApi: (method, url, body, options) => {
       const pending = deferred();
       requests.push({ method, url, body, options, ...pending });
@@ -87,7 +103,7 @@ function logsFixture() {
   const reply = (request, data = {}) => request.resolve({ res: { ok: true }, data: {
     text: "hello", tail: 250, fetchedAt: Date.now(), ...data,
   } });
-  return { ...dom, ...api, requests, state, reply };
+  return { ...dom, ...api, requests, state, reply, downloads, blobs, revoked, timers };
 }
 
 test("logs load once, render plain text and refresh only on explicit user interaction", async () => {
@@ -103,7 +119,8 @@ test("logs load once, render plain text and refresh only on explicit user intera
   h.reply(h.requests[0], { text });
   await first;
   assert.equal(h.$("#dockerLogsOutput").textContent, text);
-  assert.equal(h.$("#dockerLogsOutput").children.length, 0);
+  assert.equal(h.$("#dockerLogsOutput").children.length, 2);
+  assert.equal(h.$("#dockerLogsOutput").children[0].children[1].children[0], text.split("\n")[0] + "\n");
   assert.match(h.$("#dockerLogsStatus").textContent, /Manual refresh only/);
   assert.equal(h.$("#dockerLogsRefresh").disabled, false);
   await new Promise(setImmediate);
@@ -137,6 +154,72 @@ test("log snapshots scroll to the newest output on open, refresh and line-count 
     assert.equal(output.textContent, text);
     assert.equal(output.scrollTop, height);
   }
+});
+
+test("log line numbers are snapshot-relative and do not alter text, blank lines or indentation", async () => {
+  const h = logsFixture();
+  const text = "older line\n\n  stack trace continuation\nnewest line";
+  const pending = h.openContainerLogs({ id: ID, name: "app" });
+  h.reply(h.requests[0], { text });
+  await pending;
+  const output = h.$("#dockerLogsOutput");
+  assert.equal(output.textContent, text);
+  assert.equal(output.children.length, 4);
+  for (const [index, row] of output.children.entries()) {
+    assert.equal(row.attrs.class, "docker-log-line");
+    assert.equal(row.children[0].attrs["data-line"], String(index + 1));
+    assert.equal(row.children[0].attrs["aria-hidden"], "true");
+    assert.equal(row.children[0].textContent, "");
+  }
+  const refresh = h.$("#dockerLogsRefresh").emit("click");
+  h.reply(h.requests[1], { text: "one new line" });
+  await refresh;
+  assert.equal(output.children.length, 1);
+  assert.equal(output.children[0].children[0].attrs["data-line"], "1");
+});
+
+test("download saves only the displayed text with a safe timestamped filename and releases its URL", async () => {
+  const h = logsFixture();
+  const pending = h.openContainerLogs({ id: ID, name: "../../my app" });
+  assert.equal(h.$("#dockerLogsDownload").disabled, true);
+  h.$("#dockerLogsDownload").emit("click");
+  assert.equal(h.downloads.length, 0);
+  const text = "first\n\n  <script>literal log output</script>\nlatest";
+  h.reply(h.requests[0], { text, fetchedAt: Date.UTC(2026, 9, 24, 5, 30), truncated: true });
+  await pending;
+  assert.equal(h.$("#dockerLogsDownload").disabled, false);
+  h.$("#dockerLogsDownload").emit("click");
+  assert.equal(h.requests.length, 1); // No second read: exactly the snapshot being viewed.
+  assert.equal(h.downloads.length, 1);
+  assert.equal(h.downloads[0].download, "my-app-logs-2026-10-24T05-30-00-000Z-truncated.txt");
+  assert.equal(h.blobs[0].type, "text/plain;charset=utf-8");
+  assert.equal(await h.blobs[0].text(), text);
+  assert.equal(h.revoked.length, 0);
+  assert.equal(h.timers[0].ms, 1000);
+  h.timers[0].callback();
+  assert.deepEqual(h.revoked, [h.downloads[0].href]);
+  h.$("#dockerLogsDialog").close();
+  assert.equal(h.$("#dockerLogsDownload").disabled, true);
+  h.$("#dockerLogsDownload").emit("click");
+  assert.equal(h.downloads.length, 1);
+});
+
+test("download is unavailable after a refresh fails or returns empty logs", async () => {
+  const h = logsFixture();
+  const first = h.openContainerLogs({ id: ID, name: "app" });
+  h.reply(h.requests[0]);
+  await first;
+  assert.equal(h.$("#dockerLogsDownload").disabled, false);
+  const failed = h.$("#dockerLogsRefresh").emit("click");
+  assert.equal(h.$("#dockerLogsDownload").disabled, true);
+  h.requests[1].resolve({ res: { ok: false, status: 404 }, data: { error: "Container removed" } });
+  await failed;
+  h.$("#dockerLogsDownload").emit("click");
+  assert.equal(h.downloads.length, 0);
+  const empty = h.$("#dockerLogsRefresh").emit("click");
+  h.reply(h.requests[2], { text: "" });
+  await empty;
+  assert.equal(h.$("#dockerLogsDownload").disabled, true);
 });
 
 test("closing logs aborts retrieval, erases sensitive text and ignores old responses after reopening", async () => {
@@ -220,11 +303,10 @@ test("card menu handles tap, keyboard navigation, viewport bounds and focus afte
   assert.equal(menu.containerLogItem({ id: "short" }).disabled, true);
 });
 
-test("only local Docker service cards get log/edit menus, including missing containers", async () => {
+test("only local Docker service cards get log/preview menus, including missing containers", async () => {
   const dom = domFixture();
   const menus = [];
   const edits = [];
-  let allowed = false;
   let container = { id: ID, name: "app" };
   const { serviceCard } = browserModule("view/cards.js", ["serviceCard"], {
     ...dom, state: { editing: false }, isFavorite: () => false,
@@ -232,8 +314,9 @@ test("only local Docker service cards get log/edit menus, including missing cont
     containerFor: (svc) => svc.type === "web" ? undefined : container,
     serviceStatus: () => null, statusNode: () => null, iconNode: () => null,
     usageNode: () => null, external: {},
-    actions: { ensureCanEdit: async () => allowed },
+    actions: {},
     openServiceEditor: (...args) => edits.push(args),
+    openServicePreview: (...args) => edits.push(args),
     containerLogItem: (value) => ({ label: "Show logs", disabled: !value }),
     containerControlItems: () => [], containerOperationNode: () => null,
     cardMenuButton: (name, key, items) => { menus.push({ name, key, items: items() }); return null; },
@@ -243,9 +326,7 @@ test("only local Docker service cards get log/edit menus, including missing cont
   serviceCard(svc, local);
   assert.equal(menus.length, 1);
   assert.equal(menus[0].items[0].label, "Show logs");
-  await menus[0].items[1].run();
-  assert.equal(edits.length, 0);
-  allowed = true;
+  assert.equal(menus[0].items[1].label, "Preview");
   await menus[0].items[1].run();
   assert.deepEqual(edits, [["host", "svc"]]);
   serviceCard(svc, { ...local, remote: "peer" });
@@ -256,7 +337,73 @@ test("only local Docker service cards get log/edit menus, including missing cont
   serviceCard(svc, local);
   assert.equal(menus.length, 2);
   assert.equal(menus[1].items[0].disabled, true);
-  assert.equal(menus[1].items[1].label, "Edit service");
+  assert.equal(menus[1].items[1].label, "Preview");
+});
+
+function previewFixture() {
+  const dom = domFixture();
+  const service = { id: "svc", name: "Long service", type: "docker", container: "app", group: "Media",
+    description: "A long description\n".repeat(50) + "<script>literal text</script>", notes: "First note\nSecond note" };
+  const server = { id: "host", local: true, name: "This machine", services: [service] };
+  const state = { locked: false };
+  const edits = [];
+  const messages = [];
+  let access = Promise.resolve(true);
+  const preview = browserModule("dialogs/service-preview.js", ["openServicePreview", "initServicePreview"], {
+    ...dom, state, findServer: (id) => id === server.id ? server : null,
+    containerFor: () => ({ id: ID, name: "app", image: "app:latest", state: "running", ports: [8080] }),
+    serviceStatus: () => ({ label: "Running" }), statusNode: (status) => dom.h("span", {}, status.label),
+    serviceUrls: () => [{ label: "Admin", url: "https://example.test/admin" }],
+    usageNode: () => null, iconNode: () => dom.h("span"), external: { target: "_blank", rel: "noopener noreferrer" },
+    ensureCanEdit: () => access, openServiceEditor: (...args) => edits.push(args),
+    toast: (...args) => messages.push(args),
+  });
+  preview.initServicePreview();
+  return { ...dom, ...preview, service, server, state, edits, messages,
+    setAccess: (value) => { access = value; } };
+}
+
+test("service preview displays full descriptions, notes and container details, and edits with authentication", async () => {
+  const h = previewFixture();
+  h.openServicePreview("host", "svc");
+  assert.equal(h.$("#servicePreviewDialog").open, true);
+  assert.equal(h.$("#servicePreviewTitle").textContent, h.service.name);
+  const text = h.$("#servicePreviewBody").textContent;
+  assert.ok(text.includes(h.service.description));
+  assert.ok(text.includes(h.service.notes));
+  assert.ok(text.includes("app:latest"));
+  assert.ok(text.includes("https://example.test/admin"));
+  h.setAccess(Promise.resolve(false));
+  await h.$("#servicePreviewEdit").emit("click");
+  assert.equal(h.edits.length, 0);
+  assert.equal(h.$("#servicePreviewDialog").open, true);
+  h.setAccess(Promise.resolve(true));
+  await h.$("#servicePreviewEdit").emit("click");
+  assert.deepEqual(h.edits, [["host", "svc"]]);
+  assert.equal(h.$("#servicePreviewDialog").open, false);
+});
+
+test("preview edit cannot act on a closed, replaced or deleted service after login", async () => {
+  const h = previewFixture();
+  h.openServicePreview("host", "svc");
+  const gate = deferred();
+  h.setAccess(gate.promise);
+  const editing = h.$("#servicePreviewEdit").emit("click");
+  assert.equal(h.$("#servicePreviewEdit").disabled, true);
+  h.$("#servicePreviewDialog").close();
+  gate.resolve(true);
+  await editing;
+  assert.equal(h.edits.length, 0);
+  h.openServicePreview("host", "svc");
+  h.server.services = [];
+  await h.$("#servicePreviewEdit").emit("click");
+  assert.equal(h.edits.length, 0);
+  assert.match(h.messages.at(-1)[0], /no longer exists/);
+  h.$("#servicePreviewDialog").close();
+  h.server.services = [h.service];
+  h.server.remote = "peer";
+  h.openServicePreview("host", "svc");
+  assert.equal(h.$("#servicePreviewDialog").open, false);
 });
 
 function controlFixture() {
@@ -410,4 +557,26 @@ test("notification polling drops a response from a logged-out session and serial
   await fresh;
   assert.equal(h.$("#activityBadge").hidden, true);
   assert.doesNotMatch(JSON.stringify(h.$("#activityList").children), /Private container/);
+});
+
+test("history opens as a toggleable popover and closes with its close button or Escape", async () => {
+  const h = activityFixture();
+  const open = async () => {
+    const opening = h.$("#activityBtn").emit("click");
+    await new Promise(setImmediate);
+    h.reply([]);
+    await opening;
+    assert.equal(h.$("#activityMenu").popoverOpen, true);
+    assert.notEqual(h.$("#activityMenu").open, true);
+  };
+  await open();
+  await h.$("#activityBtn").emit("click");
+  assert.equal(h.$("#activityMenu").popoverOpen, false);
+  await open();
+  h.$("#activityClose").emit("click");
+  assert.equal(h.$("#activityMenu").popoverOpen, false);
+  assert.equal(h.document.activeElement, h.$("#activityBtn"));
+  await open();
+  h.$("#activityMenu").emit("keydown", { key: "Escape" });
+  assert.equal(h.$("#activityMenu").popoverOpen, false);
 });

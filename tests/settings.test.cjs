@@ -95,6 +95,59 @@ test("rebuilt storage clear buttons join pending resource locks and failed-load 
   assert.equal(unavailable.disabled, true);
 });
 
+test("action history clearing confirms once, locks both Settings controls and refreshes notifications", async () => {
+  const button = element(), rowButton = element();
+  const controls = {
+    "#clearActivitySettingsBtn": [button], '#storageList [data-clear="activity"]': [rowButton],
+  };
+  const feedback = element();
+  const nodes = { "#activityFeedback": feedback, "#storageTotal": element(), "#storageList": element() };
+  const confirmation = deferred();
+  const requests = [];
+  let prompted = 0, refreshed = 0;
+  const session = sessionHarness(async (method, url) => {
+    requests.push({ method, url });
+    return { res: { ok: true }, data: url === "/api/activity" ? { removed: 3, entries: [{ status: "pending" }] } : { total: 0, items: [] } };
+  }, controls);
+  const { clearActionHistory } = load(["clearActionHistory"], {
+    ...session, $: (id) => nodes[id], ask: () => { prompted++; return confirmation.promise; },
+    toast() {}, plural: (count, noun) => `${count} ${noun}s`, refreshActivity: () => { refreshed++; },
+    fmtBytes: String, fill() {},
+  });
+  const first = clearActionHistory();
+  assert.equal(button.disabled, true);
+  assert.equal(rowButton.disabled, true);
+  await clearActionHistory();
+  assert.equal(prompted, 1);
+  assert.equal(requests.length, 0);
+  confirmation.resolve(true);
+  await first;
+  assert.equal(requests[0].method, "DELETE");
+  assert.equal(requests[0].url, "/api/activity");
+  assert.equal(refreshed, 1);
+  assert.match(feedback.textContent, /Cleared 3 actions.*In-progress/);
+  assert.equal(button.disabled, false);
+  assert.equal(rowButton.disabled, false);
+});
+
+test("cancelled or obsolete Settings confirmations never clear action history", async () => {
+  let requests = 0;
+  const session = sessionHarness(async () => { requests++; });
+  let gate = deferred();
+  const { clearActionHistory } = load(["clearActionHistory"], {
+    ...session, ask: () => gate.promise,
+  });
+  const cancelled = clearActionHistory();
+  gate.resolve(false);
+  await cancelled;
+  gate = deferred();
+  const obsolete = clearActionHistory();
+  session.endSettingsSession();
+  gate.resolve(true);
+  await obsolete;
+  assert.equal(requests, 0);
+});
+
 test("general form stale saves do not close or unlock a reopened dialog", async () => {
   const controls = new Map();
   const get = (selector) => {

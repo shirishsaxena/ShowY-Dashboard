@@ -1,11 +1,40 @@
 // Snapshot logs are independent of dashboard polling and discarded on close.
-import { $ } from "../dom.js";
+import { $, h, fill, toast } from "../dom.js";
 import { editApi } from "../edit-api.js";
 import { state } from "../state.js";
 
 let target = null;
 let pending = null;
 let opener = null;
+let snapshot = null;
+
+function showLines(output, text) {
+  if (!text) {
+    output.textContent = "No log output available for this container.";
+    return;
+  }
+  const lines = text.split("\n");
+  fill(output, lines.map((line, index) => h("span", { class: "docker-log-line" },
+    h("span", { class: "docker-log-number", "data-line": index + 1, "aria-hidden": "true" }),
+    h("span", { class: "docker-log-text" }, line + (index < lines.length - 1 ? "\n" : "")),
+  )));
+}
+
+function downloadLogs() {
+  if (!snapshot?.text || pending || state.locked || !$("#dockerLogsDialog").open) return;
+  let url;
+  try {
+    const name = snapshot.name.replace(/[^a-zA-Z0-9_.-]/g, "-").replace(/^[.-]+/, "").slice(0, 80) || "container";
+    const timestamp = new Date(snapshot.fetchedAt).toISOString().replace(/[:.]/g, "-");
+    url = URL.createObjectURL(new Blob([snapshot.text], { type: "text/plain;charset=utf-8" }));
+    h("a", { href: url, download: `${name}-logs-${timestamp}${snapshot.truncated ? "-truncated" : ""}.txt` }).click();
+  } catch {
+    toast("Could not download this log snapshot. Try again.", true);
+  } finally {
+    // Allow the browser to begin saving before releasing the blob URL.
+    if (url) setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+}
 
 async function refreshLogs() {
   const dialog = $("#dockerLogsDialog");
@@ -19,6 +48,8 @@ async function refreshLogs() {
   const output = $("#dockerLogsOutput");
   const status = $("#dockerLogsStatus");
   const error = $("#dockerLogsError");
+  snapshot = null;
+  $("#dockerLogsDownload").disabled = true;
   refresh.disabled = lines.disabled = true;
   refresh.classList.add("spin");
   output.setAttribute("aria-busy", "true");
@@ -38,7 +69,9 @@ async function refreshLogs() {
     if (!res.ok) throw new Error(data.error || `Could not load logs (${res.status})`);
     if (typeof data.text !== "string" || !Number.isFinite(data.fetchedAt))
       throw new Error("Invalid log response from dashboard server");
-    output.textContent = data.text || "No log output available for this container.";
+    showLines(output, data.text);
+    snapshot = { text: data.text, name: target.name, fetchedAt: data.fetchedAt, truncated: data.truncated };
+    $("#dockerLogsDownload").disabled = !data.text;
     status.textContent = `Fetched ${new Date(data.fetchedAt).toLocaleTimeString()} · Up to ${data.tail} lines · Manual refresh only${data.truncated ? " · Response cut short at 1 MiB; some requested output is omitted" : ""}`;
     // Keep multiline entries in their original order and reveal the newest output.
     output.scrollTop = output.scrollHeight;
@@ -69,12 +102,15 @@ export function openContainerLogs(container) {
 
 export function initDockerLogs() {
   $("#dockerLogsRefresh").addEventListener("click", refreshLogs);
+  $("#dockerLogsDownload").addEventListener("click", downloadLogs);
   $("#dockerLogsLines").addEventListener("change", refreshLogs);
   $("#dockerLogsDialog").addEventListener("close", () => {
     if ($("#dockerLogsDialog").open) return;
     pending?.abort();
     pending = null;
     target = null;
+    snapshot = null;
+    $("#dockerLogsDownload").disabled = true;
     $("#dockerLogsOutput").textContent = "";
     $("#dockerLogsStatus").textContent = "";
     $("#dockerLogsError").textContent = "";

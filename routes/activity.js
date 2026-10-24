@@ -11,13 +11,21 @@ function requireSameOrigin(req) {
   try { origin = new URL(req.headers.origin); } catch { /* rejected below */ }
   if (!origin || origin.origin !== `${scheme}//${req.headers.host}` ||
       (req.headers["sec-fetch-site"] && req.headers["sec-fetch-site"] !== "same-origin"))
-    throw new HttpError(403, "Container actions require a same-origin request");
+    throw new HttpError(403, "This action requires a same-origin request");
 }
 
 module.exports = {
   "GET /api/activity": {
     access: "edit", body: "none",
     handler: async () => ({ ...(await activity.snapshot()), control: control.controlState() }),
+  },
+  "DELETE /api/activity": {
+    access: "edit", body: "json",
+    handler: async (req) => {
+      requireSameOrigin(req);
+      await readJson(req);
+      return { ...(await activity.clear()), control: control.controlState() };
+    },
   },
   "POST /api/docker/action": {
     access: "edit", body: "json",

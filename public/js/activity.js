@@ -11,13 +11,14 @@ let timer;
 let error = "";
 const canRead = () => !state.locked && (!state.auth.passwordSet || state.auth.authenticated);
 const latest = () => Math.max(0, ...snapshot.entries.map((entry) => entry.updatedAt));
+const isOpen = () => $("#activityMenu").matches(":popover-open");
 
 function paint() {
   const unread = snapshot.entries.filter((entry) => entry.updatedAt > (prefs.activitySeen || 0)).length;
   $("#activityBadge").hidden = !unread || !canRead();
   $("#activityBtn").setAttribute("aria-label", unread && canRead()
     ? `Action history, ${unread} unread updates` : "Action history");
-  if (!$("#activityDialog").open) return;
+  if (!isOpen()) return;
   $("#activityError").textContent = error || (snapshot.persistenceError ? "Some recent history could not be saved to disk. Check backend logs." : "");
   $("#activityError").hidden = !$("#activityError").textContent;
   fill($("#activityList"), snapshot.entries.length ? snapshot.entries.map((entry) => h("article", {
@@ -70,7 +71,7 @@ export function refreshActivity(options = {}) {
       render();
       document.dispatchEvent(new Event("docker-control-changed"));
     }
-    if ($("#activityDialog").open) setPref("activitySeen", latest());
+    if (isOpen()) setPref("activitySeen", latest());
     return true;
   })().catch((err) => {
     error = err.name === "AbortError" ? "Action history request timed out" : err.message;
@@ -85,12 +86,28 @@ export function refreshActivity(options = {}) {
 }
 
 export function initActivity() {
-  $("#activityBtn").addEventListener("click", async () => {
+  const menu = $("#activityMenu");
+  const button = $("#activityBtn");
+  button.addEventListener("click", async (event) => {
+    // Keep the native popover target association, but authenticate before opening.
+    event.preventDefault();
+    if (isOpen()) return menu.hidePopover();
     if (!(await ensureCanEdit())) return;
-    $("#activityDialog").showModal();
+    menu.showPopover({ source: button });
     setPref("activitySeen", latest());
     paint();
+    $("#activityRefresh").focus();
     await refreshActivity();
+  });
+  $("#activityClose").addEventListener("click", () => {
+    menu.hidePopover();
+    button.focus();
+  });
+  menu.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    menu.hidePopover();
+    button.focus();
   });
   $("#activityRefresh").addEventListener("click", async () => {
     const button = $("#activityRefresh");

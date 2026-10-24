@@ -364,24 +364,103 @@ dialog.docker-logs-dialog {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
+.docker-log-line {
+  display: grid;
+  grid-template-columns: 4ch minmax(0, 1fr);
+  gap: 12px;
+  min-height: 1.6em;
+}
+.docker-log-number {
+  padding-right: 8px;
+  border-right: 1px solid var(--border);
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.docker-log-number::before {
+  content: attr(data-line);
+}
+.docker-log-text {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Full service preview ---------- */
+dialog.service-preview-dialog {
+  width: min(640px, calc(100vw - 24px));
+}
+.service-preview-section h3 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+.service-preview-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+  line-height: 1.65;
+}
+.service-preview-details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 14px;
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.service-preview-details dt { color: var(--muted); }
+.service-preview-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.service-preview-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.service-preview-links a {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.82rem;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.service-preview-links a:hover { background: var(--card-hover); }
+.service-preview-links a span { color: var(--muted); }
 
 /* ---------- Notification history ---------- */
 #activityBtn {
   position: relative;
 }
-dialog.activity-dialog {
-  width: min(620px, calc(100vw - 24px));
+.menu.activity-menu {
+  width: min(420px, calc(100vw - 16px));
 }
-.activity-dialog .dialog-heading {
-  flex: 1;
+.activity-head {
+  align-items: center;
+}
+.activity-head h2 {
+  margin: 0;
 }
 .activity-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+  max-height: min(55dvh, 440px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .activity-entry {
-  padding: 12px;
+  padding: 10px;
+  flex-shrink: 0;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--card);

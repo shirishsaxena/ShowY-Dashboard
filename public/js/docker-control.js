@@ -91,9 +91,13 @@ export function initDockerControl() {
     for (const [id, job] of pending) {
       if (!["working", "checking"].includes(job.phase)) continue;
       const entry = detail.entries.find((item) => item.id === job.requestId);
+      const receipt = detail.retired?.find((item) => item.id === job.requestId);
       if (entry && entry.status !== "pending") {
         pending.delete(id);
         toast(`${entry.title}: ${entry.message}`, entry.status !== "success");
+      } else if (receipt) {
+        pending.delete(id);
+        toast(`Container action finished (${receipt.status}); its history entry was cleared. Check the container state.`, receipt.status !== "success");
       } else if (job.phase === "checking" && Date.now() >= job.checkUntil &&
           !entry && !detail.control.busy.some((item) => item.id === id)) {
         pending.delete(id);

@@ -11,6 +11,7 @@ import {
 } from "../status.js";
 import * as actions from "../actions.js";
 import { openServiceEditor } from "../dialogs/service.js";
+import { openServicePreview } from "../dialogs/service-preview.js";
 import { openQr } from "../dialogs/qr.js";
 import { usageNode } from "./usage.js";
 import { openNote } from "./notes.js";
@@ -88,9 +89,7 @@ export function serviceCard(
   const dockerMenu = !server.remote && server.local && (svc.type === "docker" || container)
     ? cardMenuButton(svc.name, `service:${svc.id}`, () => [
         containerLogItem(container),
-        { label: "Edit service", icon: "edit", run: async () => {
-          if (await actions.ensureCanEdit()) openServiceEditor(server.id, svc.id);
-        } },
+        { label: "Preview", icon: "eye", run: () => openServicePreview(server.id, svc.id) },
         ...containerControlItems(container),
       ]) : null;
   const href = primaryUrl(svc);

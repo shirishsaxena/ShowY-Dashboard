@@ -25,7 +25,7 @@ function load(file, mocks = {}, globals = {}) {
 }
 
 function fixture({ env = {}, info = {}, postError, postStatus = 204, persistError = false,
-  holdPost = false, holdInspect = false, unchanged = false, verifyError = false, initialState = "running" } = {}) {
+  holdPost = false, holdInspect = false, unchanged = false, verifyError = false, initialState = "running", retired = [] } = {}) {
   const entries = [];
   const requests = [];
   const timers = [];
@@ -53,7 +53,7 @@ function fixture({ env = {}, info = {}, postError, postStatus = 204, persistErro
     "./logger": { info() {}, warn() {}, error() {} },
     "timers/promises": { setTimeout: async (ms) => { now += ms; } },
     "./activity": {
-      snapshot: async () => ({ entries: structuredClone(entries) }),
+      snapshot: async () => ({ entries: structuredClone(entries), retired }),
       add: async (entry) => {
         if (persistError) throw new Error("disk failed");
         entries.push({ ...entry });
@@ -140,6 +140,13 @@ test("history persistence failure prevents Docker writes", async () => {
   await assert.rejects(h.submit({ id: ID, action: "stop", requestId: KEY }), /disk failed/);
   assert.equal(h.requests.length, 1);
   assert.equal(h.controlState().busy.length, 0);
+});
+
+test("a cleared operation receipt still prevents duplicate Docker execution", async () => {
+  const h = fixture({ retired: [{ id: KEY, containerId: ID, action: "restart", status: "success" }] });
+  assert.equal((await h.submit({ id: ID, action: "restart", requestId: KEY })).status, "success");
+  await assert.rejects(h.submit({ id: ID, action: "stop", requestId: KEY }), { status: 409 });
+  assert.equal(h.requests.length, 0);
 });
 
 test("stop confirms stopped state and uses a bounded graceful timeout", async () => {
@@ -268,4 +275,38 @@ test("corrupt history is not overwritten", async () => {
   await assert.rejects(activity.snapshot());
   await assert.rejects(activity.add({ title: "Restart", status: "pending" }));
   assert.equal(writes, 0);
+});
+
+test("clearing history preserves pending actions and minimal replay receipts across restart, and fails atomically", async () => {
+  let stored = "[]";
+  let fail = false;
+  const mocks = {
+    "./env": { ACTIVITY_FILE: "activity.json" },
+    fs: { promises: { readFile: async () => stored } },
+    "./config": { writeAtomic: async (_file, data) => { if (fail) throw new Error("disk full"); stored = data; } },
+    "./logger": { error() {} },
+  };
+  const activity = load("lib/activity.js", mocks);
+  await activity.add({ id: KEY, title: "Private container name", message: "Private outcome", containerId: ID, action: "restart", status: "success" });
+  await activity.add({ id: "pending-request", title: "Running job", containerId: "b".repeat(64), action: "stop", status: "pending" });
+  await activity.add({ title: "Configuration update" });
+  fail = true;
+  await assert.rejects(activity.clear(), /disk full/);
+  assert.equal((await activity.snapshot()).entries.length, 3);
+  assert.equal((await activity.snapshot()).retired.length, 0);
+  fail = false;
+  const cleared = await activity.clear();
+  assert.equal(cleared.removed, 2);
+  assert.equal(cleared.entries.length, 1);
+  assert.equal(cleared.entries[0].status, "pending");
+  assert.equal(cleared.retired.length, 1);
+  assert.equal(cleared.retired[0].id, KEY);
+  assert.doesNotMatch(stored, /Private container name|Private outcome|Configuration update/);
+  await activity.complete("pending-request", "success", "Stopped");
+  assert.equal((await activity.snapshot()).entries[0].message, "Stopped");
+  const restarted = load("lib/activity.js", mocks);
+  assert.equal((await restarted.snapshot()).retired[0].id, KEY);
+  await assert.rejects(restarted.add({ id: KEY, title: "Duplicate", containerId: ID, action: "restart" }), { status: 409 });
+  assert.equal((await restarted.clear()).entries.length, 0);
+  assert.equal((await restarted.snapshot()).retired.length, 2);
 });

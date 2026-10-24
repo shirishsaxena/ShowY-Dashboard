@@ -109,6 +109,7 @@ test("registry retains the complete API inventory and explicit policy", () => {
     ],
     edit: [
       "GET /api/activity",
+      "DELETE /api/activity",
       "POST /api/docker/action",
       "GET /api/docker/logs",
       "GET /api/logs",

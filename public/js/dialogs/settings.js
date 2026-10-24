@@ -21,6 +21,7 @@ import { field, value } from "./common.js";
 import { ask } from "./ask.js";
 import { openOwnAvailability, clearOutageHistory } from "./availability.js";
 import { refreshClip } from "../clip.js";
+import { refreshActivity } from "../activity.js";
 
 const ACCENTS = [
   "#7c5cff",
@@ -193,10 +194,37 @@ async function clearOutages() {
   });
 }
 
+async function clearActionHistory() {
+  return settingsOperation("activity", ["#clearActivitySettingsBtn", '#storageList [data-clear="activity"]'], async (scope) => {
+    if (!(await ask({
+      title: "Clear action history?",
+      message: "Finished action entries will be removed for every device. In-progress container actions are kept until they finish. This does not stop containers or clear their logs.",
+      okLabel: "Clear history", danger: true,
+    })) || !scope.current()) return;
+    const feedback = $("#activityFeedback");
+    feedback.textContent = "Clearing action history…";
+    try {
+      const data = await settingsRequest(scope, "DELETE", "/api/activity", {});
+      if (!data || !scope.current()) {
+        if (scope.current()) feedback.textContent = "Not completed. Try again.";
+        return;
+      }
+      feedback.textContent = `Cleared ${plural(data.removed, "action")}.${data.entries.length ? " In-progress actions were kept." : ""}`;
+      toast(feedback.textContent);
+      refreshActivity({ fresh: true });
+      showStorage();
+    } catch (err) {
+      if (scope.current()) feedback.textContent = err.message || "Could not clear action history";
+      throw err;
+    }
+  });
+}
+
 const STORAGE_CLEAR = {
   icons: clearIcons,
   clip: clearClipHistory,
   availability: clearOutages,
+  activity: clearActionHistory,
 };
 
 async function showStorage() {
@@ -249,6 +277,7 @@ export function openSettings() {
   $("#settingsFeedback").textContent = "Save applies title, app name, accent, and hidden containers. Other preferences save automatically.";
   $("#settingsFeedback").classList.remove("error");
   $("#logsFeedback").textContent = "";
+  $("#activityFeedback").textContent = "";
   showTab("general");
   showIconCache();
   showStorage();
@@ -749,6 +778,7 @@ export function initSettingsForm() {
     e.target.blur();
   });
   $("#clipClearSettingsBtn").addEventListener("click", clearClipHistory);
+  $("#clearActivitySettingsBtn").addEventListener("click", clearActionHistory);
   $("#clipMax").addEventListener("change", saveClipMax);
   form.addEventListener("submit", async (e) => {
     e.preventDefault();

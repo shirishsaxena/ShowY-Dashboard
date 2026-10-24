@@ -85,10 +85,12 @@ test("authenticated lifecycle action and persistent notifications work through r
   const body = { id, action: "restart", requestId: "integration-request-123456" };
   assert.equal((await call("/api/docker/action", { method: "POST", body, auth: false })).status, 401);
   assert.equal((await call("/api/activity", { auth: false })).status, 401);
+  assert.equal((await call("/api/activity", { method: "DELETE", body: {}, auth: false })).status, 401);
   const login = await call("/api/login", { method: "POST", body: { password: "test-password" } });
   assert.equal(login.status, 200);
   cookie = login.headers.get("set-cookie").split(";")[0];
   assert.equal((await call("/api/docker/action", { method: "POST", body, source: "http://other.test" })).status, 403);
+  assert.equal((await call("/api/activity", { method: "DELETE", body: {}, source: "http://other.test" })).status, 403);
   assert.equal(mutations, 0);
 
   const accepted = await call("/api/docker/action", { method: "POST", body });
@@ -98,6 +100,9 @@ test("authenticated lifecycle action and persistent notifications work through r
   // Acceptance is returned independently of the held Engine operation.
   const busy = await (await call("/api/docker")).json();
   assert.equal(busy.control.busy[0].id, id);
+  const clearingBusy = await (await call("/api/activity", { method: "DELETE", body: {} })).json();
+  assert.equal(clearingBusy.entries[0].id, entry.id);
+  assert.equal(clearingBusy.entries[0].status, "pending");
   assert.equal((await call("/api/docker/action", { method: "POST", body: { ...body, requestId: "another-request-123456" } })).status, 409);
   assert.equal((await call("/api/docker/action", { method: "POST", body })).status, 202);
   for (let i = 0; !held && i < 100; i++) await new Promise((resolve) => setTimeout(resolve, 10));
@@ -124,13 +129,20 @@ test("authenticated lifecycle action and persistent notifications work through r
   assert.ok(history.entries.some((item) => item.title === "Dashboard configuration updated"));
   assert.doesNotMatch(JSON.stringify(history), /test-password|test-read-only-sharing-token/);
 
+  const cleared = await (await call("/api/activity", { method: "DELETE", body: {} })).json();
+  assert.equal(cleared.entries.length, 0);
+  assert.equal(cleared.retired[0].id, entry.id);
+  assert.equal((await call("/api/docker/action", { method: "POST", body })).status, 200);
+  assert.equal(mutations, 1);
+
   const exited = once(child, "exit");
   child.kill();
   await exited;
   origin = await boot();
   // The persisted session key and history both survive the process restart.
   const restored = await (await call("/api/activity")).json();
-  assert.equal(restored.entries.find((item) => item.id === entry.id).status, "success");
+  assert.equal(restored.entries.length, 0);
+  assert.equal(restored.retired.find((item) => item.id === entry.id).status, "success");
   assert.equal((await call("/api/docker/action", { method: "POST", body })).status, 200);
   assert.equal(mutations, 1);
 });
