@@ -65,7 +65,9 @@ async function performRemotesRefresh() {
   const previous = new Map(state.remotes.map((r) => [r.id, r]));
   const ok = await loadRemotes();
   if (state.locked || state.config !== config) return null;
-  state.remotesError = ok ? "" : "Remote dashboard status could not be refreshed";
+  state.remotesError = ok
+    ? ""
+    : "Remote dashboard status could not be refreshed";
   if (!ok)
     state.remotes = state.remotes.map((r) =>
       previous.get(r.id) === r ? { ...r, pollError: state.remotesError } : r,
@@ -153,9 +155,7 @@ async function performLocalRefresh(fresh) {
   };
   // Apply and render each source promptly, but commit the age only after all finish.
   const results = await Promise.allSettled([
-    local
-      ? loadDocker().then((ok) => applied("services", ok))
-      : true,
+    local ? loadDocker().then((ok) => applied("services", ok)) : true,
     local && (fresh || state.stats?.interval !== 0)
       ? loadStats().then((ok) => applied("info", ok))
       : applied("info", true),
@@ -169,7 +169,9 @@ async function performLocalRefresh(fresh) {
       (result) => result.status === "fulfilled" && result.value === true,
     ) &&
     (!local || state.docker.available);
-  state.localError = ok ? "" : "Some required dashboard data could not be refreshed";
+  state.localError = ok
+    ? ""
+    : "Some required dashboard data could not be refreshed";
   if (local && ok) state.localAt = Date.now();
   rerender();
   if (!ok && !fresh)

@@ -15,9 +15,14 @@ function browserModule(file, names, globals) {
 }
 
 function urlHelpers(hostname = "localhost") {
-  return browserModule("utils.js", ["safeUrl", "serviceUrls", "primaryUrl", "monitoringUrl"], {
-    URL, location: { hostname },
-  });
+  return browserModule(
+    "utils.js",
+    ["safeUrl", "serviceUrls", "primaryUrl", "monitoringUrl"],
+    {
+      URL,
+      location: { hostname },
+    },
+  );
 }
 
 // Deliberately small DOM fixture: identity, attributes, focus loss and event ownership.
@@ -257,6 +262,7 @@ test("equal card markup receives fresh notes and QR service objects", () => {
     serviceStatus: () => null,
     containerFor: () => null,
     usageNode: () => null,
+    cardMenuButton: () => null,
     iconBtn: (name, label, onclick) =>
       dom.h("button", { title: label, onclick }),
     openNote: (svc, anchor) => opened.push([svc.notes, anchor]),
@@ -296,71 +302,131 @@ test("card links retain real destinations, accessible icon labels and note/QR ac
     serviceStatus: () => null,
     containerFor: () => null,
     usageNode: () => null,
+    cardMenuButton: () => null,
     iconBtn: (name, label, onclick) =>
       dom.h("button", { "aria-label": label, onclick }, dom.svg(name)),
     openNote: (svc, anchor) => opened.push(["note", svc, anchor]),
     openQr: (svc) => opened.push(["qr", svc]),
   });
   const svc = {
-    id: "long", name: "Long service ".repeat(30),
-    description: "Description".repeat(100), notes: "Real notes",
+    id: "long",
+    name: "Long service ".repeat(30),
+    description: "Description".repeat(100),
+    notes: "Real notes",
     url: `https://${"a".repeat(60)}.example.test:8080/path`,
     altUrl: `https://${"b".repeat(60)}.example.test/path`,
   };
   const card = serviceCard(svc, { id: "server" }, { showServer: true });
-  const links = card.children.find((node) => node.attributes.get("class") === "links");
+  const links = card.children.find(
+    (node) => node.attributes.get("class") === "links",
+  );
   const anchors = links.children.filter((node) => node.nodeName === "a");
   assert.equal(anchors.length, 2);
   for (const [index, anchor] of anchors.entries()) {
     assert.equal(anchor.attributes.get("href"), index ? svc.altUrl : svc.url);
-    assert.equal(anchor.attributes.get("aria-label"), `Open ${index ? "Public" : "Local"} link: ${index ? svc.altUrl : svc.url}`);
+    assert.equal(
+      anchor.attributes.get("aria-label"),
+      `Open ${index ? "Public" : "Local"} link: ${index ? svc.altUrl : svc.url}`,
+    );
     assert.equal(anchor.attributes.get("rel"), "noopener noreferrer");
     assert.equal(anchor.children[0].nodeName, "svg");
     assert.equal(anchor.children[1].attributes.get("class"), "link-label");
     assert.equal(anchor.children[1].textContent, index ? "Public" : "Local");
   }
   const buttons = links.children.filter((node) => node.nodeName === "button");
-  assert.deepEqual(buttons.map((node) => node.attributes.get("aria-label")), ["Notes", "Show QR code"]);
+  assert.deepEqual(
+    buttons.map((node) => node.attributes.get("aria-label")),
+    ["Notes", "Show QR code"],
+  );
   buttons[0].emit("click");
   buttons[1].emit("click");
-  assert.deepEqual(opened, [["note", svc, buttons[0]], ["qr", svc]]);
-  const empty = serviceCard({ id: "empty", name: "Empty", url: "javascript:bad" }, { id: "server" });
-  assert.equal(empty.children.some((node) => node.attributes.get("class") === "links"), false);
+  assert.deepEqual(opened, [
+    ["note", svc, buttons[0]],
+    ["qr", svc],
+  ]);
+  const empty = serviceCard(
+    { id: "empty", name: "Empty", url: "javascript:bad" },
+    { id: "server" },
+  );
+  assert.equal(
+    empty.children.some((node) => node.attributes.get("class") === "links"),
+    false,
+  );
 });
 
 test("canonical cards and favorites open primary and render every safe label as text", () => {
   const dom = fixture();
   const helpers = urlHelpers("dashboard.example.com");
-  const globals = { ...dom, ...helpers, state: { editing: false }, isFavorite: () => false,
-    serviceStatus: () => null, containerFor: () => null, usageNode: () => null,
-    hostPort: () => "", iconBtn: () => null };
-  const { serviceCard } = browserModule("view/cards.js", ["serviceCard"], globals);
-  const { favoriteTile } = browserModule("view/favorites.js", ["favoriteTile"], globals);
-  const svc = { id: "svc", name: "App", url: "https://stale.test", altUrl: "https://stale-alt.test",
+  const globals = {
+    ...dom,
+    ...helpers,
+    state: { editing: false },
+    isFavorite: () => false,
+    serviceStatus: () => null,
+    containerFor: () => null,
+    usageNode: () => null,
+    cardMenuButton: () => null,
+    hostPort: () => "",
+    iconBtn: () => null,
+  };
+  const { serviceCard } = browserModule(
+    "view/cards.js",
+    ["serviceCard"],
+    globals,
+  );
+  const { favoriteTile } = browserModule(
+    "view/favorites.js",
+    ["favoriteTile"],
+    globals,
+  );
+  const svc = {
+    id: "svc",
+    name: "App",
+    url: "https://stale.test",
+    altUrl: "https://stale-alt.test",
     urls: [
-      { label: "<img src=x onerror=alert(1)>", url: "http://local.test:8080/path" },
+      {
+        label: "<img src=x onerror=alert(1)>",
+        url: "http://local.test:8080/path",
+      },
       { label: "Public", url: "https://public.test/path" },
       { label: "VPN " + "long".repeat(14), url: "http://vpn.test/path" },
       { label: "Admin", url: "https://public.test/admin" },
-      { label: "Unsafe", url: "javascript:alert(1)" }, null,
-    ] };
+      { label: "Unsafe", url: "javascript:alert(1)" },
+      null,
+    ],
+  };
   const card = serviceCard(svc, { remote: "peer" });
   assert.equal(card.children[0].attributes.get("href"), svc.urls[0].url);
   assert.equal(favoriteTile(svc, {}).attributes.get("href"), svc.urls[0].url);
-  const links = card.children.find((node) => node.attributes.get("class") === "links");
+  const links = card.children.find(
+    (node) => node.attributes.get("class") === "links",
+  );
   assert.equal(links.children.length, 4);
   links.children.forEach((link, index) => {
     assert.equal(link.attributes.get("href"), svc.urls[index].url);
     assert.equal(link.attributes.get("title"), svc.urls[index].url);
-    assert.equal(link.attributes.get("aria-label"), `Open ${svc.urls[index].label} link: ${svc.urls[index].url}`);
+    assert.equal(
+      link.attributes.get("aria-label"),
+      `Open ${svc.urls[index].label} link: ${svc.urls[index].url}`,
+    );
     assert.equal(link.children[1].textContent, svc.urls[index].label);
     assert.equal(link.children[1].children.length, 0);
   });
   assert.equal(links.children[0].attributes.get("class"), "chip primary-link");
-  for (const urls of [[], null, [{ label: "Unsafe", url: "javascript:bad" }, ...svc.urls.slice(1, 4)]]) {
+  for (const urls of [
+    [],
+    null,
+    [{ label: "Unsafe", url: "javascript:bad" }, ...svc.urls.slice(1, 4)],
+  ]) {
     const raw = { ...svc, urls };
     assert.equal(favoriteTile(raw, {}).nodeName, "div");
-    assert.equal(serviceCard(raw, {}).children.some((node) => node.attributes.get("class") === "main-link"), false);
+    assert.equal(
+      serviceCard(raw, {}).children.some(
+        (node) => node.attributes.get("class") === "main-link",
+      ),
+      false,
+    );
   }
 });
 
@@ -375,23 +441,44 @@ test("QR selector includes all safe labeled URLs and chooses canonical primary w
   const encoded = [];
   $("#qrDialog").showModal = () => opened++;
   const { openQr } = browserModule("dialogs/qr.js", ["openQr"], {
-    ...dom, $, ...urlHelpers("dashboard.example.com"),
-    QR: { toSvg: (url) => { encoded.push(url); return dom.h("svg"); } },
+    ...dom,
+    $,
+    ...urlHelpers("dashboard.example.com"),
+    QR: {
+      toSvg: (url) => {
+        encoded.push(url);
+        return dom.h("svg");
+      },
+    },
   });
-  const urls = ["Local", "Public", "<Admin>", "VPN"].map((label, i) => ({ label, url: `https://app.test/${i}` }));
-  openQr({ name: "App", urls, url: "https://stale.test", altUrl: "https://stale-alt.test" });
+  const urls = ["Local", "Public", "<Admin>", "VPN"].map((label, i) => ({
+    label,
+    url: `https://app.test/${i}`,
+  }));
+  openQr({
+    name: "App",
+    urls,
+    url: "https://stale.test",
+    altUrl: "https://stale-alt.test",
+  });
   assert.equal(opened, 1);
   assert.equal(encoded[0], urls[0].url);
   assert.equal($("#qrSwitch").children.length, 4);
   for (const [index, entry] of urls.entries()) {
     const button = $("#qrSwitch").children[index];
     assert.equal(button.textContent, entry.label);
-    assert.equal(button.attributes.get("aria-label"), `${entry.label}: ${entry.url}`);
+    assert.equal(
+      button.attributes.get("aria-label"),
+      `${entry.label}: ${entry.url}`,
+    );
     assert.equal(button.attributes.get("title"), entry.url);
     button.emit("click");
     assert.equal($("#qrUrl").href, entry.url);
     assert.equal(encoded.at(-1), entry.url);
-    assert.equal($("#qrSwitch").children[index].attributes.get("aria-pressed"), "true");
+    assert.equal(
+      $("#qrSwitch").children[index].attributes.get("aria-pressed"),
+      "true",
+    );
   }
   openQr({ urls: [null, { label: "Bad", url: "javascript:bad" }, ...urls] });
   assert.equal($("#qrSwitch").children.length, 4);
@@ -409,19 +496,42 @@ test("search includes every labeled URL from local and remote services, not cano
     if (!nodes.has(selector)) nodes.set(selector, dom.h("div"));
     return nodes.get(selector);
   };
-  const svc = { name: "App", url: "https://stale.test", urls: [
-    { label: "Local", url: "http://local.test" }, { label: "Public", url: "https://public.test" },
-    { label: "Management console", url: "https://admin.test/unique-path" },
-    { label: "Private VPN", url: "http://vpn.test" },
-  ] };
-  const servers = [{ services: [svc] }, { remote: "peer", services: [{ ...svc, name: "Remote" }] }];
+  const svc = {
+    name: "App",
+    url: "https://stale.test",
+    urls: [
+      { label: "Local", url: "http://local.test" },
+      { label: "Public", url: "https://public.test" },
+      { label: "Management console", url: "https://admin.test/unique-path" },
+      { label: "Private VPN", url: "http://vpn.test" },
+    ],
+  };
+  const servers = [
+    { services: [svc] },
+    { remote: "peer", services: [{ ...svc, name: "Remote" }] },
+  ];
   const results = [];
   const state = { query: "", config: { settings: { links: [] } } };
   const { renderSearch } = browserModule("view/search.js", ["renderSearch"], {
-    ...dom, $, ...urlHelpers(), state, allServers: () => servers, renderLinks() {},
-    serviceCard: (service, server) => { results.push({ service, server }); return dom.h("article"); },
+    ...dom,
+    $,
+    ...urlHelpers(),
+    state,
+    allServers: () => servers,
+    renderLinks() {},
+    serviceCard: (service, server) => {
+      results.push({ service, server });
+      return dom.h("article");
+    },
   });
-  for (const query of ["local.test", "public.test", "management console", "unique-path", "private vpn", "vpn.test"]) {
+  for (const query of [
+    "local.test",
+    "public.test",
+    "management console",
+    "unique-path",
+    "private vpn",
+    "vpn.test",
+  ]) {
     state.query = query;
     results.length = 0;
     renderSearch();
@@ -436,23 +546,59 @@ test("search includes every labeled URL from local and remote services, not cano
 
 test("compact and list CSS keeps actions visible and long content bounded", () => {
   const css = require("./helpers/styles.cjs").readStyles();
-  const rules = (selector) => [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
-    .filter((match) => match[1].trim() === selector).map((match) => match[2]);
+  const rules = (selector) =>
+    [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+      .filter((match) => match[1].trim() === selector)
+      .map((match) => match[2]);
   const listLinks = rules('body[data-layout="list"] #services .card .links');
-  assert.ok(listLinks.some((rule) => /flex-wrap: wrap/.test(rule) && /max-width: 45%/.test(rule)));
+  assert.ok(
+    listLinks.some(
+      (rule) => /flex-wrap: wrap/.test(rule) && /max-width: 45%/.test(rule),
+    ),
+  );
   assert.ok(listLinks.some((rule) => /max-width: 100%/.test(rule)));
-  assert.ok(listLinks.every((rule) => !/display: none|overflow: hidden/.test(rule)));
-  assert.ok(rules('body[data-layout="compact"] #services .card .links a.chip')
-    .some((rule) => /min-height: 32px/.test(rule) && !/(?:^|;)\s*width: 32px/.test(rule)));
+  assert.ok(
+    listLinks.every((rule) => !/display: none|overflow: hidden/.test(rule)),
+  );
+  assert.ok(
+    rules('body[data-layout="compact"] #services .card .links a.chip').some(
+      (rule) =>
+        /min-height: 32px/.test(rule) && !/(?:^|;)\s*width: 32px/.test(rule),
+    ),
+  );
   assert.doesNotMatch(css, /:is\(\.link-label, \.amber, \.grow\)/);
-  assert.doesNotMatch(css, /:is\(\.description, \.links, \.status-label, \.usage\)/);
-  assert.ok(rules('.card .links .link-label').some((rule) => /min-width: 0/.test(rule) && /overflow-wrap: anywhere/.test(rule)));
-  assert.ok(rules('body[data-layout="list"] #services .card').some((rule) => /flex-direction: column/.test(rule)));
-  assert.ok(rules('.service-url-row').some((rule) => /grid-template-columns: minmax\(0, 1fr\);/.test(rule)));
-  assert.ok(rules('#qrSwitch').some((rule) => /flex-wrap: wrap/.test(rule)));
-  const html = fs.readFileSync(path.join(__dirname, "../public/index.html"), "utf8");
-  assert.match(html, /id="serviceAddUrl">Add URL/);
-  assert.match(html, /Only the first\s+URL is health-checked; bookmarks are never monitored/);
+  assert.doesNotMatch(
+    css,
+    /:is\(\.description, \.links, \.status-label, \.usage\)/,
+  );
+  assert.ok(
+    rules(".card .links .link-label").some(
+      (rule) =>
+        /min-width: 0/.test(rule) && /overflow-wrap: anywhere/.test(rule),
+    ),
+  );
+  assert.ok(
+    rules('body[data-layout="list"] #services .card').some((rule) =>
+      /flex-direction: column/.test(rule),
+    ),
+  );
+  assert.ok(
+    rules(".service-url-row").some((rule) =>
+      /grid-template-columns: minmax\(0, 1fr\);/.test(rule),
+    ),
+  );
+  assert.ok(rules("#qrSwitch").some((rule) => /flex-wrap: wrap/.test(rule)));
+  const html = fs.readFileSync(
+    path.join(__dirname, "../public/index.html"),
+    "utf8",
+  );
+  assert.match(html, /id="serviceAddUrl"[^>]*>\s*Add URL/);
+  const normalizedHtml = html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+
+  assert.match(
+    normalizedHtml,
+    /Only the first\s+URL is health-checked; bookmarks are never monitored/,
+  );
   assert.doesNotMatch(html, /name="altUrl"/);
 });
 

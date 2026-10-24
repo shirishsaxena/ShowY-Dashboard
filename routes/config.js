@@ -2,7 +2,12 @@
 
 const { VERSION } = require("../lib/env");
 const { readJson } = require("../lib/http");
-const { readConfig, writeConfig, sanitizeConfig, configRevision } = require("../lib/config");
+const {
+  readConfig,
+  writeConfig,
+  sanitizeConfig,
+  configRevision,
+} = require("../lib/config");
 const { invalidateHealth } = require("../lib/health");
 const tunables = require("../lib/tunables");
 

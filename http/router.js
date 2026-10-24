@@ -4,6 +4,7 @@ const routes = require("../routes/index");
 const auth = require("../lib/auth");
 const { send } = require("../lib/http");
 const logger = require("../lib/logger");
+const { recordRequest } = require("../lib/activity");
 
 async function handleApi(context) {
   const { req, res, pathname } = context;
@@ -19,15 +20,28 @@ async function handleApi(context) {
   if (!route) return send(res, 404, { error: "Not found" });
   if (route.access !== "public") {
     if (!auth.canView(req)) {
-      logger.debug("[Auth] View access denied", { method: req.method, pathname });
+      logger.debug("[Auth] View access denied", {
+        method: req.method,
+        pathname,
+      });
       return send(res, 401, { error: "Locked" });
     }
     if (route.access === "edit" && !auth.isAuthenticated(req)) {
-      logger.debug("[Auth] Edit access denied", { method: req.method, pathname });
+      logger.debug("[Auth] Edit access denied", {
+        method: req.method,
+        pathname,
+      });
       return send(res, 401, { error: "Login required" });
     }
   }
-  const result = await route.handler(req, res, context);
+  let result;
+  try {
+    result = await route.handler(req, res, context);
+  } catch (err) {
+    await recordRequest(`${req.method} ${pathname}`, err.status || 500);
+    throw err;
+  }
+  await recordRequest(`${req.method} ${pathname}`, res.statusCode || 200);
   if (!res.headersSent && result !== undefined) {
     return send(res, 200, result);
   }

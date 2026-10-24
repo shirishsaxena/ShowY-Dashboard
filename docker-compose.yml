@@ -3,6 +3,8 @@ services:
     build: .
     container_name: showy-dashy
     restart: unless-stopped
+    labels:
+      showy.protected: "true"
     # Console history is separate from application file rotation/clear.
     logging:
       driver: json-file
@@ -14,11 +16,15 @@ services:
       # 127.0.0.1:8080:8080 instead; see README hardened deployment guidance.
       - "8080:8080"
     environment:
-      # Optional password. Empty = no password (fine on a trusted LAN).
-      # Put it here, DASHBOARD_PASSWORD: "your-password-here"
-      # DASHBOARD_PASSWORD: ""
-      # (in this file write a literal $ as $$).
+      # Optional BASE64-ENCODED UTF-8 password. Empty = password protection off.
+      # Generate: printf '%s' 'your-password' | base64 | tr -d '\r\n'
+      # Paste the output below; log in with the original password, not Base64.
+      # Invalid Base64 prevents startup. Encoding is NOT encryption.
       DASHBOARD_PASSWORD: ""
+      # Optional local Start/Restart/Stop. Requires a nonempty password and login.
+      DOCKER_CONTROL: false
+      # Additional protected container names or full IDs, comma-separated.
+      # DOCKER_PROTECTED_CONTAINERS: "database,reverse-proxy"
       # Only used when a password is set:
       #   true  = everything is behind a lock screen (use on a public VPS)
       #   false = anyone can view, only editing needs the password

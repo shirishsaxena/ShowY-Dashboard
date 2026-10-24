@@ -5,7 +5,8 @@ const remotes = require("../lib/remotes");
 const { getServerInfo } = require("../lib/serverinfo");
 
 async function authorizePeer(req) {
-  const token = /^Bearer\s+(\S+)$/i.exec(req.headers.authorization || "")?.[1] || "";
+  const token =
+    /^Bearer\s+(\S+)$/i.exec(req.headers.authorization || "")?.[1] || "";
   if (!(await remotes.peerAuthorized(token))) {
     throw new HttpError(401, "Invalid share token");
   }
@@ -42,7 +43,8 @@ module.exports = {
   "PUT /api/share": {
     access: "edit",
     body: "json",
-    handler: async (req) => remotes.setSharing(Boolean((await readJson(req)).enabled)),
+    handler: async (req) =>
+      remotes.setSharing(Boolean((await readJson(req)).enabled)),
   },
   "PUT /api/remotes/interval": {
     access: "edit",

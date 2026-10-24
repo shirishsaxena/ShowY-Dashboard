@@ -39,20 +39,24 @@ export function ask({
       result = label ? input.value.trim() || null : true;
       dialog.close();
     };
-    dialog.addEventListener("close", () => {
-      resolve(result);
-      // Callers may disable the opener while awaiting this prompt. Give their
-      // cleanup a chance to re-enable it before restoring keyboard focus.
-      requestAnimationFrame(() => {
-        if (!opener?.isConnected || opener.disabled || dialog.open) return;
-        const active = document.activeElement;
-        const parent = opener.closest("dialog");
-        if (parent && !parent.open) return;
-        if (document.querySelector("dialog:modal") !== parent) return;
-        if (active === document.body || dialog.contains(active))
-          opener.focus({ preventScroll: true });
-      });
-    }, { once: true });
+    dialog.addEventListener(
+      "close",
+      () => {
+        resolve(result);
+        // Callers may disable the opener while awaiting this prompt. Give their
+        // cleanup a chance to re-enable it before restoring keyboard focus.
+        requestAnimationFrame(() => {
+          if (!opener?.isConnected || opener.disabled || dialog.open) return;
+          const active = document.activeElement;
+          const parent = opener.closest("dialog");
+          if (parent && !parent.open) return;
+          if (document.querySelector("dialog:modal") !== parent) return;
+          if (active === document.body || dialog.contains(active))
+            opener.focus({ preventScroll: true });
+        });
+      },
+      { once: true },
+    );
     dialog.showModal();
     if (label) {
       input.focus();

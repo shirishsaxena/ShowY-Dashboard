@@ -5,8 +5,9 @@ const publicDir = path.join(__dirname, "../../public");
 
 function styleUrls() {
   const html = fs.readFileSync(path.join(publicDir, "index.html"), "utf8");
-  return [...html.matchAll(/<link rel="stylesheet" href="([^"]+)"\s*\/>/g)]
-    .map((match) => match[1]);
+  return [...html.matchAll(/<link rel="stylesheet" href="([^"]+)"\s*\/>/g)].map(
+    (match) => match[1],
+  );
 }
 
 function readStyles() {

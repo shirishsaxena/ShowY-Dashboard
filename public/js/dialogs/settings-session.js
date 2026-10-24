@@ -34,7 +34,12 @@ export function protectSettingsControl(key, control) {
 }
 
 /** Lock a settings resource before any prompt/await; release before applying data. */
-export async function settingsOperation(key, selectors, work, { loading = false, replace = false } = {}) {
+export async function settingsOperation(
+  key,
+  selectors,
+  work,
+  { loading = false, replace = false } = {},
+) {
   if (!active) return null;
   if (!loading && ready.get(key) === false) return null;
   if (pending.has(key)) {
@@ -47,11 +52,18 @@ export async function settingsOperation(key, selectors, work, { loading = false,
   const version = (versions.get(key) || 0) + 1;
   versions.set(key, version);
   const controller = new AbortController();
-  const controls = selectors.flatMap((selector) =>
-    typeof selector === "string" ? [...document.querySelectorAll(selector)] : [selector],
-  ).map((control) => [control, control.disabled]);
-  const focused = controls.some(([control]) => control === document.activeElement)
-    ? document.activeElement : null;
+  const controls = selectors
+    .flatMap((selector) =>
+      typeof selector === "string"
+        ? [...document.querySelectorAll(selector)]
+        : [selector],
+    )
+    .map((control) => [control, control.disabled]);
+  const focused = controls.some(
+    ([control]) => control === document.activeElement,
+  )
+    ? document.activeElement
+    : null;
   let released = false;
   const release = (disabledOverride, restoreFocus = false) => {
     if (released) return;
@@ -60,11 +72,18 @@ export async function settingsOperation(key, selectors, work, { loading = false,
       control.disabled = disabledOverride ?? disabled;
     // Disabling an input can move focus to the dialog/body. Do not steal it
     // from a different control, or restore it when ending an old session.
-    if (restoreFocus && focused?.isConnected && !focused.disabled &&
-        (!document.activeElement || document.activeElement === document.body ||
-         document.activeElement.id === "settingsDialog")) focused.focus();
+    if (
+      restoreFocus &&
+      focused?.isConnected &&
+      !focused.disabled &&
+      (!document.activeElement ||
+        document.activeElement === document.body ||
+        document.activeElement.id === "settingsDialog")
+    )
+      focused.focus();
   };
-  const current = () => active && session === generation && versions.get(key) === version;
+  const current = () =>
+    active && session === generation && versions.get(key) === version;
   const scope = {
     current,
     release: (disabledOverride) => {
@@ -75,7 +94,8 @@ export async function settingsOperation(key, selectors, work, { loading = false,
     signal: controller.signal,
   };
   pending.set(key, {
-    controller, release,
+    controller,
+    release,
     protect: (control) => {
       if (released) return;
       controls.push([control, control.disabled]);
@@ -97,9 +117,16 @@ export async function settingsOperation(key, selectors, work, { loading = false,
 }
 
 /** All Settings endpoints, including the binary log download, share edit recovery. */
-export async function settingsRequest(scope, method, url, body, responseType = "json") {
+export async function settingsRequest(
+  scope,
+  method,
+  url,
+  body,
+  responseType = "json",
+) {
   const result = await editApi(method, url, body, { ...scope, responseType });
   if (!result || !scope.current()) return null;
-  if (!result.res.ok) throw new Error(result.data.error || `Failed (${result.res.status})`);
+  if (!result.res.ok)
+    throw new Error(result.data.error || `Failed (${result.res.status})`);
   return result.data;
 }

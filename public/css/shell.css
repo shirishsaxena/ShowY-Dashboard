@@ -1,4 +1,3 @@
-
 /* ---------- Top bar ---------- */
 .topbar {
   position: sticky;
@@ -166,4 +165,3 @@
   display: flex;
   gap: 8px;
 }
-

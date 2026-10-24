@@ -28,6 +28,7 @@ function fixture({ view = true, edit = true } = {}) {
     },
     "../lib/http": { send },
     "../lib/logger": { debug() {} },
+    "../lib/activity": { recordRequest: async () => {} },
   };
   vm.runInNewContext(
     `(function(require, module) {\n${fs.readFileSync(filename, "utf8")}\n})`,
@@ -35,11 +36,17 @@ function fixture({ view = true, edit = true } = {}) {
     { filename },
   )((name) => mocks[name], module);
   return {
-    get calls() { return calls; },
+    get calls() {
+      return calls;
+    },
     async request(pathname, method = "GET", contentType = "") {
       const res = {
-        writeHead(status) { this.status = status; },
-        end(body) { this.body = JSON.parse(body); },
+        writeHead(status) {
+          this.status = status;
+        },
+        end(body) {
+          this.body = JSON.parse(body);
+        },
       };
       await module.exports.handleApi({
         pathname,
@@ -55,18 +62,36 @@ test("router preserves public, view and edit authorization", async () => {
   const locked = fixture({ view: false, edit: false });
   assert.equal((await locked.request("/api/public")).status, 200);
   assert.deepEqual(await locked.request("/api/view"), {
-    status: 401, body: { error: "Locked" },
+    status: 401,
+    body: { error: "Locked" },
   });
-  assert.deepEqual(await locked.request("/api/edit", "PUT", "application/json"), {
-    status: 401, body: { error: "Locked" },
-  });
+  assert.deepEqual(
+    await locked.request("/api/edit", "PUT", "application/json"),
+    {
+      status: 401,
+      body: { error: "Locked" },
+    },
+  );
   assert.equal(locked.calls, 1);
   const readOnly = fixture({ edit: false });
   assert.equal((await readOnly.request("/api/view")).status, 200);
-  assert.deepEqual(await readOnly.request("/api/edit", "PUT", "application/json"), {
-    status: 401, body: { error: "Login required" },
-  });
-  assert.equal((await fixture().request("/api/edit", "PUT", "application/json; charset=utf-8")).status, 200);
+  assert.deepEqual(
+    await readOnly.request("/api/edit", "PUT", "application/json"),
+    {
+      status: 401,
+      body: { error: "Login required" },
+    },
+  );
+  assert.equal(
+    (
+      await fixture().request(
+        "/api/edit",
+        "PUT",
+        "application/json; charset=utf-8",
+      )
+    ).status,
+    200,
+  );
 });
 
 test("router preserves content-type validation before matching and authorization", async () => {
@@ -74,7 +99,10 @@ test("router preserves content-type validation before matching and authorization
   assert.equal((await router.request("/api/edit", "PUT")).status, 415);
   assert.equal((await router.request("/api/missing", "POST")).status, 415);
   assert.equal((await router.request("/api/missing", "HEAD")).status, 415);
-  assert.equal((await router.request("/api/missing", "POST", "application/json")).status, 404);
+  assert.equal(
+    (await router.request("/api/missing", "POST", "application/json")).status,
+    404,
+  );
   assert.equal((await router.request("/api/missing")).status, 404);
   assert.equal(router.calls, 0);
 });
@@ -94,6 +122,7 @@ test("registry retains the complete API inventory and explicit policy", () => {
       "GET /api/tunables",
       "GET /api/docker",
       "GET /api/docker/stats",
+      "GET /api/docker/details",
       "GET /api/stats",
       "GET /api/health",
       "GET /api/storage",
@@ -107,6 +136,10 @@ test("registry retains the complete API inventory and explicit policy", () => {
       "GET /api/remotes",
     ],
     edit: [
+      "GET /api/activity",
+      "DELETE /api/activity",
+      "POST /api/docker/action",
+      "GET /api/docker/logs",
       "GET /api/logs",
       "DELETE /api/logs",
       "PUT /api/tunables",
@@ -125,11 +158,18 @@ test("registry retains the complete API inventory and explicit policy", () => {
       "PUT /api/remotes/interval",
     ],
   };
-  assert.deepEqual(Object.keys(routes).sort(), Object.values(expected).flat().sort());
+  assert.deepEqual(
+    Object.keys(routes).sort(),
+    Object.values(expected).flat().sort(),
+  );
   for (const [access, keys] of Object.entries(expected)) {
     for (const key of keys) {
       assert.equal(routes[key].access, access, key);
-      assert.equal(routes[key].body, key.startsWith("GET ") ? "none" : "json", key);
+      assert.equal(
+        routes[key].body,
+        key.startsWith("GET ") ? "none" : "json",
+        key,
+      );
       assert.equal(typeof routes[key].handler, "function", key);
     }
   }

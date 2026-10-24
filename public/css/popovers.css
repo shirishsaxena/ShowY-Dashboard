@@ -232,3 +232,320 @@ button.clip-entry-text:hover {
 .note-text a {
   color: var(--accent-2);
 }
+
+/* ---------- Card actions ---------- */
+.card .card-menu-btn {
+  position: relative;
+  z-index: 2; /* Above the card-wide link. */
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+}
+.card .card-menu-btn svg {
+  width: 14px;
+  height: 14px;
+}
+.card-menu {
+  width: min(210px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  padding: 4px;
+  border-radius: 12px;
+}
+.card-menu:popover-open {
+  gap: 2px;
+}
+.card-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+}
+.card-menu-item svg {
+  width: 14px;
+  height: 14px;
+}
+.card-menu-item small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+.card-menu-item:hover:not(:disabled),
+.card-menu-item:focus-visible {
+  background: var(--card-hover);
+}
+.card-menu-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.card-menu-item:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+.card-menu-item.danger:not(:disabled) {
+  color: var(--red);
+}
+.container-operation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--amber);
+  font-size: 0.75rem;
+}
+.container-operation svg {
+  width: 13px;
+  height: 13px;
+}
+@media (pointer: coarse) {
+  .card .card-menu-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .card-menu-item {
+    min-height: 44px;
+  }
+}
+
+/* ---------- On-demand Docker log snapshots ---------- */
+dialog.docker-logs-dialog {
+  width: min(900px, calc(100vw - 24px));
+  height: min(720px, calc(100dvh - 24px));
+}
+.docker-logs-dialog > form {
+  height: 100%;
+}
+.docker-logs-body {
+  flex: 1;
+  min-height: 0;
+}
+.docker-logs-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.docker-logs-toolbar select {
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+.docker-logs-output {
+  flex: 1;
+  min-height: 100px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text);
+  font:
+    0.78rem/1.6 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+}
+.docker-logs-output:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.docker-log-line {
+  display: grid;
+  grid-template-columns: 4ch minmax(0, 1fr);
+  gap: 12px;
+  min-height: 1.6em;
+}
+.docker-log-number {
+  padding-right: 8px;
+  border-right: 1px solid var(--border);
+  color: var(--muted);
+  text-align: right;
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.docker-log-number::before {
+  content: attr(data-line);
+}
+.docker-log-text {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Full service preview ---------- */
+dialog.service-preview-dialog {
+  width: min(640px, calc(100vw - 24px));
+}
+.service-preview-section h3 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+.service-preview-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+  line-height: 1.65;
+}
+.service-preview-details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 14px;
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+.service-preview-details dt {
+  color: var(--muted);
+}
+.service-preview-details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.service-preview-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.service-preview-links a {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 0.82rem;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.service-preview-links a:hover {
+  background: var(--card-hover);
+}
+.service-preview-links a span {
+  color: var(--muted);
+}
+.preview-service-details,
+.preview-docker-details {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.preview-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.preview-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.preview-metric span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.preview-metric strong {
+  font-size: 0.95rem;
+}
+.preview-detail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Notification history ---------- */
+#activityBtn {
+  position: relative;
+}
+.menu.activity-menu {
+  width: min(420px, calc(100vw - 16px));
+}
+.activity-head {
+  align-items: center;
+}
+.activity-head h2 {
+  margin: 0;
+}
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(55dvh, 440px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.activity-entry {
+  padding: 10px;
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  overflow-wrap: anywhere;
+}
+.activity-entry-head,
+.activity-entry-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.activity-entry-head {
+  font-size: 0.85rem;
+}
+.activity-entry-head svg {
+  width: 15px;
+  height: 15px;
+}
+.activity-entry-meta {
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+.activity-entry p {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.activity-success .activity-entry-head svg {
+  color: var(--green);
+}
+.activity-failed .activity-entry-head svg {
+  color: var(--red);
+}
+.activity-uncertain .activity-entry-head svg,
+.activity-pending .activity-entry-head svg {
+  color: var(--amber);
+}

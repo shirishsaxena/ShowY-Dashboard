@@ -3,7 +3,13 @@
 
 const http = require("http");
 const { handleRequest } = require("./http/handler");
-const { VERSION, PORT, CONFIG_FILE, PASSWORD, LOCK_VIEW } = require("./lib/env");
+const {
+  VERSION,
+  PORT,
+  CONFIG_FILE,
+  PASSWORD,
+  LOCK_VIEW,
+} = require("./lib/env");
 const auth = require("./lib/auth");
 const availability = require("./lib/availability");
 const logger = require("./lib/logger");
@@ -49,7 +55,11 @@ async function start() {
   server.once("close", removeSignalHandlers);
 
   try {
-    logger.startup("[Lifecycle] Starting dashboard", { version: VERSION, config: CONFIG_FILE, logFile: logger.filename });
+    logger.startup("[Lifecycle] Starting dashboard", {
+      version: VERSION,
+      config: CONFIG_FILE,
+      logFile: logger.filename,
+    });
     await Promise.all([auth.initAuth(), availability.init()]);
     if (shuttingDown) return server;
     await new Promise((resolve, reject) => {

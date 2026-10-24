@@ -91,21 +91,51 @@ class Element {
 }
 
 function serviceTypeHarness() {
-  const stateModule = browserModule("js/state.js", ["state", "sourceOf", "normalizeConfig", "allServers"], {
-    localStorage: { getItem: () => null },
+  const stateModule = browserModule(
+    "js/state.js",
+    ["state", "sourceOf", "normalizeConfig", "allServers"],
+    {
+      localStorage: { getItem: () => null },
+    },
+  );
+  const utils = browserModule(
+    "js/utils.js",
+    ["norm", "portOf", "plural", "serviceUrls", "monitoringUrl", "primaryUrl"],
+    {
+      URL,
+      location: { hostname: "localhost" },
+    },
+  );
+  const h = (tag, attrs, ...children) => ({
+    tag,
+    attrs,
+    children: children.flat(Infinity).filter((x) => x != null),
   });
-  const utils = browserModule("js/utils.js", ["norm", "portOf", "plural", "serviceUrls", "monitoringUrl", "primaryUrl"], {
-    URL, location: { hostname: "localhost" },
-  });
-  const h = (tag, attrs, ...children) => ({ tag, attrs, children: children.flat(Infinity).filter((x) => x != null) });
-  const status = browserModule("js/status.js", ["containerFor", "containerStatus", "serviceStatus", "serverCounts", "statusNode", "duplicateHosts"], {
-    ...utils, sourceOf: stateModule.sourceOf, h, URL,
-  });
+  const status = browserModule(
+    "js/status.js",
+    [
+      "containerFor",
+      "containerStatus",
+      "serviceStatus",
+      "serverCounts",
+      "statusNode",
+      "duplicateHosts",
+    ],
+    {
+      ...utils,
+      sourceOf: stateModule.sourceOf,
+      h,
+      URL,
+    },
+  );
   const { state } = stateModule;
-  state.docker = { available: true, containers: [
-    { name: "app", state: "running", status: "Up", ports: [8080] },
-    { name: "stopped", state: "exited", status: "Exited", ports: [] },
-  ] };
+  state.docker = {
+    available: true,
+    containers: [
+      { name: "app", state: "running", status: "Up", ports: [8080] },
+      { name: "stopped", state: "exited", status: "Exited", ports: [] },
+    ],
+  };
   return { ...stateModule, ...utils, ...status, h };
 }
 
@@ -117,18 +147,35 @@ test("typed matching excludes web/bookmarks and Docker has no automatic fallback
   assert.equal(h.containerFor({ ...base, name: "other" }, server).name, "app");
   assert.equal(h.containerFor({ ...base, url: "" }, server).name, "app");
   assert.equal(h.containerFor({ ...base, type: "docker" }, server), null);
-  assert.equal(h.containerFor({ ...base, type: "docker", container: "missing" }, server), null);
-  assert.equal(h.containerFor({ ...base, type: "docker", container: "APP" }, server).name, "app");
+  assert.equal(
+    h.containerFor({ ...base, type: "docker", container: "missing" }, server),
+    null,
+  );
+  assert.equal(
+    h.containerFor({ ...base, type: "docker", container: "APP" }, server).name,
+    "app",
+  );
   for (const type of ["web", "bookmark", "future", "", null])
-    assert.equal(h.containerFor({ ...base, type, container: "app" }, server), undefined);
+    assert.equal(
+      h.containerFor({ ...base, type, container: "app" }, server),
+      undefined,
+    );
   h.state.docker.available = false;
-  assert.equal(h.containerFor({ ...base, type: "docker", container: "app" }, server), undefined);
+  assert.equal(
+    h.containerFor({ ...base, type: "docker", container: "app" }, server),
+    undefined,
+  );
 });
 
 test("typed statuses ignore cached bookmark health, use HTTP-only web and require Docker evidence", () => {
   const h = serviceTypeHarness();
   const server = { local: true };
-  const svc = { id: "svc", name: "app", url: "http://host:8080", container: "app" };
+  const svc = {
+    id: "svc",
+    name: "app",
+    url: "http://host:8080",
+    container: "app",
+  };
   h.state.health.svc = { state: "down", error: "refused" };
   const bookmark = h.serviceStatus({ ...svc, type: "bookmark" }, server);
   assert.equal(bookmark.level, "neutral");
@@ -136,32 +183,66 @@ test("typed statuses ignore cached bookmark health, use HTTP-only web and requir
   assert.doesNotMatch(bookmark.title, /HTTP|Docker|refused/);
   assert.equal(h.statusNode(bookmark).attrs.class, "status neutral");
   assert.equal(h.serviceStatus({ ...svc, type: "web" }, server).level, "down");
-  assert.doesNotMatch(h.serviceStatus({ ...svc, type: "web" }, server).title, /Docker|Container/);
-  assert.equal(h.serviceStatus({ ...svc, type: "docker" }, server).level, "warn");
+  assert.doesNotMatch(
+    h.serviceStatus({ ...svc, type: "web" }, server).title,
+    /Docker|Container/,
+  );
+  assert.equal(
+    h.serviceStatus({ ...svc, type: "docker" }, server).level,
+    "warn",
+  );
   h.state.health.svc = { state: "up", code: 200, ms: 2 };
   assert.equal(h.serviceStatus({ ...svc, type: "docker" }, server).level, "up");
-  assert.equal(h.serviceStatus({ ...svc, type: "docker", container: "stopped" }, server).level, "down");
+  assert.equal(
+    h.serviceStatus({ ...svc, type: "docker", container: "stopped" }, server)
+      .level,
+    "down",
+  );
   for (const container of ["", "missing"]) {
-    assert.equal(h.serviceStatus({ ...svc, type: "docker", container }, server).level, "unknown");
-    assert.equal(h.serviceStatus({ ...svc, container: "missing" }, server).level, "up");
+    assert.equal(
+      h.serviceStatus({ ...svc, type: "docker", container }, server).level,
+      "unknown",
+    );
+    assert.equal(
+      h.serviceStatus({ ...svc, container: "missing" }, server).level,
+      "up",
+    );
   }
   h.state.docker.available = false;
-  assert.equal(h.serviceStatus({ ...svc, type: "docker" }, server).label, "Docker unavailable");
+  assert.equal(
+    h.serviceStatus({ ...svc, type: "docker" }, server).label,
+    "Docker unavailable",
+  );
   assert.equal(h.serviceStatus({ ...svc, type: "web" }, server).level, "up");
   assert.equal(h.serviceStatus(svc, server).level, "up");
   h.state.docker.available = true;
-  assert.equal(h.serviceStatus({ ...svc, type: "docker" }, { local: false }).level, "unknown");
+  assert.equal(
+    h.serviceStatus({ ...svc, type: "docker" }, { local: false }).level,
+    "unknown",
+  );
   for (const type of [null, "", "tcp"])
-    assert.equal(h.serviceStatus({ ...svc, type }, server).label, "Unknown type");
+    assert.equal(
+      h.serviceStatus({ ...svc, type }, server).label,
+      "Unknown type",
+    );
   h.state.health.svc = { state: "error", code: 404, ms: 1 };
-  assert.equal(h.serviceStatus({ ...svc, type: "web" }, server).label, "Not found");
+  assert.equal(
+    h.serviceStatus({ ...svc, type: "web" }, server).label,
+    "Not found",
+  );
   delete h.state.health.svc;
   assert.equal(h.serviceStatus({ ...svc, type: "web" }, server), null);
 });
 
 test("type transitions immediately ignore stale health/resources and remote types use their own source", () => {
   const h = serviceTypeHarness();
-  const svc = { id: "svc", name: "app", type: "docker", container: "app", url: "http://host:8080" };
+  const svc = {
+    id: "svc",
+    name: "app",
+    type: "docker",
+    container: "app",
+    url: "http://host:8080",
+  };
   const server = { local: true, services: [svc] };
   h.state.health.svc = { state: "up", code: 200, ms: 1 };
   assert.equal(h.serviceStatus(svc, server).level, "up");
@@ -174,9 +255,16 @@ test("type transitions immediately ignore stale health/resources and remote type
   svc.type = "docker";
   svc.container = "missing";
   assert.equal(h.serviceStatus(svc, server).level, "unknown");
-  const remote = { id: "remote", docker: { available: true, containers: [
-    { name: "app", state: "exited", status: "Exited", ports: [8080] },
-  ] }, health: { svc: { state: "down", error: "remote failure" } } };
+  const remote = {
+    id: "remote",
+    docker: {
+      available: true,
+      containers: [
+        { name: "app", state: "exited", status: "Exited", ports: [8080] },
+      ],
+    },
+    health: { svc: { state: "down", error: "remote failure" } },
+  };
   h.state.remotes = [remote];
   server.remote = "remote";
   svc.container = "app";
@@ -191,15 +279,30 @@ test("type transitions immediately ignore stale health/resources and remote type
 
 test("summary and server counts exclude bookmarks from health while retaining truthful service totals", () => {
   const h = serviceTypeHarness();
-  const server = { id: "host", local: true, services: [
-    { id: "web", name: "Web", type: "web", url: "http://web.test" },
-    { id: "bookmark", name: "Bookmark", type: "bookmark", url: "http://link.test" },
-    { id: "docker", name: "Docker", type: "docker", container: "missing" },
-  ] };
+  const server = {
+    id: "host",
+    local: true,
+    services: [
+      { id: "web", name: "Web", type: "web", url: "http://web.test" },
+      {
+        id: "bookmark",
+        name: "Bookmark",
+        type: "bookmark",
+        url: "http://link.test",
+      },
+      { id: "docker", name: "Docker", type: "docker", container: "missing" },
+    ],
+  };
   h.state.config.servers = [server];
-  h.state.health = { web: { state: "up", code: 200 }, bookmark: { state: "down" } };
+  h.state.health = {
+    web: { state: "up", code: 200 },
+    bookmark: { state: "down" },
+  };
   const { summary } = browserModule("js/view/render.js", ["summary"], h);
-  assert.equal(JSON.stringify(h.serverCounts(server)), JSON.stringify({ up: 1, warn: 0, down: 0 }));
+  assert.equal(
+    JSON.stringify(h.serverCounts(server)),
+    JSON.stringify({ up: 1, warn: 0, down: 0 }),
+  );
   assert.match(summary(), /3 services · 1\/1 online/);
   server.services = [server.services[1]];
   assert.match(summary(), /1 service$/);
@@ -208,38 +311,93 @@ test("summary and server counts exclude bookmarks from health while retaining tr
 
 test("unlisted discovery ignores Web/Bookmark membership and adds explicitly bound Docker services", async () => {
   const status = serviceTypeHarness();
-  status.state.docker.containers = [{ name: "app", image: "app:latest", state: "running", status: "Up", ports: [8080] }];
-  const server = { id: "host", local: true, mainUrl: "http://host.test", services: [
-    { id: "web", type: "web", name: "app", container: "app", url: "http://host:8080" },
-    { id: "bookmark", type: "bookmark", name: "app", container: "app", url: "http://host:8080" },
-  ] };
+  status.state.docker.containers = [
+    {
+      name: "app",
+      image: "app:latest",
+      state: "running",
+      status: "Up",
+      ports: [8080],
+    },
+  ];
+  const server = {
+    id: "host",
+    local: true,
+    mainUrl: "http://host.test",
+    services: [
+      {
+        id: "web",
+        type: "web",
+        name: "app",
+        container: "app",
+        url: "http://host:8080",
+      },
+      {
+        id: "bookmark",
+        type: "bookmark",
+        name: "app",
+        container: "app",
+        url: "http://host:8080",
+      },
+    ],
+  };
   status.state.config.servers = [server];
   const section = {};
   const adds = [];
   const nodes = [];
-  const { renderUnlisted } = browserModule("js/view/containers.js", ["renderUnlisted"], {
-    ...status,
-    h: (tag, attrs, ...children) => {
-      const node = { tag, attrs, children: children.flat(Infinity), addEventListener() {} };
-      nodes.push(node);
-      return node;
+  const { renderUnlisted } = browserModule(
+    "js/view/containers.js",
+    ["renderUnlisted"],
+    {
+      ...status,
+      h: (tag, attrs, ...children) => {
+        const node = {
+          tag,
+          attrs,
+          children: children.flat(Infinity),
+          addEventListener() {},
+        };
+        nodes.push(node);
+        return node;
+      },
+      $: () => section,
+      fill: (node, contents) => {
+        node.contents = contents;
+      },
+      prefs: { unlistedOpen: true },
+      setPref() {},
+      hostOf: () => "host.test",
+      location: { hostname: "localhost" },
+      svg: () => null,
+      iconNode: () => null,
+      iconBtn: () => null,
+      external: {},
+      usageNode: () => null,
+      groupUsageNode: () => null,
+      cardMenuButton: () => null,
+      containerLogItem: () => ({}),
+      containerControlItems: () => [],
+      containerOperationNode: () => null,
+      actions: { ensureCanEdit: async () => true },
+      openServiceEditor: (...args) => adds.push(args),
     },
-    $: () => section, fill: (node, contents) => { node.contents = contents; },
-    prefs: { unlistedOpen: true }, setPref() {}, hostOf: () => "host.test",
-    location: { hostname: "localhost" }, svg: () => null, iconNode: () => null,
-    iconBtn: () => null, external: {}, usageNode: () => null, groupUsageNode: () => null,
-    actions: { ensureCanEdit: async () => true },
-    openServiceEditor: (...args) => adds.push(args),
-  });
+  );
   renderUnlisted(server);
   assert.equal(section.hidden, false);
   assert.match(JSON.stringify(section.contents), /1 Docker container/);
-  const add = nodes.find((node) => node.tag === "button" && node.children.includes("Add"));
+  const add = nodes.find(
+    (node) => node.tag === "button" && node.children.includes("Add"),
+  );
   assert.ok(add);
   await add.attrs.onclick();
   assert.equal(adds[0][2].type, "docker");
   assert.equal(adds[0][2].container, "app");
-  server.services.push({ id: "docker", name: "Docker", type: "docker", container: "app" });
+  server.services.push({
+    id: "docker",
+    name: "Docker",
+    type: "docker",
+    container: "app",
+  });
   renderUnlisted(server);
   assert.equal(section.hidden, true);
   server.services.at(-1).container = "missing";
@@ -255,17 +413,39 @@ test("unlisted discovery ignores Web/Bookmark membership and adds explicitly bou
 test("remote browser loading preserves service types, legacy omission and originating health", () => {
   const h = serviceTypeHarness();
   const { remoteEntry } = browserModule("js/api.js", ["remoteEntry"], {
-    state: h.state, normalizeConfig: h.normalizeConfig,
+    state: h.state,
+    normalizeConfig: h.normalizeConfig,
   });
-  const remote = remoteEntry({ id: "peer", name: "Peer", ok: true, age: 0, lastOk: 1,
-    docker: h.state.docker, usage: { stats: {} }, health: { bookmark: { state: "down" } },
-    servers: [{ id: "host", local: true, services: [
-      { id: "bookmark", name: "Bookmark", type: "bookmark", url: "https://link.test" },
-      { id: "web", name: "Web", type: "web", url: "https://web.test" },
-      { id: "docker", name: "Docker", type: "docker", container: "app" },
-      { id: "legacy", name: "Legacy" },
-    ] }],
-  }, 1);
+  const remote = remoteEntry(
+    {
+      id: "peer",
+      name: "Peer",
+      ok: true,
+      age: 0,
+      lastOk: 1,
+      docker: h.state.docker,
+      usage: { stats: {} },
+      health: { bookmark: { state: "down" } },
+      servers: [
+        {
+          id: "host",
+          local: true,
+          services: [
+            {
+              id: "bookmark",
+              name: "Bookmark",
+              type: "bookmark",
+              url: "https://link.test",
+            },
+            { id: "web", name: "Web", type: "web", url: "https://web.test" },
+            { id: "docker", name: "Docker", type: "docker", container: "app" },
+            { id: "legacy", name: "Legacy" },
+          ],
+        },
+      ],
+    },
+    1,
+  );
   h.state.remotes = [remote];
   const server = remote.servers[0];
   assert.equal(server.remote, "peer");
@@ -278,32 +458,95 @@ test("remote browser loading preserves service types, legacy omission and origin
 });
 
 test("URL helpers preserve legacy LAN/public selection but canonical first wins everywhere", () => {
-  for (const hostname of ["localhost", "192.168.1.2", "dashboard.example.com"]) {
-    const helpers = browserModule("js/utils.js", ["serviceUrls", "monitoringUrl", "primaryUrl"], { URL, location: { hostname } });
-    const svc = { url: "http://local.test:8080", altUrl: "https://public.test" };
-    assert.equal(helpers.primaryUrl(svc), hostname === "dashboard.example.com" ? "https://public.test/" : "http://local.test:8080/");
+  for (const hostname of [
+    "localhost",
+    "192.168.1.2",
+    "dashboard.example.com",
+  ]) {
+    const helpers = browserModule(
+      "js/utils.js",
+      ["serviceUrls", "monitoringUrl", "primaryUrl"],
+      { URL, location: { hostname } },
+    );
+    const svc = {
+      url: "http://local.test:8080",
+      altUrl: "https://public.test",
+    };
+    assert.equal(
+      helpers.primaryUrl(svc),
+      hostname === "dashboard.example.com"
+        ? "https://public.test/"
+        : "http://local.test:8080/",
+    );
     assert.equal(helpers.monitoringUrl(svc), svc.url);
-    assert.deepEqual(Array.from(helpers.serviceUrls(svc), (entry) => entry.label), ["Local", "Public"]);
-    svc.urls = [{ label: "VPN", url: "http://vpn.test:8000" }, { label: "Admin", url: "https://admin.test" }, { label: "Third", url: "https://third.test" }];
+    assert.deepEqual(
+      Array.from(helpers.serviceUrls(svc), (entry) => entry.label),
+      ["Local", "Public"],
+    );
+    svc.urls = [
+      { label: "VPN", url: "http://vpn.test:8000" },
+      { label: "Admin", url: "https://admin.test" },
+      { label: "Third", url: "https://third.test" },
+    ];
     assert.equal(helpers.primaryUrl(svc), "http://vpn.test:8000/");
     assert.equal(helpers.monitoringUrl(svc), "http://vpn.test:8000");
     assert.equal(helpers.serviceUrls(svc).length, 3);
-    for (const urls of [[], null, {}, [{ label: "Bad", url: "javascript:bad" }, ...svc.urls]]) {
+    for (const urls of [
+      [],
+      null,
+      {},
+      [{ label: "Bad", url: "javascript:bad" }, ...svc.urls],
+    ]) {
       assert.equal(helpers.primaryUrl({ ...svc, urls }), "");
       assert.equal(helpers.monitoringUrl({ ...svc, urls }), "");
     }
-    const unsafe = { urls: [null, { label: "Unsafe", url: "data:text/html,hi" }, { label: "Good", url: "https://good.test" }] };
-    assert.deepEqual(Array.from(helpers.serviceUrls(unsafe), (entry) => entry.url), ["https://good.test/"]);
-    assert.equal(helpers.primaryUrl({ urls: [{ label: "Local", url: "http://localhost:8080" }] }), `http://${hostname}:8080/`);
-    assert.equal(helpers.monitoringUrl({ urls: [{ label: "Local", url: "http://localhost:8080" }] }), "http://localhost:8080");
+    const unsafe = {
+      urls: [
+        null,
+        { label: "Unsafe", url: "data:text/html,hi" },
+        { label: "Good", url: "https://good.test" },
+      ],
+    };
+    assert.deepEqual(
+      Array.from(helpers.serviceUrls(unsafe), (entry) => entry.url),
+      ["https://good.test/"],
+    );
+    assert.equal(
+      helpers.primaryUrl({
+        urls: [{ label: "Local", url: "http://localhost:8080" }],
+      }),
+      `http://${hostname}:8080/`,
+    );
+    assert.equal(
+      helpers.monitoringUrl({
+        urls: [{ label: "Local", url: "http://localhost:8080" }],
+      }),
+      "http://localhost:8080",
+    );
   }
 });
 
 test("legacy Docker port matching and duplicate hosts use only the primary monitored URL", () => {
   const h = serviceTypeHarness();
-  const svc = { id: "svc", name: "Unmatched", url: "http://stale.test:9000",
-    urls: [{ label: "Primary", url: "http://app.test:8080" }, { label: "Other", url: "http://other.test:9000" }] };
-  const server = { local: true, services: [svc, { id: "other", urls: [{ label: "Other", url: "http://app.test:8080/path" }] }] };
+  const svc = {
+    id: "svc",
+    name: "Unmatched",
+    url: "http://stale.test:9000",
+    urls: [
+      { label: "Primary", url: "http://app.test:8080" },
+      { label: "Other", url: "http://other.test:9000" },
+    ],
+  };
+  const server = {
+    local: true,
+    services: [
+      svc,
+      {
+        id: "other",
+        urls: [{ label: "Other", url: "http://app.test:8080/path" }],
+      },
+    ],
+  };
   assert.equal(h.containerFor(svc, server).name, "app");
   assert.equal(h.duplicateHosts(server).has("app.test:8080"), true);
   svc.urls.reverse();
@@ -311,7 +554,13 @@ test("legacy Docker port matching and duplicate hosts use only the primary monit
   assert.equal(h.duplicateHosts(server).size, 0);
   h.state.health.svc = { state: "up", code: 200, ms: 1 };
   for (const type of [undefined, "docker", "web"])
-    assert.notEqual(h.serviceStatus({ ...svc, ...(type ? { type } : {}), urls: [], container: "missing" }, server)?.level, "up");
+    assert.notEqual(
+      h.serviceStatus(
+        { ...svc, ...(type ? { type } : {}), urls: [], container: "missing" },
+        server,
+      )?.level,
+      "up",
+    );
 });
 
 function serviceEditorHarness() {
@@ -319,56 +568,123 @@ function serviceEditorHarness() {
     const el = new Element();
     el.value = "";
     Object.assign(el, attrs);
-    el.setCustomValidity = (message) => { el.validationMessage = message; };
-    el.focus = () => { el.focused = true; };
+    el.setCustomValidity = (message) => {
+      el.validationMessage = message;
+    };
+    el.focus = () => {
+      el.focused = true;
+    };
     return el;
   };
-  const fields = Object.fromEntries(["type", "name", "icon", "description", "notes", "container", "group", "favorite", "serverId"].map((key) => [key, input()]));
+  const fields = Object.fromEntries(
+    [
+      "type",
+      "name",
+      "icon",
+      "description",
+      "notes",
+      "container",
+      "group",
+      "favorite",
+      "serverId",
+    ].map((key) => [key, input()]),
+  );
   const nodes = new Map();
   const $ = (selector) => {
     if (!nodes.has(selector)) nodes.set(selector, new Element());
     return nodes.get(selector);
   };
   const form = $("#serviceForm");
-  form.reset = () => { for (const el of Object.values(fields)) { el.value = ""; el.checked = false; } };
+  form.reset = () => {
+    for (const el of Object.values(fields)) {
+      el.value = "";
+      el.checked = false;
+    }
+  };
   $("#serviceDialog").showModal = () => {};
   $("#serviceDialog").close = () => {};
   const saved = [];
   const server = { id: "host", name: "Host", groups: ["Apps"], services: [] };
-  const utils = browserModule("js/utils.js", ["safeUrl"], { URL, location: { hostname: "localhost" } });
-  const editor = browserModule("js/dialogs/service.js", ["initServiceForm", "openServiceEditor"], {
-    ...utils,
-    $, field: (form, name) => fields[name], value: (form, name) => fields[name].value.trim(),
-    h: (tag, attrs, ...children) => {
-      const node = input({ tag, ...attrs, children });
-      for (const [key, handler] of Object.entries(attrs))
-        if (key.startsWith("on")) node.addEventListener(key.slice(2), handler);
-      return node;
-    },
-    fill: (node, children) => { node.options = children; },
-    state: { config: { servers: [server] }, docker: { containers: [{ name: "app", image: "app" }] } },
-    findServer: () => server, isFavorite: () => true,
-    pendingForm: async (form, fn) => fn(), iconPicker: () => ({ reset() {} }),
-    actions: { saveService: async (data) => { saved.push(data); return true; } },
+  const utils = browserModule("js/utils.js", ["safeUrl"], {
+    URL,
+    location: { hostname: "localhost" },
   });
-  const rows = () => Array.from($("#serviceUrls").options, (node) => ({
-    label: node.children[0].children[1], url: node.children[1].children[1],
-    primary: node.children[2].children[0], remove: node.children[2].children[1],
-  }));
-  form.reportValidity = () => [...Object.values(fields), ...rows().flatMap((row) => [row.label, row.url])]
-    .every((el) => el.disabled || (!el.validationMessage && (!el.required || el.value.trim())));
+  const editor = browserModule(
+    "js/dialogs/service.js",
+    ["initServiceForm", "openServiceEditor"],
+    {
+      ...utils,
+      $,
+      field: (form, name) => fields[name],
+      value: (form, name) => fields[name].value.trim(),
+      h: (tag, attrs, ...children) => {
+        const node = input({ tag, ...attrs, children });
+        for (const [key, handler] of Object.entries(attrs))
+          if (key.startsWith("on"))
+            node.addEventListener(key.slice(2), handler);
+        return node;
+      },
+      fill: (node, children) => {
+        node.options = children;
+      },
+      state: {
+        config: { servers: [server] },
+        docker: { containers: [{ name: "app", image: "app" }] },
+      },
+      findServer: () => server,
+      isFavorite: () => true,
+      pendingForm: async (form, fn) => fn(),
+      iconPicker: () => ({ reset() {} }),
+      actions: {
+        saveService: async (data) => {
+          saved.push(data);
+          return true;
+        },
+      },
+    },
+  );
+  const rows = () =>
+    Array.from($("#serviceUrls").options, (node) => ({
+      label: node.children[0].children[1],
+      url: node.children[1].children[1],
+      primary: node.children[2].children[0],
+      remove: node.children[2].children[1],
+    }));
+  form.reportValidity = () =>
+    [
+      ...Object.values(fields),
+      ...rows().flatMap((row) => [row.label, row.url]),
+    ].every(
+      (el) =>
+        el.disabled ||
+        (!el.validationMessage && (!el.required || el.value.trim())),
+    );
   editor.initServiceForm();
-  const submit = () => [...form.listeners.get("submit")][0]({ preventDefault() {} });
+  const submit = () =>
+    [...form.listeners.get("submit")][0]({ preventDefault() {} });
   return { ...editor, fields, server, saved, submit, $, rows };
 }
 
 test("service editor saves and reopens 3+ labeled URLs with add/remove/primary and type transitions", async () => {
   const h = serviceEditorHarness();
-  h.server.services = [{ id: "svc", name: "Legacy", url: "http://local.test", altUrl: "https://public.test" }];
+  h.server.services = [
+    {
+      id: "svc",
+      name: "Legacy",
+      url: "http://local.test",
+      altUrl: "https://public.test",
+    },
+  ];
   h.openServiceEditor("host", "svc");
-  assert.deepEqual(h.rows().map((row) => row.label.value), ["Local", "Public"]);
+  assert.deepEqual(
+    h.rows().map((row) => row.label.value),
+    ["Local", "Public"],
+  );
   assert.equal(Object.hasOwn(h.server.services[0], "urls"), false);
-  for (const [label, url] of [["<Admin & panel>", "https://admin.test"], ["VPN", "http://vpn.test"]]) {
+  for (const [label, url] of [
+    ["<Admin & panel>", "https://admin.test"],
+    ["VPN", "http://vpn.test"],
+  ]) {
     h.$("#serviceAddUrl").emit("click");
     const row = h.rows().at(-1);
     assert.equal(row.label.focused, true);
@@ -387,17 +703,26 @@ test("service editor saves and reopens 3+ labeled URLs with add/remove/primary a
   assert.equal(fields.urls.length, 3);
   assert.equal(fields.url, "https://admin.test");
   assert.equal(fields.altUrl, "https://public.test");
-  assert.deepEqual(Array.from(fields.urls, (row) => row.label), ["<Admin & panel>", "Public", "VPN"]);
+  assert.deepEqual(
+    Array.from(fields.urls, (row) => row.label),
+    ["<Admin & panel>", "Public", "VPN"],
+  );
   h.server.services[0] = { id: "svc", ...fields, url: "https://stale.test" };
   h.openServiceEditor("host", "svc");
-  assert.deepEqual(h.rows().map((row) => row.url.value), ["https://admin.test", "https://public.test", "http://vpn.test"]);
+  assert.deepEqual(
+    h.rows().map((row) => row.url.value),
+    ["https://admin.test", "https://public.test", "http://vpn.test"],
+  );
   for (const type of ["bookmark", "web", "docker"]) {
     h.fields.type.value = type;
     h.fields.container.value = "app";
     h.fields.type.emit("change");
     await h.submit();
     assert.equal(h.saved.at(-1).fields.urls.length, 3);
-    assert.equal(h.saved.at(-1).fields.container, type === "docker" ? "app" : "");
+    assert.equal(
+      h.saved.at(-1).fields.container,
+      type === "docker" ? "app" : "",
+    );
   }
   h.rows()[0].remove.emit("click");
   await h.submit();
@@ -421,8 +746,14 @@ test("service editor saves and reopens 3+ labeled URLs with add/remove/primary a
 test("editor rejects partial/unsafe/oversized entries, limits rows, and preserves raw invalid URLs for correction", async () => {
   const h = serviceEditorHarness();
   h.openServiceEditor("host", null, { type: "docker", container: "app" });
-  for (const [label, url] of [["Only label", ""], ["", "https://app.test"], ["Bad", "ftp://app.test"],
-    ["Bad", "https://"], ["x".repeat(61), "https://app.test"], ["Long", `https://app.test/${"x".repeat(2000)}`]]) {
+  for (const [label, url] of [
+    ["Only label", ""],
+    ["", "https://app.test"],
+    ["Bad", "ftp://app.test"],
+    ["Bad", "https://"],
+    ["x".repeat(61), "https://app.test"],
+    ["Long", `https://app.test/${"x".repeat(2000)}`],
+  ]) {
     const row = h.rows()[0];
     row.label.value = label;
     row.url.value = url;
@@ -430,7 +761,14 @@ test("editor rejects partial/unsafe/oversized entries, limits rows, and preserve
     await h.submit();
     assert.equal(h.saved.length, 0);
   }
-  h.server.services = [{ id: "svc", name: "Raw", type: "web", urls: [{ label: "Fix", url: "javascript:bad" }] }];
+  h.server.services = [
+    {
+      id: "svc",
+      name: "Raw",
+      type: "web",
+      urls: [{ label: "Fix", url: "javascript:bad" }],
+    },
+  ];
   h.openServiceEditor("host", "svc");
   assert.equal(h.rows()[0].url.value, "javascript:bad");
   assert.match(h.rows()[0].url.validationMessage, /HTTP/);
@@ -446,7 +784,10 @@ test("service editor defaults, legacy ordinary edits, discovery and type transit
   const h = serviceEditorHarness();
   h.openServiceEditor("host");
   assert.equal(h.fields.type.value, "web");
-  assert.equal(h.fields.type.options.some((o) => o.value === ""), false);
+  assert.equal(
+    h.fields.type.options.some((o) => o.value === ""),
+    false,
+  );
   assert.equal(h.rows()[0].url.required, true);
   assert.equal(h.fields.container.disabled, true);
   h.rows()[0].url.value = "https://example.test";
@@ -455,14 +796,29 @@ test("service editor defaults, legacy ordinary edits, discovery and type transit
   h.rows()[0].url.value = "ftp://example.test";
   h.rows()[0].url.emit("input");
   assert.match(h.rows()[0].url.validationMessage, /HTTP/);
-  h.openServiceEditor("host", null, { type: "docker", name: "app", container: "app" });
+  h.openServiceEditor("host", null, {
+    type: "docker",
+    name: "app",
+    container: "app",
+  });
   assert.equal(h.fields.type.value, "docker");
   assert.equal(h.fields.container.required, true);
   assert.equal(h.rows()[0].url.required, false);
   await h.submit();
   assert.equal(h.saved.at(-1).fields.container, "app");
   assert.equal(h.saved.at(-1).fields.type, "docker");
-  h.server.services = [{ id: "svc", name: "Legacy", container: "app", group: "Apps", notes: "keep", icon: "🌐", url: "http://app.test", description: "description" }];
+  h.server.services = [
+    {
+      id: "svc",
+      name: "Legacy",
+      container: "app",
+      group: "Apps",
+      notes: "keep",
+      icon: "🌐",
+      url: "http://app.test",
+      description: "description",
+    },
+  ];
   h.openServiceEditor("host", "svc");
   assert.equal(h.fields.type.value, "");
   assert.equal(h.fields.container.required, false);
@@ -481,7 +837,10 @@ test("service editor defaults, legacy ordinary edits, discovery and type transit
   assert.equal(converted.pinned, true);
   h.server.services[0] = { id: "svc", ...converted.fields };
   h.openServiceEditor("host", "svc");
-  assert.equal(h.fields.type.options.some((o) => o.value === ""), false);
+  assert.equal(
+    h.fields.type.options.some((o) => o.value === ""),
+    false,
+  );
   h.fields.type.value = "docker";
   h.fields.type.emit("change");
   assert.match(h.fields.container.validationMessage, /explicit/);
@@ -492,7 +851,10 @@ test("service editor defaults, legacy ordinary edits, discovery and type transit
   h.openServiceEditor("host", "svc");
   assert.equal(h.fields.type.value, "unsupported");
   assert.match(h.fields.type.validationMessage, /supported/);
-  assert.equal(h.fields.type.options.some((o) => o.value === ""), false);
+  assert.equal(
+    h.fields.type.options.some((o) => o.value === ""),
+    false,
+  );
 });
 
 for (const name of ["SecurityError", "QuotaExceededError"]) {
@@ -606,7 +968,12 @@ test("worker precaches the complete local module graph and shell before activati
     if (url !== "/manifest.webmanifest") {
       assert.ok(
         fs.existsSync(
-          path.join(publicDir, url === "/" ? "index.html" : new URL(url, "https://dashboard.test").pathname.slice(1)),
+          path.join(
+            publicDir,
+            url === "/"
+              ? "index.html"
+              : new URL(url, "https://dashboard.test").pathname.slice(1),
+          ),
         ),
         url,
       );
@@ -1052,7 +1419,10 @@ test("only the initiating pointer can move or finish a drag", () => {
 function pollingHarness() {
   const calls = [];
   const state = {
-    health: {}, usage: {}, stats: null, remotes: [],
+    health: {},
+    usage: {},
+    stats: null,
+    remotes: [],
     tunables: { loadTimeout: 30 },
     localAt: 42,
   };
@@ -1091,11 +1461,16 @@ function refreshHarness() {
   const document = new Element();
   const window = new Element();
   const button = {
-    classList: { toggle() {} }, setAttribute() {}, removeAttribute() {},
+    classList: { toggle() {} },
+    setAttribute() {},
+    removeAttribute() {},
   };
   const state = {
-    config: { servers: [{ local: true }] }, locked: false,
-    stats: { interval: 0 }, docker: { available: true }, localAt: 42,
+    config: { servers: [{ local: true }] },
+    locked: false,
+    stats: { interval: 0 },
+    docker: { available: true },
+    localAt: 42,
     tunables: { localDashboardRefresh: 30, healthRefresh: 30 },
     remotesInterval: 30,
   };
@@ -1104,16 +1479,39 @@ function refreshHarness() {
   const code = source("js/refresh.js")
     .replace(/^import\s[\s\S]*?;\r?$/gm, "")
     .replace(/\bexport /g, "");
-  const module = vm.runInNewContext(`${code}\n;({ startTimers, refreshLocal });`, {
-    state, document, window, performance: { now: () => 100 },
-    Date: { now: () => 1000 }, $: () => button,
-    setTimeout(fn, ms) { const timer = { fn, ms }; timers.push(timer); return timer; },
-    clearTimeout() {}, setInterval() {}, clearInterval() {},
-    loadStats() { const job = deferred(); jobs.push(job); return job.promise; },
-    loadDocker: async () => true, loadHealth: async () => true,
-    loadUsage: async () => true, loadRemotes: async () => true,
-    refreshClip() {}, requestRender() {}, loaded() {}, tickAgo() {}, toast() {},
-  });
+  const module = vm.runInNewContext(
+    `${code}\n;({ startTimers, refreshLocal });`,
+    {
+      state,
+      document,
+      window,
+      performance: { now: () => 100 },
+      Date: { now: () => 1000 },
+      $: () => button,
+      setTimeout(fn, ms) {
+        const timer = { fn, ms };
+        timers.push(timer);
+        return timer;
+      },
+      clearTimeout() {},
+      setInterval() {},
+      clearInterval() {},
+      loadStats() {
+        const job = deferred();
+        jobs.push(job);
+        return job.promise;
+      },
+      loadDocker: async () => true,
+      loadHealth: async () => true,
+      loadUsage: async () => true,
+      loadRemotes: async () => true,
+      refreshClip() {},
+      requestRender() {},
+      loaded() {},
+      tickAgo() {},
+      toast() {},
+    },
+  );
   module.startTimers();
   return { ...module, document, window, state, jobs, timers };
 }
@@ -1186,7 +1584,11 @@ test("availability refresh respects lock and page lifecycle without duplicate li
 
 test("collection budgets preserve configured local waits and remote response headroom", () => {
   const state = { tunables: { loadTimeout: 75, remoteTimeout: 60 } };
-  const { collectionTimeout } = browserModule("js/api.js", ["collectionTimeout"], { state });
+  const { collectionTimeout } = browserModule(
+    "js/api.js",
+    ["collectionTimeout"],
+    { state },
+  );
   assert.equal(collectionTimeout(), 75000);
   assert.equal(collectionTimeout({ fresh: true }), 125000);
   state.tunables = { loadTimeout: 5, remoteTimeout: 60 };
@@ -1198,21 +1600,41 @@ test("collection budgets preserve configured local waits and remote response hea
   assert.equal(collectionTimeout(), 15000); // Existing explicitly short settings remain supported.
   state.tunables = {};
   assert.equal(collectionTimeout(), 75000);
-  assert.match(source("js/loading.js"), /const TIMEOUT_MS = collectionTimeout;/);
+  assert.match(
+    source("js/loading.js"),
+    /const TIMEOUT_MS = collectionTimeout;/,
+  );
   assert.match(source("js/loading.js"), /TIMEOUT_MS\(\{ fresh \}\)/);
 });
 
 test("browser timeout uses queued-remote budget, aborts only its request, and releases poll slot", async () => {
-  const state = { config: {}, locked: false, remotes: [], tunables: { loadTimeout: 75, remoteTimeout: 60 } };
+  const state = {
+    config: {},
+    locked: false,
+    remotes: [],
+    tunables: { loadTimeout: 75, remoteTimeout: 60 },
+  };
   const timers = [];
   const calls = [];
   const { loadRemotes } = browserModule("js/api.js", ["loadRemotes"], {
-    state, AbortController, Date,
-    setTimeout(fn, ms) { const timer = { fn, ms, cleared: false }; timers.push(timer); return timer; },
-    clearTimeout(timer) { timer.cleared = true; },
+    state,
+    AbortController,
+    Date,
+    setTimeout(fn, ms) {
+      const timer = { fn, ms, cleared: false };
+      timers.push(timer);
+      return timer;
+    },
+    clearTimeout(timer) {
+      timer.cleared = true;
+    },
     fetch(url, options) {
       const job = deferred();
-      options.signal.addEventListener("abort", () => job.reject(new Error("aborted")), { once: true });
+      options.signal.addEventListener(
+        "abort",
+        () => job.reject(new Error("aborted")),
+        { once: true },
+      );
       calls.push({ url, ...job });
       return job.promise;
     },
@@ -1225,7 +1647,10 @@ test("browser timeout uses queued-remote budget, aborts only its request, and re
   const retry = loadRemotes();
   assert.equal(calls.length, 2);
   assert.equal(timers[1].ms, 75000);
-  calls[1].resolve({ ok: true, json: async () => ({ remotes: [], interval: 30 }) });
+  calls[1].resolve({
+    ok: true,
+    json: async () => ({ remotes: [], interval: 30 }),
+  });
   assert.equal(await retry, true);
   assert.equal(timers[1].cleared, true);
   assert.equal(state.remotesInterval, 30);
@@ -1327,22 +1752,42 @@ test("a slow bulk remote poll still preserves newer individually loaded data", a
 
 function editingHarness() {
   const state = {
-    config: { settings: { title: "base", links: [], favorites: [], hiddenContainers: [] }, servers: [] },
-    configRevision: "r0", configEpoch: 0, configSaving: 0,
+    config: {
+      settings: {
+        title: "base",
+        links: [],
+        favorites: [],
+        hiddenContainers: [],
+      },
+      servers: [],
+    },
+    configRevision: "r0",
+    configEpoch: 0,
+    configSaving: 0,
   };
   const requests = [];
   const messages = [];
-  const actions = browserModule("js/actions.js", ["saveSettings", "saveLink", "saveServer", "toggleFavorite"], {
-    state, prefs: {}, clone: structuredClone, normalizeConfig: (c) => c,
-    uid: () => `id${requests.length}`, setPref() {}, render() {},
-    toast: (...args) => messages.push(args),
-    document: { dispatchEvent() {} }, CustomEvent: class {},
-    editApi: (method, url, body) => {
-      const pending = deferred();
-      requests.push({ method, url, body, ...pending });
-      return pending.promise;
+  const actions = browserModule(
+    "js/actions.js",
+    ["saveSettings", "saveLink", "saveServer", "toggleFavorite"],
+    {
+      state,
+      prefs: {},
+      clone: structuredClone,
+      normalizeConfig: (c) => c,
+      uid: () => `id${requests.length}`,
+      setPref() {},
+      render() {},
+      toast: (...args) => messages.push(args),
+      document: { dispatchEvent() {} },
+      CustomEvent: class {},
+      editApi: (method, url, body) => {
+        const pending = deferred();
+        requests.push({ method, url, body, ...pending });
+        return pending.promise;
+      },
     },
-  });
+  );
   const success = (i, revision) => {
     const { _revision, ...config } = requests[i].body;
     requests[i].resolve({ res: { ok: true }, data: { config, revision } });
@@ -1392,12 +1837,18 @@ test("conflict refreshes committed state without replaying rejected edit", async
   const first = h.saveSettings({ title: "stale title" });
   const second = h.saveLink(null, { name: "queued link" });
   await flush();
-  h.requests[0].resolve({ res: { ok: false, status: 409 }, data: { error: "Conflict" } });
+  h.requests[0].resolve({
+    res: { ok: false, status: 409 },
+    data: { error: "Conflict" },
+  });
   await flush();
   assert.equal(h.requests[1].method, "GET");
   const latest = structuredClone(h.state.config);
   latest.settings.title = "other client";
-  h.requests[1].resolve({ res: { ok: true }, data: { config: latest, revision: "remote" } });
+  h.requests[1].resolve({
+    res: { ok: true },
+    data: { config: latest, revision: "remote" },
+  });
   assert.equal(await first, false);
   await flush();
   assert.equal(h.requests[2].body.settings.title, "other client");
@@ -1429,38 +1880,63 @@ test("favorite toggles are evaluated when their queued operation starts", async 
 
 test("config loads started before or during edits cannot replace committed results", async () => {
   const calls = [];
-  const state = { config: { title: "base" }, configRevision: "r0", configEpoch: 0, configSaving: 0 };
+  const state = {
+    config: { title: "base" },
+    configRevision: "r0",
+    configEpoch: 0,
+    configSaving: 0,
+  };
   const { loadConfig } = browserModule("js/api.js", ["loadConfig"], {
-    state, normalizeConfig: (c) => c, toast() {},
-    fetch: () => { const d = deferred(); calls.push(d); return d.promise; },
+    state,
+    normalizeConfig: (c) => c,
+    toast() {},
+    fetch: () => {
+      const d = deferred();
+      calls.push(d);
+      return d.promise;
+    },
   });
   const old = loadConfig();
   state.configEpoch++;
   state.config = { title: "saved" };
   state.configRevision = "r1";
-  calls[0].resolve({ ok: true, json: async () => ({ config: { title: "old" }, revision: "r0" }) });
+  calls[0].resolve({
+    ok: true,
+    json: async () => ({ config: { title: "old" }, revision: "r0" }),
+  });
   await old;
   assert.equal(state.config.title, "saved");
   state.configSaving = 1;
   const during = loadConfig();
   state.configSaving = 0;
-  calls[1].resolve({ ok: true, json: async () => ({ config: { title: "old" }, revision: "r0" }) });
+  calls[1].resolve({
+    ok: true,
+    json: async () => ({ config: { title: "old" }, revision: "r0" }),
+  });
   await during;
   assert.equal(state.configRevision, "r1");
   const fresh = loadConfig();
-  calls[2].resolve({ ok: true, json: async () => ({ config: { title: "fresh" }, revision: "r2" }) });
+  calls[2].resolve({
+    ok: true,
+    json: async () => ({ config: { title: "fresh" }, revision: "r2" }),
+  });
   await fresh;
   assert.equal(state.config.title, "fresh");
   assert.equal(state.configRevision, "r2");
 });
 
 test("pending form guards duplicate saves/deletes and restores controls after failure", async () => {
-  const { pendingForm } = browserModule("js/dialogs/common.js", ["pendingForm"]);
+  const { pendingForm } = browserModule("js/dialogs/common.js", [
+    "pendingForm",
+  ]);
   const buttons = [{ disabled: false }, { disabled: true }];
   const form = { dataset: {}, querySelectorAll: () => buttons };
   const pending = deferred();
   let calls = 0;
-  const first = pendingForm(form, () => { calls++; return pending.promise; });
+  const first = pendingForm(form, () => {
+    calls++;
+    return pending.promise;
+  });
   assert.equal(buttons[0].disabled, true);
   await pendingForm(form, () => calls++);
   assert.equal(calls, 1);
@@ -1480,32 +1956,60 @@ test("pending form guards duplicate saves/deletes and restores controls after fa
 
 for (const name of ["service", "server", "link"]) {
   test(`${name} form blocks repeated submits and competing deletes, then allows retry`, async () => {
-    const { pendingForm } = browserModule("js/dialogs/common.js", ["pendingForm"]);
+    const { pendingForm } = browserModule("js/dialogs/common.js", [
+      "pendingForm",
+    ]);
     const form = new Element();
     const button = { disabled: false };
     const controls = new Map();
     const field = (_form, key) => {
-      if (!controls.has(key)) controls.set(key, Object.assign(new Element(), { value: "value", checked: false, setCustomValidity() {} }));
+      if (!controls.has(key))
+        controls.set(
+          key,
+          Object.assign(new Element(), {
+            value: "value",
+            checked: false,
+            setCustomValidity() {},
+          }),
+        );
       return controls.get(key);
     };
     form.querySelectorAll = () => [button];
     form.reportValidity = () => true;
     const remove = new Element();
-    const dialog = Object.assign(new Element(), { closes: 0, close() { this.closes++; } });
+    const dialog = Object.assign(new Element(), {
+      closes: 0,
+      close() {
+        this.closes++;
+      },
+    });
     const request = deferred();
     let saves = 0;
     let deletes = 0;
     const capital = name[0].toUpperCase() + name.slice(1);
     const actions = {
-      [`save${capital}`]: () => { saves++; return saves === 1 ? request.promise : Promise.resolve(true); },
-      [`delete${capital}`]: async () => { deletes++; return true; },
+      [`save${capital}`]: () => {
+        saves++;
+        return saves === 1 ? request.promise : Promise.resolve(true);
+      },
+      [`delete${capital}`]: async () => {
+        deletes++;
+        return true;
+      },
     };
     const init = `init${capital}Form`;
     const module = browserModule(`js/dialogs/${name}.js`, [init], {
-      pendingForm, actions, field, value: (form, key) => field(form, key).value,
+      pendingForm,
+      actions,
+      field,
+      value: (form, key) => field(form, key).value,
       iconPicker: () => ({ reset() {} }),
-      $: (selector) => selector === `#${name}Form` ? form
-        : selector === `#${name}Delete` ? remove : dialog,
+      $: (selector) =>
+        selector === `#${name}Form`
+          ? form
+          : selector === `#${name}Delete`
+            ? remove
+            : dialog,
     });
     module[init]();
     const submit = [...form.listeners.get("submit")][0];

@@ -4,11 +4,16 @@ let metadataRequest = 0;
 export async function refreshInstallMetadata(refreshManifest = false) {
   const request = ++metadataRequest;
   try {
-    const response = await fetch("/manifest.webmanifest", { cache: "no-cache" });
+    const response = await fetch("/manifest.webmanifest", {
+      cache: "no-cache",
+    });
     if (!response.ok) return;
     const manifest = await response.json();
-    if (request !== metadataRequest || typeof manifest.name !== "string") return;
-    const title = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+    if (request !== metadataRequest || typeof manifest.name !== "string")
+      return;
+    const title = document.querySelector(
+      'meta[name="apple-mobile-web-app-title"]',
+    );
     if (title) title.content = manifest.name;
     // Ask the browser to re-read metadata after a saved configuration change.
     // The manifest's explicit id remains stable; this does not create a new app.
@@ -22,5 +27,8 @@ export async function refreshInstallMetadata(refreshManifest = false) {
 
 export function initInstallMetadata() {
   void refreshInstallMetadata();
-  document.addEventListener("config-saved", () => void refreshInstallMetadata(true));
+  document.addEventListener(
+    "config-saved",
+    () => void refreshInstallMetadata(true),
+  );
 }

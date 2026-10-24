@@ -129,20 +129,29 @@ function renderModal() {
   $("#availObserved").textContent = detail.enabled
     ? `Observed ${fmtDuration(w.observed)} since ${fmtDateTime(w.from)}${period !== "all" && w.from === detail.since ? " (monitoring started)" : ""}.`
     : "Outage tracking is off - no new outages are recorded.";
-  $("#availObserved").textContent += detail.coverageSince === undefined
-    ? " Coverage limits are unknown for this older dashboard."
-    : ` Calculations use supported history since ${fmtDateTime(detail.coverageSince)}. History is bounded; pruning advances coverage.${w.limited ? " This period has partial coverage; earlier time is excluded." : ""}${detail.legacyHistory ? " Prior pruning is unknown; legacy records are kept but excluded from calculations." : ""}`;
+  $("#availObserved").textContent +=
+    detail.coverageSince === undefined
+      ? " Coverage limits are unknown for this older dashboard."
+      : ` Calculations use supported history since ${fmtDateTime(detail.coverageSince)}. History is bounded; pruning advances coverage.${w.limited ? " This period has partial coverage; earlier time is excluded." : ""}${detail.legacyHistory ? " Prior pruning is unknown; legacy records are kept but excluded from calculations." : ""}`;
   fill($("#availTimeline"), timeline(w, outages, now));
   fill(
     $("#availList"),
     (period === "all" ? detail.outages || [] : outages).length
-      ? [period === "all" && h("p", { class: "muted" }, "Retained records (may include records before calculation coverage):"),
-          ...(period === "all" ? detail.outages || [] : outages).map(outageRow)]
+      ? [
+          period === "all" &&
+            h(
+              "p",
+              { class: "muted" },
+              "Retained records (may include records before calculation coverage):",
+            ),
+          ...(period === "all" ? detail.outages || [] : outages).map(outageRow),
+        ]
       : h("p", { class: "muted avail-empty" }, "No outages in this period."),
   );
   const clear = $("#availClear");
   clear.hidden = readOnly;
-  clear.disabled = !detail.records || clear.getAttribute("aria-busy") === "true";
+  clear.disabled =
+    !detail.records || clear.getAttribute("aria-busy") === "true";
 }
 
 function show(detail, readOnly) {

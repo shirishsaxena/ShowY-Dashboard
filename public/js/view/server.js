@@ -29,7 +29,8 @@ function staleness(server) {
       since: state.localAt,
       dim: false,
       title:
-        state.localError || "When the last successful dashboard refresh completed",
+        state.localError ||
+        "When the last successful dashboard refresh completed",
     };
   }
   const src = sourceOf(server);
@@ -94,7 +95,10 @@ export function tickAgo() {
       el.textContent = agoText(stale.label, stale.since);
       if (!state.query) $("main").classList.toggle("stale", Boolean(stale.dim));
     } else {
-      el.textContent = agoText(el.dataset.label || "", Number(el.dataset.since));
+      el.textContent = agoText(
+        el.dataset.label || "",
+        Number(el.dataset.since),
+      );
     }
 }
 
@@ -197,8 +201,14 @@ function renderServerHead(server) {
     );
   const src = sourceOf(server);
   const stale = staleness(server);
-  if (!stale?.level && server.local && !src.docker.available &&
-      server.services.some((svc) => !Object.hasOwn(svc, "type") || svc.type === "docker")) {
+  if (
+    !stale?.level &&
+    server.local &&
+    !src.docker.available &&
+    server.services.some(
+      (svc) => !Object.hasOwn(svc, "type") || svc.type === "docker",
+    )
+  ) {
     meta.append(
       h(
         "span",

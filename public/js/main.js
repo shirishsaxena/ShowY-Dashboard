@@ -3,13 +3,7 @@
 import { state, prefs, activeServer } from "./state.js";
 import { initInstallMetadata } from "./pwa.js";
 import { $, toast } from "./dom.js";
-import {
-  logout,
-  login,
-  LockedError,
-  loadAuth,
-  loadConfig,
-} from "./api.js";
+import { logout, login, LockedError, loadAuth, loadConfig } from "./api.js";
 import { render } from "./view/render.js";
 import { setRenderer } from "./render-interface.js";
 import { makeSortable } from "./sortable.js";
@@ -20,16 +14,16 @@ import { openSettings, initSettingsForm } from "./dialogs/settings.js";
 import { initLinkForm } from "./dialogs/link.js";
 import { initAvailability } from "./dialogs/availability.js";
 import { initNotes } from "./view/notes.js";
+import { initCardMenu } from "./view/card-menu.js";
+import { initDockerLogs } from "./dialogs/docker-logs.js";
+import { initServicePreview } from "./dialogs/service-preview.js";
+import { initDockerControl } from "./docker-control.js";
+import { initActivity, refreshActivity } from "./activity.js";
 import { initClip } from "./clip.js";
 import { startLoad } from "./loading.js";
 import * as actions from "./actions.js";
 import { refreshAll, startTimers } from "./refresh.js";
-import {
-  applyTheme,
-  applyLayout,
-  applyAccent,
-  syncAccent,
-} from "./theme.js";
+import { applyTheme, applyLayout, applyAccent, syncAccent } from "./theme.js";
 
 // ---------- Top bar ----------
 
@@ -54,6 +48,7 @@ function initTopbar() {
       await logout();
       if (state.auth.lockView) return location.reload();
       state.editing = false;
+      refreshActivity();
       render();
       toast("Locked — editing needs the password again");
     } catch (err) {
@@ -287,6 +282,7 @@ async function start() {
       timersStarted = true;
     }
     await refreshAll();
+    refreshActivity();
   } catch (err) {
     if (err instanceof LockedError) return showLockScreen();
     state.locked = true;
@@ -312,10 +308,16 @@ async function init() {
   initLinkForm();
   initAvailability();
   initNotes();
+  initCardMenu();
+  initDockerLogs();
+  initServicePreview();
+  initDockerControl();
+  initActivity();
   initClip();
   initTopbar();
   anchorMenu($("#serverMenu"), $("#serverBtn"), "left");
   anchorMenu($("#clipMenu"), $("#clipBtn"), "right");
+  anchorMenu($("#activityMenu"), $("#activityBtn"), "right");
   initEditDock();
   initSortables();
   initLockScreen();

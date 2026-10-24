@@ -16,8 +16,17 @@
     <meta name="apple-mobile-web-app-title" content="Dashboard" />
     <title>Dashboard</title>
     <link rel="icon" href="/favicon.ico?v=ember-1" sizes="16x16 32x32 48x48" />
-    <link rel="icon" href="/favicon.svg?v=ember-1" type="image/svg+xml" sizes="any" />
-    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png?v=ember-1" sizes="180x180" />
+    <link
+      rel="icon"
+      href="/favicon.svg?v=ember-1"
+      type="image/svg+xml"
+      sizes="any"
+    />
+    <link
+      rel="apple-touch-icon"
+      href="/icons/apple-touch-icon.png?v=ember-1"
+      sizes="180x180"
+    />
     <link rel="manifest" href="/manifest.webmanifest" />
     <style>
       [hidden] {
@@ -146,6 +155,24 @@
 
         <div class="actions">
           <button
+            id="activityBtn"
+            type="button"
+            class="icon-btn"
+            title="Action history"
+            aria-label="Action history"
+            popovertarget="activityMenu"
+            aria-controls="activityMenu"
+            aria-haspopup="true"
+            aria-expanded="false"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"
+              />
+            </svg>
+            <span id="activityBadge" class="badge-dot" hidden></span>
+          </button>
+          <button
             id="clipBtn"
             class="icon-btn"
             popovertarget="clipMenu"
@@ -267,7 +294,12 @@
       <main>
         <div class="server-top">
           <section id="serverHead" class="server-head"></section>
-          <section id="stats" class="stats" aria-label="Host statistics" hidden></section>
+          <section
+            id="stats"
+            class="stats"
+            aria-label="Host statistics"
+            hidden
+          ></section>
         </div>
         <section
           id="loadState"
@@ -341,12 +373,19 @@
     </section>
 
     <!-- Service editor -->
-    <dialog id="serviceDialog" class="editor-dialog" aria-labelledby="serviceDialogTitle" aria-describedby="serviceDialogHint">
+    <dialog
+      id="serviceDialog"
+      class="editor-dialog"
+      aria-labelledby="serviceDialogTitle"
+      aria-describedby="serviceDialogHint"
+    >
       <form id="serviceForm" method="dialog">
         <header class="dialog-head">
           <div class="dialog-heading">
             <h2 id="serviceDialogTitle">Add service</h2>
-            <p id="serviceDialogHint">A home for your apps, bookmarks, and containers.</p>
+            <p id="serviceDialogHint">
+              A home for your apps, bookmarks, and containers.
+            </p>
           </div>
           <button type="button" class="icon-btn" data-close aria-label="Close">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -354,13 +393,44 @@
         </header>
         <div class="editor-tabs settings-tabs">
           <div class="seg" role="tablist" aria-label="Service sections">
-          <button type="button" role="tab" id="serviceDetailsTab" aria-controls="serviceDetailsPanel" aria-selected="true">Details</button>
-          <button type="button" role="tab" id="serviceConnectionTab" aria-controls="serviceConnectionPanel" aria-selected="false" tabindex="-1">Connection</button>
-          <button type="button" role="tab" id="serviceOrganisationTab" aria-controls="serviceOrganisationPanel" aria-selected="false" tabindex="-1">Organisation</button>
+            <button
+              type="button"
+              role="tab"
+              id="serviceDetailsTab"
+              aria-controls="serviceDetailsPanel"
+              aria-selected="true"
+            >
+              Details
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="serviceConnectionTab"
+              aria-controls="serviceConnectionPanel"
+              aria-selected="false"
+              tabindex="-1"
+            >
+              Connection
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="serviceOrganisationTab"
+              aria-controls="serviceOrganisationPanel"
+              aria-selected="false"
+              tabindex="-1"
+            >
+              Organisation
+            </button>
           </div>
         </div>
         <div class="dialog-body">
-          <fieldset class="dialog-section editor-panel" id="serviceDetailsPanel" role="tabpanel" aria-labelledby="serviceDetailsTab">
+          <fieldset
+            class="dialog-section editor-panel"
+            id="serviceDetailsPanel"
+            role="tabpanel"
+            aria-labelledby="serviceDetailsTab"
+          >
             <legend>Details</legend>
             <div class="field-row identity-row">
               <div class="icon-preview" id="serviceIconPreview"></div>
@@ -405,7 +475,13 @@
               ></textarea>
             </label>
           </fieldset>
-          <fieldset class="dialog-section editor-panel" id="serviceConnectionPanel" role="tabpanel" aria-labelledby="serviceConnectionTab" hidden>
+          <fieldset
+            class="dialog-section editor-panel"
+            id="serviceConnectionPanel"
+            role="tabpanel"
+            aria-labelledby="serviceConnectionTab"
+            hidden
+          >
             <legend>Connection</legend>
             <label class="field"
               >Service type
@@ -415,12 +491,15 @@
             <section class="service-urls" aria-labelledby="serviceUrlsTitle">
               <h3 id="serviceUrlsTitle">Service URLs</h3>
               <p id="serviceUrlsHelp" class="muted">
-                The first URL is primary for cards and favourites. Only the first
-                URL is health-checked; bookmarks are never monitored. Add up to 50
-                labeled HTTP(S) URLs. Fully blank rows are skipped when saving.
+                The first URL is primary for cards and favourites. Only the
+                first URL is health-checked; bookmarks are never monitored. Add
+                up to 50 labeled HTTP(S) URLs. Fully blank rows are skipped when
+                saving.
               </p>
               <div id="serviceUrls"></div>
-              <button type="button" class="btn" id="serviceAddUrl">Add URL</button>
+              <button type="button" class="btn" id="serviceAddUrl">
+                Add URL
+              </button>
             </section>
             <label class="field" id="serviceContainerField"
               >Docker container
@@ -437,7 +516,13 @@
               >
             </label>
           </fieldset>
-          <fieldset class="dialog-section editor-panel" id="serviceOrganisationPanel" role="tabpanel" aria-labelledby="serviceOrganisationTab" hidden>
+          <fieldset
+            class="dialog-section editor-panel"
+            id="serviceOrganisationPanel"
+            role="tabpanel"
+            aria-labelledby="serviceOrganisationTab"
+            hidden
+          >
             <legend>Organisation</legend>
             <div class="field-row equal-fields">
               <label class="field grow"
@@ -460,7 +545,8 @@
               <input type="checkbox" name="favorite" />
               <span
                 ><strong>Pin to favourites</strong><br /><small class="muted"
-                  >Shows it in the favourites row at the top of every page.</small
+                  >Shows it in the favourites row at the top of every
+                  page.</small
                 ></span
               >
             </label>
@@ -472,12 +558,20 @@
                 rows="3"
                 placeholder="Config in /opt/jellyfin · admin login in Bitwarden…"
               ></textarea>
-              <small>Shown from the note button on the card. Anyone who can view the dashboard can read them — don't store passwords.</small>
+              <small
+                >Shown from the note button on the card. Anyone who can view the
+                dashboard can read them — don't store passwords.</small
+              >
             </label>
           </fieldset>
         </div>
         <footer class="dialog-foot">
-          <p class="editor-feedback" role="status" aria-live="polite" hidden></p>
+          <p
+            class="editor-feedback"
+            role="status"
+            aria-live="polite"
+            hidden
+          ></p>
           <button type="button" class="btn danger ghost" id="serviceDelete">
             Delete
           </button>
@@ -489,7 +583,12 @@
     </dialog>
 
     <!-- Server editor -->
-    <dialog id="serverDialog" class="editor-dialog" aria-labelledby="serverDialogTitle" aria-describedby="serverDialogHint">
+    <dialog
+      id="serverDialog"
+      class="editor-dialog"
+      aria-labelledby="serverDialogTitle"
+      aria-describedby="serverDialogHint"
+    >
       <form id="serverForm" method="dialog">
         <header class="dialog-head">
           <div class="dialog-heading">
@@ -502,18 +601,45 @@
         </header>
         <div class="editor-tabs settings-tabs">
           <div class="seg" role="tablist" aria-label="Server sections">
-          <button type="button" role="tab" id="serverDetailsTab" aria-controls="serverDetailsPanel" aria-selected="true">Details</button>
-          <button type="button" role="tab" id="serverHostTab" aria-controls="serverHostPanel" aria-selected="false" tabindex="-1">Host</button>
+            <button
+              type="button"
+              role="tab"
+              id="serverDetailsTab"
+              aria-controls="serverDetailsPanel"
+              aria-selected="true"
+            >
+              Details
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="serverHostTab"
+              aria-controls="serverHostPanel"
+              aria-selected="false"
+              tabindex="-1"
+            >
+              Host
+            </button>
           </div>
         </div>
         <div class="dialog-body">
-          <fieldset class="dialog-section editor-panel" id="serverDetailsPanel" role="tabpanel" aria-labelledby="serverDetailsTab">
+          <fieldset
+            class="dialog-section editor-panel"
+            id="serverDetailsPanel"
+            role="tabpanel"
+            aria-labelledby="serverDetailsTab"
+          >
             <legend>Details</legend>
             <div class="field-row identity-row">
               <div class="icon-preview" id="serverIconPreview"></div>
               <label class="field grow"
                 >Name
-                <input name="name" required maxlength="100" placeholder="Home" />
+                <input
+                  name="name"
+                  required
+                  maxlength="100"
+                  placeholder="Home"
+                />
               </label>
             </div>
             <div class="field">
@@ -539,7 +665,9 @@
               >
             </div>
             <label class="field"
-              ><span>Main URL <span class="field-optional">Optional</span></span>
+              ><span
+                >Main URL <span class="field-optional">Optional</span></span
+              >
               <input
                 name="mainUrl"
                 type="url"
@@ -551,7 +679,13 @@
               <textarea name="description" maxlength="500" rows="3"></textarea>
             </label>
           </fieldset>
-          <fieldset class="dialog-section editor-panel" id="serverHostPanel" role="tabpanel" aria-labelledby="serverHostTab" hidden>
+          <fieldset
+            class="dialog-section editor-panel"
+            id="serverHostPanel"
+            role="tabpanel"
+            aria-labelledby="serverHostTab"
+            hidden
+          >
             <legend>Host</legend>
             <div class="field-row equal-fields">
               <label class="field grow"
@@ -575,7 +709,12 @@
           </fieldset>
         </div>
         <footer class="dialog-foot">
-          <p class="editor-feedback" role="status" aria-live="polite" hidden></p>
+          <p
+            class="editor-feedback"
+            role="status"
+            aria-live="polite"
+            hidden
+          ></p>
           <button type="button" class="btn danger ghost" id="serverDelete">
             Delete
           </button>
@@ -587,12 +726,18 @@
     </dialog>
 
     <!-- Plain link editor -->
-    <dialog id="linkDialog" aria-labelledby="linkDialogTitle" aria-describedby="linkDialogHint">
+    <dialog
+      id="linkDialog"
+      aria-labelledby="linkDialogTitle"
+      aria-describedby="linkDialogHint"
+    >
       <form id="linkForm" method="dialog">
         <header class="dialog-head">
           <div class="dialog-heading">
             <h2 id="linkDialogTitle">Add quick action</h2>
-            <p id="linkDialogHint">Open a link or copy useful text in one click.</p>
+            <p id="linkDialogHint">
+              Open a link or copy useful text in one click.
+            </p>
           </div>
           <button type="button" class="icon-btn" data-close aria-label="Close">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -642,7 +787,9 @@
             >
           </label>
           <div class="field">
-            <label for="linkIcon">Icon <span class="field-optional">Optional</span></label>
+            <label for="linkIcon"
+              >Icon <span class="field-optional">Optional</span></label
+            >
             <input
               id="linkIcon"
               name="icon"
@@ -708,16 +855,31 @@
               </h3>
               <div class="field">
                 <span id="settingsLayoutLabel">Layout</span>
-                <div id="layoutSeg" class="seg settings-display-seg" role="group" aria-labelledby="settingsLayoutLabel"></div>
+                <div
+                  id="layoutSeg"
+                  class="seg settings-display-seg"
+                  role="group"
+                  aria-labelledby="settingsLayoutLabel"
+                ></div>
               </div>
               <div class="field">
                 <span id="settingsThemeLabel">Theme</span>
-                <div id="themeSeg" class="seg settings-display-seg" role="group" aria-labelledby="settingsThemeLabel"></div>
+                <div
+                  id="themeSeg"
+                  class="seg settings-display-seg"
+                  role="group"
+                  aria-labelledby="settingsThemeLabel"
+                ></div>
               </div>
-              <small>Applies immediately on this device only. Cancel does not revert display preferences.</small>
+              <small
+                >Applies immediately on this device only. Cancel does not revert
+                display preferences.</small
+              >
             </div>
             <div class="field set-group">
-              <h3><label for="settingsDashboardTitle">Dashboard title</label></h3>
+              <h3>
+                <label for="settingsDashboardTitle">Dashboard title</label>
+              </h3>
               <input
                 name="title"
                 id="settingsDashboardTitle"
@@ -727,7 +889,10 @@
             </div>
             <div class="field set-group">
               <h3>Accent colour</h3>
-              <small>Preview an accent below. Save to apply it to your dashboard.</small>
+              <small
+                >Preview an accent below. Save to apply it to your
+                dashboard.</small
+              >
               <div
                 id="accentPicker"
                 class="swatches"
@@ -750,14 +915,35 @@
             <div class="field set-group">
               <h3>Install app</h3>
               <label class="field" for="settingsAppName">
-                <span>Install / app name <span class="field-optional">Optional</span></span>
-                <input id="settingsAppName" name="appName" maxlength="60"
-                  placeholder="Home NAS, Lab, VPS…" aria-describedby="appNameHelp appNameDefault" />
+                <span
+                  >Install / app name
+                  <span class="field-optional">Optional</span></span
+                >
+                <input
+                  id="settingsAppName"
+                  name="appName"
+                  maxlength="60"
+                  placeholder="Home NAS, Lab, VPS…"
+                  aria-describedby="appNameHelp appNameDefault"
+                />
               </label>
-              <small id="appNameHelp">Public name shown when installing this dashboard, even when password-protected. Do not include private information. Save before installing.</small>
+              <small id="appNameHelp"
+                >Public name shown when installing this dashboard, even when
+                password-protected. Do not include private information. Save
+                before installing.</small
+              >
               <small id="appNameDefault"></small>
-              <small>After saving, reload before installing. Existing app names may take time to update; your browser or OS may require reinstalling.</small>
-              <button type="button" id="installBtn" class="btn sm primary" hidden>
+              <small
+                >After saving, reload before installing. Existing app names may
+                take time to update; your browser or OS may require
+                reinstalling.</small
+              >
+              <button
+                type="button"
+                id="installBtn"
+                class="btn sm primary"
+                hidden
+              >
                 <svg viewBox="0 0 24 24">
                   <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
                 </svg>
@@ -802,28 +988,35 @@
               <h3>Remote dashboards</h3>
               <div id="remoteList" class="remote-list"></div>
               <div class="settings-remote-fields">
-                <label class="field"><span>Name <span class="field-optional">Optional</span></span>
-                <input
-                  id="remoteName"
-                  placeholder="Name"
-                  maxlength="100"
-                  aria-label="Remote dashboard name"
-                />
+                <label class="field"
+                  ><span
+                    >Name <span class="field-optional">Optional</span></span
+                  >
+                  <input
+                    id="remoteName"
+                    placeholder="Name"
+                    maxlength="100"
+                    aria-label="Remote dashboard name"
+                  />
                 </label>
-                <label class="field">Dashboard URL
-                <input
-                  id="remoteUrl" inputmode="url"
-                  placeholder="http://192.168.1.20:8011"
-                  aria-label="Remote dashboard URL"
-                />
+                <label class="field"
+                  >Dashboard URL
+                  <input
+                    id="remoteUrl"
+                    inputmode="url"
+                    placeholder="http://192.168.1.20:8011"
+                    aria-label="Remote dashboard URL"
+                  />
                 </label>
-                <label class="field">Share token
-                <input
-                  id="remoteToken" spellcheck="false"
-                  placeholder="Share token"
-                  autocomplete="off"
-                  aria-label="Remote share token"
-                />
+                <label class="field"
+                  >Share token
+                  <input
+                    id="remoteToken"
+                    spellcheck="false"
+                    placeholder="Share token"
+                    autocomplete="off"
+                    aria-label="Remote share token"
+                  />
                 </label>
                 <button type="button" class="btn ghost" id="remoteAddBtn">
                   Add
@@ -979,23 +1172,63 @@
             <div class="field set-group">
               <h3>Backend Logs</h3>
               <div class="field-row">
-                <button type="button" class="btn ghost" id="downloadLogsBtn">Download Logs</button>
-                <button type="button" class="btn danger ghost" id="clearLogsBtn">Clear Logs</button>
+                <button type="button" class="btn ghost" id="downloadLogsBtn">
+                  Download Logs
+                </button>
+                <button
+                  type="button"
+                  class="btn danger ghost"
+                  id="clearLogsBtn"
+                >
+                  Clear Logs
+                </button>
               </div>
-              <small>Download the current log and previous backup together. Clearing removes both; logging continues. Edit access is required.</small>
+              <small
+                >Download the current log and previous backup together. Clearing
+                removes both; logging continues. Edit access is required.</small
+              >
               <small id="logsFeedback" role="status" aria-live="polite"></small>
             </div>
             <div class="field set-group">
-              <h3>Backup</h3><small>Export your saved dashboard configuration or import a configuration backup.</small>
+              <h3>Action History</h3>
+              <div class="field-row">
+                <button
+                  type="button"
+                  class="btn danger ghost"
+                  id="clearActivitySettingsBtn"
+                >
+                  Clear action history
+                </button>
+              </div>
+              <small
+                >Remove finished entries from the notification bell for every
+                device. In-progress container actions are kept. Minimal request
+                receipts remain to prevent duplicate container
+                operations.</small
+              >
+              <small
+                id="activityFeedback"
+                role="status"
+                aria-live="polite"
+              ></small>
+            </div>
+            <div class="field set-group">
+              <h3>Backup</h3>
+              <small
+                >Export your saved dashboard configuration or import a
+                configuration backup.</small
+              >
               <div class="field-row">
                 <button type="button" class="btn ghost" id="exportBtn">
                   Export JSON
                 </button>
-                <button type="button" class="btn ghost" id="importBtn">Import JSON</button><input
-                    type="file"
-                    id="importFile"
-                    accept="application/json,.json"
-                    hidden
+                <button type="button" class="btn ghost" id="importBtn">
+                  Import JSON</button
+                ><input
+                  type="file"
+                  id="importFile"
+                  accept="application/json,.json"
+                  hidden
                 />
               </div>
             </div>
@@ -1003,15 +1236,215 @@
         </div>
         <footer class="dialog-foot">
           <span class="app-version" id="appVersion"></span>
-          <small id="settingsFeedback" class="grow settings-save-note" role="status" aria-live="polite">Save applies title, app name, accent, and hidden containers. Other preferences save automatically.</small>
+          <small
+            id="settingsFeedback"
+            class="grow settings-save-note"
+            role="status"
+            aria-live="polite"
+            >Save applies title, app name, accent, and hidden containers. Other
+            preferences save automatically.</small
+          >
           <button type="button" class="btn ghost" data-close>Cancel</button>
-          <button type="submit" class="btn primary" id="settingsSaveBtn">Save</button>
+          <button type="submit" class="btn primary" id="settingsSaveBtn">
+            Save
+          </button>
+        </footer>
+      </form>
+    </dialog>
+
+    <div
+      id="activityMenu"
+      class="menu activity-menu"
+      popover
+      role="region"
+      aria-labelledby="activityTitle"
+    >
+      <div class="clip-head activity-head">
+        <h2 id="activityTitle" class="menu-label">Action history</h2>
+        <div class="clip-actions">
+          <button
+            type="button"
+            id="activityRefresh"
+            class="icon-btn sm"
+            title="Refresh history"
+            aria-label="Refresh history"
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            id="activityClose"
+            class="icon-btn sm"
+            title="Close history"
+            aria-label="Close history"
+          >
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </div>
+      </div>
+      <p id="activityError" class="form-error" role="alert" hidden></p>
+      <div
+        id="activityList"
+        class="activity-list"
+        tabindex="0"
+        aria-label="Recent actions"
+      ></div>
+      <p class="menu-hint">
+        Latest 200 actions. Clear completed history in Settings → Data.
+      </p>
+    </div>
+
+    <dialog
+      id="servicePreviewDialog"
+      class="service-preview-dialog"
+      aria-labelledby="servicePreviewTitle"
+    >
+      <form method="dialog">
+        <header class="dialog-head">
+          <div id="servicePreviewIcon" aria-hidden="true"></div>
+          <div class="dialog-heading grow">
+            <h2 id="servicePreviewTitle">Service preview</h2>
+            <p id="servicePreviewServer"></p>
+          </div>
+          <button
+            type="button"
+            id="servicePreviewRefresh"
+            class="icon-btn"
+            title="Refresh this container only"
+            aria-label="Refresh this container only"
+            hidden
+          >
+            <svg viewBox="0 0 24 24">
+              <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" />
+            </svg>
+          </button>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+        <div class="dialog-body">
+          <div id="servicePreviewBody" class="preview-service-details"></div>
+          <small
+            id="servicePreviewFeedback"
+            class="muted"
+            role="status"
+            aria-live="polite"
+          ></small>
+          <div
+            id="servicePreviewDocker"
+            class="preview-docker-details"
+            aria-busy="false"
+            hidden
+          ></div>
+        </div>
+        <footer class="dialog-foot">
+          <button type="button" id="servicePreviewEdit" class="btn primary">
+            <svg viewBox="0 0 24 24">
+              <path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" />
+            </svg>
+            Edit service
+          </button>
+          <span class="grow"></span>
+          <button type="button" class="btn ghost" data-close>Close</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <!-- Shared container/service actions; kept outside periodically rebuilt cards. -->
+    <div
+      id="cardMenu"
+      class="menu card-menu"
+      popover
+      role="menu"
+      aria-label="Container actions"
+    ></div>
+
+    <dialog
+      id="dockerLogsDialog"
+      class="docker-logs-dialog"
+      aria-labelledby="dockerLogsTitle"
+      aria-describedby="dockerLogsName"
+    >
+      <form method="dialog">
+        <header class="dialog-head">
+          <div class="dialog-heading">
+            <h2 id="dockerLogsTitle">Container logs</h2>
+            <p id="dockerLogsName"></p>
+          </div>
+          <button type="button" class="icon-btn" data-close aria-label="Close">
+            <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
+          </button>
+        </header>
+        <div class="dialog-body docker-logs-body">
+          <div class="docker-logs-toolbar">
+            <label for="dockerLogsLines">Recent lines</label>
+            <select id="dockerLogsLines">
+              <option value="100">100</option>
+              <option value="250" selected>250</option>
+              <option value="500">500</option>
+            </select>
+            <span class="grow"></span>
+            <button
+              type="button"
+              id="dockerLogsDownload"
+              class="icon-btn"
+              aria-label="Download displayed log snapshot"
+              title="Download displayed log snapshot"
+              disabled
+            >
+              <svg viewBox="0 0 24 24">
+                <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              id="dockerLogsRefresh"
+              class="icon-btn"
+              aria-label="Refresh logs"
+              title="Refresh logs"
+            >
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M20 7v5h-5M4 17v-5h5M6 7a7 7 0 0 1 12-1l2 3M4 15l2 3a7 7 0 0 0 12-1"
+                />
+              </svg>
+            </button>
+          </div>
+          <small
+            id="dockerLogsStatus"
+            class="muted"
+            role="status"
+            aria-live="polite"
+          ></small>
+          <p id="dockerLogsError" class="form-error" role="alert" hidden></p>
+          <pre
+            id="dockerLogsOutput"
+            class="docker-logs-output"
+            tabindex="0"
+            aria-label="Container log output"
+            aria-describedby="dockerLogsNumbering"
+            aria-busy="false"
+          ></pre>
+        </div>
+        <footer class="dialog-foot">
+          <small id="dockerLogsNumbering" class="muted"
+            >Line numbers are relative to this snapshot. Logs may contain
+            sensitive information.</small
+          >
+          <span class="grow"></span>
+          <button type="button" class="btn ghost" data-close>Close</button>
         </footer>
       </form>
     </dialog>
 
     <!-- Outage history -->
-    <dialog id="availabilityDialog" class="avail-dialog" aria-labelledby="availabilityTitle">
+    <dialog
+      id="availabilityDialog"
+      class="avail-dialog"
+      aria-labelledby="availabilityTitle"
+    >
       <form method="dialog">
         <header class="dialog-head">
           <div class="dialog-heading">
@@ -1051,7 +1484,11 @@
     </dialog>
 
     <!-- Server info -->
-    <dialog id="serverInfoDialog" class="info-dialog" aria-labelledby="serverInfoTitle">
+    <dialog
+      id="serverInfoDialog"
+      class="info-dialog"
+      aria-labelledby="serverInfoTitle"
+    >
       <form method="dialog">
         <header class="dialog-head">
           <div class="dialog-heading">
@@ -1073,12 +1510,18 @@
       </form>
     </dialog>
 
-    <dialog id="loginDialog" aria-labelledby="loginTitle" aria-describedby="loginHint">
+    <dialog
+      id="loginDialog"
+      aria-labelledby="loginTitle"
+      aria-describedby="loginHint"
+    >
       <form id="loginForm" method="dialog">
         <header class="dialog-head">
           <div class="dialog-heading">
             <h2 id="loginTitle">Password required</h2>
-            <p id="loginHint">Unlock editing to make changes to your dashboard.</p>
+            <p id="loginHint">
+              Unlock to edit your dashboard or access protected logs.
+            </p>
           </div>
           <button type="button" class="icon-btn" data-close aria-label="Close">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
@@ -1136,7 +1579,12 @@
     </dialog>
 
     <!-- Generic text prompt / confirmation -->
-    <dialog id="askDialog" class="ask-dialog" aria-labelledby="askTitle" aria-describedby="askMessage">
+    <dialog
+      id="askDialog"
+      class="ask-dialog"
+      aria-labelledby="askTitle"
+      aria-describedby="askMessage"
+    >
       <form id="askForm" method="dialog">
         <header class="dialog-head">
           <h2 id="askTitle"></h2>
@@ -1153,7 +1601,9 @@
         </div>
         <footer class="dialog-foot">
           <span class="grow"></span>
-          <button type="button" class="btn ghost" id="askCancel" data-close>Cancel</button>
+          <button type="button" class="btn ghost" id="askCancel" data-close>
+            Cancel
+          </button>
           <button type="submit" class="btn primary" id="askOk">OK</button>
         </footer>
       </form>

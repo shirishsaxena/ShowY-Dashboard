@@ -54,19 +54,35 @@ export function hostLabel(u) {
 /** Safe display links, with canonical arrays authoritative over legacy shadows. */
 export function serviceUrls(svc) {
   const entries = Object.hasOwn(svc, "urls")
-    ? (Array.isArray(svc.urls) ? svc.urls : [])
-    : [{ label: "Local", url: svc.url }, { label: "Public", url: svc.altUrl }];
+    ? Array.isArray(svc.urls)
+      ? svc.urls
+      : []
+    : [
+        { label: "Local", url: svc.url },
+        { label: "Public", url: svc.altUrl },
+      ];
   return entries.flatMap((entry, index) => {
     const url = typeof entry?.url === "string" ? safeUrl(entry.url) : "";
-    return url ? [{ label: typeof entry.label === "string" && entry.label.trim()
-      ? entry.label.trim() : `URL ${index + 1}`, url }] : [];
+    return url
+      ? [
+          {
+            label:
+              typeof entry.label === "string" && entry.label.trim()
+                ? entry.label.trim()
+                : `URL ${index + 1}`,
+            url,
+          },
+        ]
+      : [];
   });
 }
 
 /** Backend check target (no browser-host substitution or LAN/public switching). */
 export function monitoringUrl(svc) {
   const value = Object.hasOwn(svc, "urls")
-    ? (Array.isArray(svc.urls) ? svc.urls[0]?.url : "")
+    ? Array.isArray(svc.urls)
+      ? svc.urls[0]?.url
+      : ""
     : svc.url || svc.altUrl;
   const url = typeof value === "string" ? parseUrl(value) : null;
   return url && ["http:", "https:"].includes(url.protocol) ? value : "";
@@ -74,7 +90,8 @@ export function monitoringUrl(svc) {
 
 /** Canonical first URL; only legacy services retain LAN/public selection. */
 export const primaryUrl = (svc) =>
-  Object.hasOwn(svc, "urls") ? safeUrl(monitoringUrl(svc))
+  Object.hasOwn(svc, "urls")
+    ? safeUrl(monitoringUrl(svc))
     : safeUrl(!isLan && svc.altUrl ? svc.altUrl : svc.url || svc.altUrl);
 
 // ---------- Formatting ----------

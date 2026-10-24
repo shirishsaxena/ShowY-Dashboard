@@ -65,7 +65,8 @@ export function initLinkForm() {
 
   $("#linkDelete").addEventListener("click", async () => {
     await pendingForm(form, async () => {
-      if (await actions.deleteLink(form.dataset.linkId)) $("#linkDialog").close();
+      if (await actions.deleteLink(form.dataset.linkId))
+        $("#linkDialog").close();
     });
   });
 }

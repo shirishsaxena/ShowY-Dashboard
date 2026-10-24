@@ -19,41 +19,62 @@ async function start(t, overrides = {}) {
     cwd: path.resolve(__dirname, ".."),
     env: {
       ...process.env,
-      PORT: String(port), DATA_DIR: dir, DASHBOARD_PASSWORD: "",
-      DASHBOARD_LOCK_VIEW: "true", SHARE_TOKEN: "", REMOTE_DASHBOARDS: "",
+      PORT: String(port),
+      DATA_DIR: dir,
+      DASHBOARD_PASSWORD: "",
+      DASHBOARD_LOCK_VIEW: "true",
+      SHARE_TOKEN: "",
+      REMOTE_DASHBOARDS: "",
       DOCKER_SOCKET: path.join(dir, "missing.sock"),
       ...overrides,
     },
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
-  child.stdout.on("data", (data) => output += data);
-  child.stderr.on("data", (data) => output += data);
+  child.stdout.on("data", (data) => (output += data));
+  child.stderr.on("data", (data) => (output += data));
   const exited = once(child, "exit");
   t.after(async () => {
-    if (child.exitCode === null && child.signalCode === null) child.kill("SIGTERM");
+    if (child.exitCode === null && child.signalCode === null)
+      child.kill("SIGTERM");
     const timer = setTimeout(() => child.kill("SIGKILL"), 8000);
     await exited;
     clearTimeout(timer);
     fs.rmSync(dir, { recursive: true, force: true });
   });
-  const ready = new RegExp(`INFO \\[HTTP\\] Dashboard v\\S+ listening on port ${port}\\b`);
+  const ready = new RegExp(
+    `INFO \\[HTTP\\] Dashboard v\\S+ listening on port ${port}\\b`,
+  );
   for (let i = 0; i < 150 && !ready.test(output); i++) {
     if (child.exitCode !== null) throw new Error(output);
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
   assert.match(output, ready);
   return {
-    child, dir, port, exited,
-    request: (url, options) => fetch(`http://127.0.0.1:${port}${url}`, {
-      ...options, signal: AbortSignal.timeout(5000),
-    }),
+    child,
+    dir,
+    port,
+    exited,
+    request: (url, options) =>
+      fetch(`http://127.0.0.1:${port}${url}`, {
+        ...options,
+        signal: AbortSignal.timeout(5000),
+      }),
   };
 }
 
 test("isolated real startup serves assets, manifest, API and web edge cases", async (t) => {
   const app = await start(t);
-  for (const url of ["/", "/app.css", "/js/main.js", "/favicon.svg", "/icons/icon-192.png", "/manifest.webmanifest", "/api/auth", "/api/config"]) {
+  for (const url of [
+    "/",
+    "/app.css",
+    "/js/main.js",
+    "/favicon.svg",
+    "/icons/icon-192.png",
+    "/manifest.webmanifest",
+    "/api/auth",
+    "/api/config",
+  ]) {
     const response = await app.request(url);
     assert.equal(response.status, 200, url);
     assert.ok((await response.arrayBuffer()).byteLength > 0);
@@ -65,7 +86,9 @@ test("isolated real startup serves assets, manifest, API and web edge cases", as
   assert.equal(head.status, 200);
   assert.equal(head.headers.get("etag"), etag);
   assert.equal(await head.text(), "");
-  const cached = await app.request("/app.css", { headers: { "if-none-match": etag } });
+  const cached = await app.request("/app.css", {
+    headers: { "if-none-match": etag },
+  });
   assert.equal(cached.status, 304);
   assert.equal(await cached.text(), "");
   assert.equal((await app.request("/missing-file")).status, 404);
@@ -77,7 +100,9 @@ test("isolated real startup serves assets, manifest, API and web edge cases", as
 module.exports = { start };
 
 test("branded manifest and all icon formats are public, versioned and correctly served", async (t) => {
-  const app = await start(t, { DASHBOARD_PASSWORD: "test-password" });
+  const app = await start(t, {
+    DASHBOARD_PASSWORD: Buffer.from("test-password").toString("base64"),
+  });
   assert.equal((await app.request("/api/config")).status, 401);
   const manifest = await (await app.request("/manifest.webmanifest")).json();
   assert.equal(manifest.icons.length, 3);
@@ -89,7 +114,10 @@ test("branded manifest and all icon formats are public, versioned and correctly 
     assert.equal(response.headers.get("cache-control"), "no-cache");
     const png = Buffer.from(await response.arrayBuffer());
     assert.equal(icon.sizes, `${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`);
-    assert.equal(icon.purpose, icon.src.includes("maskable") ? "maskable" : "any");
+    assert.equal(
+      icon.purpose,
+      icon.src.includes("maskable") ? "maskable" : "any",
+    );
   }
   for (const [url, type] of [
     ["/favicon.ico", "image/x-icon"],
@@ -108,7 +136,7 @@ test("password modes preserve login, logout, view and edit policies", async (t) 
   for (const lockView of ["true", "false"]) {
     await t.test(`view lock ${lockView}`, async (t) => {
       const app = await start(t, {
-        DASHBOARD_PASSWORD: "test-password",
+        DASHBOARD_PASSWORD: Buffer.from("test-password").toString("base64"),
         DASHBOARD_LOCK_VIEW: lockView,
       });
       const json = { "content-type": "application/json" };
@@ -118,8 +146,13 @@ test("password modes preserve login, logout, view and edit policies", async (t) 
         lockView: lockView === "true",
         authenticated: false,
       });
-      const manifest = await (await app.request("/manifest.webmanifest")).json();
-      assert.equal(manifest.name, lockView === "true" ? "Dashboard" : "Home Lab");
+      const manifest = await (
+        await app.request("/manifest.webmanifest")
+      ).json();
+      assert.equal(
+        manifest.name,
+        lockView === "true" ? "Dashboard" : "Home Lab",
+      );
       const routes = require("../routes/index");
       for (const [key, route] of Object.entries(routes)) {
         if (route.access === "public") continue;
@@ -135,13 +168,20 @@ test("password modes preserve login, logout, view and edit policies", async (t) 
           error: lockView === "true" ? "Locked" : "Login required",
         });
       }
-      assert.equal((await app.request("/api/config")).status, lockView === "true" ? 401 : 200);
+      assert.equal(
+        (await app.request("/api/config")).status,
+        lockView === "true" ? 401 : 200,
+      );
       const wrong = await app.request("/api/login", {
-        method: "POST", headers: json, body: '{"password":"wrong"}',
+        method: "POST",
+        headers: json,
+        body: '{"password":"wrong"}',
       });
       assert.equal(wrong.status, 401);
       const login = await app.request("/api/login", {
-        method: "POST", headers: json, body: '{"password":"test-password"}',
+        method: "POST",
+        headers: json,
+        body: '{"password":"test-password"}',
       });
       assert.equal(login.status, 200);
       const cookie = login.headers.get("set-cookie");
@@ -149,11 +189,20 @@ test("password modes preserve login, logout, view and edit policies", async (t) 
       assert.equal((await login.json()).authenticated, true);
       const headers = { ...json, cookie: cookie.split(";")[0] };
       assert.equal((await app.request("/api/config", { headers })).status, 200);
-      assert.equal((await app.request("/api/clip", {
-        method: "PUT", headers, body: '{"text":"authenticated"}',
-      })).status, 200);
+      assert.equal(
+        (
+          await app.request("/api/clip", {
+            method: "PUT",
+            headers,
+            body: '{"text":"authenticated"}',
+          })
+        ).status,
+        200,
+      );
       const logout = await app.request("/api/logout", {
-        method: "POST", headers, body: "{}",
+        method: "POST",
+        headers,
+        body: "{}",
       });
       assert.equal((await logout.json()).authenticated, false);
       assert.match(logout.headers.get("set-cookie"), /Max-Age=0/);
@@ -161,21 +210,61 @@ test("password modes preserve login, logout, view and edit policies", async (t) 
   }
 });
 
+test("Base64-configured UTF-8 passwords authenticate with the decoded password, not its encoding", async (t) => {
+  const password = "  café-密码-🔐-$  ";
+  const encoded = Buffer.from(password, "utf8").toString("base64");
+  const app = await start(t, { DASHBOARD_PASSWORD: encoded });
+  const login = (value) =>
+    app.request("/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: value }),
+    });
+  assert.equal((await app.request("/api/config")).status, 401);
+  assert.equal((await login(encoded)).status, 401);
+  assert.equal((await login(password.trim())).status, 401);
+  const response = await login(password);
+  assert.equal(response.status, 200);
+  const cookie = response.headers.get("set-cookie").split(";")[0];
+  assert.equal(
+    (await app.request("/api/config", { headers: { cookie } })).status,
+    200,
+  );
+});
+
 test("public install names persist without exposing locked titles or changing app identity", async (t) => {
   for (const lockView of ["true", "false"]) {
     await t.test(`view lock ${lockView}`, async (t) => {
-      const app = await start(t, { DASHBOARD_PASSWORD: "test-password", DASHBOARD_LOCK_VIEW: lockView });
+      const app = await start(t, {
+        DASHBOARD_PASSWORD: Buffer.from("test-password").toString("base64"),
+        DASHBOARD_LOCK_VIEW: lockView,
+      });
       const json = { "content-type": "application/json" };
       const login = await app.request("/api/login", {
-        method: "POST", headers: json, body: JSON.stringify({ password: "test-password" }),
+        method: "POST",
+        headers: json,
+        body: JSON.stringify({ password: "test-password" }),
       });
-      const headers = { ...json, cookie: login.headers.get("set-cookie").split(";")[0] };
-      const save = (appName) => app.request("/api/config", {
-        method: "PUT", headers,
-        body: JSON.stringify({ settings: { title: "Private infrastructure", appName }, servers: [] }),
-      });
+      const headers = {
+        ...json,
+        cookie: login.headers.get("set-cookie").split(";")[0],
+      };
+      const save = (appName) =>
+        app.request("/api/config", {
+          method: "PUT",
+          headers,
+          body: JSON.stringify({
+            settings: { title: "Private infrastructure", appName },
+            servers: [],
+          }),
+        });
       const denied = await app.request("/api/config", {
-        method: "PUT", headers: json, body: JSON.stringify({ settings: { appName: "Untrusted" }, servers: [] }),
+        method: "PUT",
+        headers: json,
+        body: JSON.stringify({
+          settings: { appName: "Untrusted" },
+          servers: [],
+        }),
       });
       assert.equal(denied.status, 401);
       assert.equal((await save("  Home NAS production  ")).status, 200);
@@ -185,47 +274,101 @@ test("public install names persist without exposing locked titles or changing ap
       const manifest = await response.json();
       assert.equal(manifest.name, "Home NAS production");
       assert.equal(manifest.short_name, "Home NAS production");
-      for (const key of ["id", "start_url", "scope"]) assert.equal(manifest[key], "/");
+      for (const key of ["id", "start_url", "scope"])
+        assert.equal(manifest[key], "/");
       assert.doesNotMatch(JSON.stringify(manifest), /Private infrastructure/);
-      const saved = await (await app.request("/api/config", { headers })).json();
+      const saved = await (
+        await app.request("/api/config", { headers })
+      ).json();
       assert.equal(saved.config.settings.appName, "Home NAS production");
       // Same path used by backup import/export: the full configuration survives a round trip.
-      assert.equal((await app.request("/api/config", {
-        method: "PUT", headers, body: JSON.stringify(saved.config),
-      })).status, 200);
-      assert.equal(JSON.parse(fs.readFileSync(path.join(app.dir, "config.json"))).settings.appName, "Home NAS production");
+      assert.equal(
+        (
+          await app.request("/api/config", {
+            method: "PUT",
+            headers,
+            body: JSON.stringify(saved.config),
+          })
+        ).status,
+        200,
+      );
+      assert.equal(
+        JSON.parse(fs.readFileSync(path.join(app.dir, "config.json"))).settings
+          .appName,
+        "Home NAS production",
+      );
       assert.equal((await save("VPS")).status, 200);
-      assert.equal((await (await app.request("/manifest.webmanifest")).json()).name, "VPS");
+      assert.equal(
+        (await (await app.request("/manifest.webmanifest")).json()).name,
+        "VPS",
+      );
       assert.equal((await save("   ")).status, 200);
-      const fallback = await (await app.request("/manifest.webmanifest")).json();
-      assert.equal(fallback.name, lockView === "true" ? "Dashboard" : "Private infrastructure");
+      const fallback = await (
+        await app.request("/manifest.webmanifest")
+      ).json();
+      assert.equal(
+        fallback.name,
+        lockView === "true" ? "Dashboard" : "Private infrastructure",
+      );
       assert.equal(fallback.id, manifest.id);
-      if (lockView === "true") assert.equal((await app.request("/api/config")).status, 401);
+      if (lockView === "true")
+        assert.equal((await app.request("/api/config")).status, 401);
     });
   }
 });
 
 test("unlocked APIs retain response shapes, persistence and HTTP errors", async (t) => {
-  const app = await start(t, { PATH: "", SHARE_TOKEN: "test-share-token-123456" });
-  const json = { "content-type": "application/json" };
-  const request = (url, method, body) => app.request(url, {
-    method, headers: json, body: JSON.stringify(body),
+  const app = await start(t, {
+    PATH: "",
+    SHARE_TOKEN: "test-share-token-123456",
   });
+  const json = { "content-type": "application/json" };
+  const request = (url, method, body) =>
+    app.request(url, {
+      method,
+      headers: json,
+      body: JSON.stringify(body),
+    });
   const config = { settings: { title: "Refactor Test" }, servers: [] };
   assert.equal((await request("/api/config", "PUT", config)).status, 200);
   const saved = await (await app.request("/api/config")).json();
   assert.equal(saved.config.settings.title, "Refactor Test");
   assert.equal(typeof saved.version, "string");
   assert.equal(typeof saved.tunables, "object");
-  assert.equal((await (await app.request("/manifest.webmanifest")).json()).name, "Refactor Test");
-  for (const url of ["/api/docker", "/api/docker/stats?fresh=1", "/api/stats", "/api/health?fresh=1", "/api/storage", "/api/info", "/api/info/settings", "/api/tunables", "/api/icons", "/api/availability", "/api/remotes", "/api/remotes/settings"]) {
+  assert.equal(
+    (await (await app.request("/manifest.webmanifest")).json()).name,
+    "Refactor Test",
+  );
+  for (const url of [
+    "/api/docker",
+    "/api/docker/stats?fresh=1",
+    "/api/stats",
+    "/api/health?fresh=1",
+    "/api/storage",
+    "/api/info",
+    "/api/info/settings",
+    "/api/tunables",
+    "/api/icons",
+    "/api/availability",
+    "/api/remotes",
+    "/api/remotes/settings",
+  ]) {
     const response = await app.request(url);
     assert.equal(response.status, 200, url);
     assert.ok(await response.json());
   }
-  const added = await (await request("/api/clip", "PUT", { text: "persist me" })).json();
+  const added = await (
+    await request("/api/clip", "PUT", { text: "persist me" })
+  ).json();
   assert.equal(added.text, "persist me");
-  assert.equal((await (await request("/api/clip/entry", "DELETE", { id: added.entries[0].id })).json()).entries.length, 0);
+  assert.equal(
+    (
+      await (
+        await request("/api/clip/entry", "DELETE", { id: added.entries[0].id })
+      ).json()
+    ).entries.length,
+    0,
+  );
   for (const [url, method, body] of [
     ["/api/clip/settings", "PUT", { max: 5 }],
     ["/api/clip", "DELETE", {}],
@@ -244,19 +387,48 @@ test("unlocked APIs retain response shapes, persistence and HTTP errors", async 
     headers: { authorization: "Bearer test-share-token-123456" },
   });
   assert.equal(peer.status, 200);
-  assert.deepEqual(Object.keys(await peer.json()).sort(), ["availability", "docker", "health", "refreshError", "servers", "stats", "title", "usage", "version"]);
-  assert.equal((await app.request("/api/peer/info", {
-    headers: { authorization: "Bearer test-share-token-123456" },
-  })).status, 200);
+  assert.deepEqual(Object.keys(await peer.json()).sort(), [
+    "availability",
+    "docker",
+    "health",
+    "refreshError",
+    "servers",
+    "stats",
+    "title",
+    "usage",
+    "version",
+  ]);
+  assert.equal(
+    (
+      await app.request("/api/peer/info", {
+        headers: { authorization: "Bearer test-share-token-123456" },
+      })
+    ).status,
+    200,
+  );
   assert.equal((await app.request("/api/remotes/info?id=missing")).status, 404);
   assert.equal((await app.request("/api/icon?icon=bad%20name")).status, 400);
   assert.equal((await app.request("/api/icon?icon=unused")).status, 403);
   assert.equal((await app.request("/api/missing")).status, 404);
-  assert.equal((await app.request("/api/missing", { method: "POST" })).status, 415);
-  assert.equal((await app.request("/api/config", {
-    method: "PUT", headers: json, body: "{",
-  })).status, 400);
-  assert.equal(JSON.parse(fs.readFileSync(path.join(app.dir, "config.json"))).settings.title, "Refactor Test");
+  assert.equal(
+    (await app.request("/api/missing", { method: "POST" })).status,
+    415,
+  );
+  assert.equal(
+    (
+      await app.request("/api/config", {
+        method: "PUT",
+        headers: json,
+        body: "{",
+      })
+    ).status,
+    400,
+  );
+  assert.equal(
+    JSON.parse(fs.readFileSync(path.join(app.dir, "config.json"))).settings
+      .title,
+    "Refactor Test",
+  );
 });
 
 test("cached icon responses retain binary contents, ETags and SVG sandboxing", async (t) => {
@@ -266,22 +438,34 @@ test("cached icon responses retain binary contents, ETags and SVG sandboxing", a
   const json = { "content-type": "application/json" };
   for (const url of ["/api/login", "/api/logout"]) {
     const response = await app.request(url, {
-      method: "POST", headers: json, body: "{}",
+      method: "POST",
+      headers: json,
+      body: "{}",
     });
     assert.equal(response.status, 200);
     assert.equal((await response.json()).passwordSet, false);
   }
   const sharing = await app.request("/api/share", {
-    method: "PUT", headers: json, body: '{"enabled":true}',
+    method: "PUT",
+    headers: json,
+    body: '{"enabled":true}',
   });
   assert.equal(sharing.status, 200);
   assert.ok((await sharing.json()).shareToken.length >= 16);
   const data = '<svg xmlns="http://www.w3.org/2000/svg"></svg>';
-  fs.writeFileSync(path.join(app.dir, "config.json"), JSON.stringify({
-    settings: {}, servers: [{ icon, services: [] }],
-  }));
+  fs.writeFileSync(
+    path.join(app.dir, "config.json"),
+    JSON.stringify({
+      settings: {},
+      servers: [{ icon, services: [] }],
+    }),
+  );
   fs.mkdirSync(path.join(app.dir, "icons"));
-  const filename = crypto.createHash("sha256").update(icon).digest("hex").slice(0, 32);
+  const filename = crypto
+    .createHash("sha256")
+    .update(icon)
+    .digest("hex")
+    .slice(0, 32);
   fs.writeFileSync(path.join(app.dir, "icons", filename), data);
   const url = `/api/icon?icon=${encodeURIComponent(icon)}`;
   const response = await app.request(url);
@@ -303,7 +487,9 @@ test("both shutdown signals exit cleanly and flush the last heartbeat", async (t
       const before = Date.now();
       app.child.kill(signal);
       assert.deepEqual(await app.exited, [0, null]);
-      const data = JSON.parse(fs.readFileSync(path.join(app.dir, "availability.json")));
+      const data = JSON.parse(
+        fs.readFileSync(path.join(app.dir, "availability.json")),
+      );
       assert.ok(data.lastHeartbeat >= before);
     });
   }
@@ -313,19 +499,26 @@ test("shutdown allows an in-flight JSON request to finish before flushing", asyn
   const http = require("node:http");
   const app = await start(t);
   const response = new Promise((resolve, reject) => {
-    const req = http.request({
-      hostname: "127.0.0.1",
-      port: app.port,
-      path: "/api/clip",
-      method: "PUT",
-      headers: { "content-type": "application/json" },
-    }, (res) => {
-      let body = "";
-      res.setEncoding("utf8");
-      res.on("data", (chunk) => { body += chunk; });
-      res.on("end", () => resolve({ status: res.statusCode, body: JSON.parse(body) }));
-      res.on("error", reject);
-    });
+    const req = http.request(
+      {
+        hostname: "127.0.0.1",
+        port: app.port,
+        path: "/api/clip",
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+      },
+      (res) => {
+        let body = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          body += chunk;
+        });
+        res.on("end", () =>
+          resolve({ status: res.statusCode, body: JSON.parse(body) }),
+        );
+        res.on("error", reject);
+      },
+    );
     req.on("error", reject);
     req.setTimeout(5000, () => req.destroy(new Error("Request timed out")));
     req.write('{"text":');
@@ -340,19 +533,40 @@ test("shutdown allows an in-flight JSON request to finish before flushing", asyn
   assert.deepEqual(await app.exited, [0, null]);
 });
 
-
 test("persistence API failures are scoped, redact details, and preserve stores and memory", async (t) => {
   const app = await start(t);
   const headers = { "content-type": "application/json" };
   for (const [file, url, method, body, scope] of [
-    ["config.json", "/api/config", "PUT", { servers: [] }, "Dashboard configuration"],
+    [
+      "config.json",
+      "/api/config",
+      "PUT",
+      { servers: [] },
+      "Dashboard configuration",
+    ],
     ["clipboard.json", "/api/clip", "DELETE", {}, "Shared clipboard"],
-    ["remotes.json", "/api/share", "PUT", { enabled: true }, "Remote dashboard settings"],
-    ["serverinfo.json", "/api/info/settings", "PUT", { mode: "manual", manualIp: "127.0.0.1" }, "Server info settings"],
+    [
+      "remotes.json",
+      "/api/share",
+      "PUT",
+      { enabled: true },
+      "Remote dashboard settings",
+    ],
+    [
+      "serverinfo.json",
+      "/api/info/settings",
+      "PUT",
+      { mode: "manual", manualIp: "127.0.0.1" },
+      "Server info settings",
+    ],
   ]) {
     const target = path.join(app.dir, file);
     fs.writeFileSync(target, "{private-corrupt-content");
-    const response = await app.request(url, { method, headers, body: JSON.stringify(body) });
+    const response = await app.request(url, {
+      method,
+      headers,
+      body: JSON.stringify(body),
+    });
     assert.equal(response.status, 500, url);
     assert.deepEqual(await response.json(), {
       error: `${scope} could not be loaded or saved. Check the backend logs.`,
@@ -364,24 +578,37 @@ test("persistence API failures are scoped, redact details, and preserve stores a
   fs.unlinkSync(target);
   fs.mkdirSync(target); // Rename cannot replace a directory, even when running as root.
   const response = await app.request("/api/availability/settings", {
-    method: "PUT", headers, body: JSON.stringify({ enabled: !before.enabled }),
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ enabled: !before.enabled }),
   });
   assert.equal(response.status, 500);
   assert.deepEqual(await response.json(), {
-    error: "Availability history could not be loaded or saved. Check the backend logs.",
+    error:
+      "Availability history could not be loaded or saved. Check the backend logs.",
   });
-  assert.equal((await (await app.request("/api/availability")).json()).enabled, before.enabled);
-  assert.equal((await app.request("/api/availability", { method: "DELETE", headers })).status, 500);
+  assert.equal(
+    (await (await app.request("/api/availability")).json()).enabled,
+    before.enabled,
+  );
+  assert.equal(
+    (await app.request("/api/availability", { method: "DELETE", headers }))
+      .status,
+    500,
+  );
   const items = await (await app.request("/api/tunables")).json();
   const item = items.find((entry) => !entry.fixed);
   assert.ok(item);
   fs.mkdirSync(path.join(app.dir, "tunables.json"));
   const failedTunable = await app.request("/api/tunables", {
-    method: "PUT", headers, body: JSON.stringify({ values: { [item.key]: item.min } }),
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ values: { [item.key]: item.min } }),
   });
   assert.equal(failedTunable.status, 500);
   assert.deepEqual(await failedTunable.json(), {
-    error: "Timing settings could not be loaded or saved. Check the backend logs.",
+    error:
+      "Timing settings could not be loaded or saved. Check the backend logs.",
   });
   const after = await (await app.request("/api/tunables")).json();
   assert.equal(after.find((entry) => entry.key === item.key).value, item.value);
@@ -391,11 +618,19 @@ test("configuration API exposes revisions and rejects concurrent stale documents
   const app = await start(t);
   const initial = await (await app.request("/api/config")).json();
   assert.match(initial.revision, /^[a-f0-9]{64}$/);
-  const put = (config, revision) => app.request("/api/config", {
-    method: "PUT", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ ...config, ...(revision === undefined ? {} : { _revision: revision }) }),
+  const put = (config, revision) =>
+    app.request("/api/config", {
+      method: "PUT",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        ...config,
+        ...(revision === undefined ? {} : { _revision: revision }),
+      }),
+    });
+  const document = (title) => ({
+    ...initial.config,
+    settings: { ...initial.config.settings, title },
   });
-  const document = (title) => ({ ...initial.config, settings: { ...initial.config.settings, title } });
   const responses = await Promise.all([
     put(document("client A"), initial.revision),
     put(document("client B"), initial.revision),

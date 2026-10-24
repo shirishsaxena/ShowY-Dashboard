@@ -5,7 +5,13 @@ import { $, h, fill, toast, iconBtn, resetIconCache, svg } from "../dom.js";
 import * as actions from "../actions.js";
 import { loadRemotes } from "../api.js";
 import { render } from "../render-interface.js";
-import { beginSettingsSession, endSettingsSession, settingsOperation, settingsRequest, protectSettingsControl } from "./settings-session.js";
+import {
+  beginSettingsSession,
+  endSettingsSession,
+  settingsOperation,
+  settingsRequest,
+  protectSettingsControl,
+} from "./settings-session.js";
 import { plural, fmtBytes } from "../utils.js";
 import {
   setLayout,
@@ -21,6 +27,7 @@ import { field, value } from "./common.js";
 import { ask } from "./ask.js";
 import { openOwnAvailability, clearOutageHistory } from "./availability.js";
 import { refreshClip } from "../clip.js";
+import { refreshActivity } from "../activity.js";
 
 const ACCENTS = [
   "#7c5cff",
@@ -33,61 +40,115 @@ const ACCENTS = [
   "#ec4899",
 ];
 const draft = { accent: "", hidden: [] };
-const GENERAL_CONTROLS = ["#settingsSaveBtn", "#importBtn", '#settingsForm [name="title"]', '#settingsForm [name="appName"]', "#accentPicker input", "#accentPicker button", "#hiddenList button"];
+const GENERAL_CONTROLS = [
+  "#settingsSaveBtn",
+  "#importBtn",
+  '#settingsForm [name="title"]',
+  '#settingsForm [name="appName"]',
+  "#accentPicker input",
+  "#accentPicker button",
+  "#hiddenList button",
+];
 
 function renderDisplayPreferences() {
   for (const [selector, options, current, onPick] of [
-    ["#layoutSeg", [["cards", "cards", "Cards"], ["compact", "compact", "Compact"], ["list", "list", "List"]], LAYOUTS.includes(prefs.layout) ? prefs.layout : "cards", setLayout],
-    ["#themeSeg", [["auto", "auto", "Auto"], ["light", "sun", "Light"], ["dark", "moon", "Dark"]], THEMES.includes(prefs.theme) ? prefs.theme : "auto", setTheme],
+    [
+      "#layoutSeg",
+      [
+        ["cards", "cards", "Cards"],
+        ["compact", "compact", "Compact"],
+        ["list", "list", "List"],
+      ],
+      LAYOUTS.includes(prefs.layout) ? prefs.layout : "cards",
+      setLayout,
+    ],
+    [
+      "#themeSeg",
+      [
+        ["auto", "auto", "Auto"],
+        ["light", "sun", "Light"],
+        ["dark", "moon", "Dark"],
+      ],
+      THEMES.includes(prefs.theme) ? prefs.theme : "auto",
+      setTheme,
+    ],
   ]) {
-    fill($(selector), options.map(([value, icon, label]) => h(
-      "button",
-      {
-        type: "button",
-        "aria-pressed": String(value === current),
-        onclick: () => {
-          onPick(value);
-          // Update selection in place so keyboard focus stays on the chosen button.
-          for (const button of $(selector).querySelectorAll("button"))
-            button.setAttribute("aria-pressed", String(button.dataset.value === value));
-        },
-        "data-value": value,
-      },
-      svg(icon),
-      label,
-    )));
+    fill(
+      $(selector),
+      options.map(([value, icon, label]) =>
+        h(
+          "button",
+          {
+            type: "button",
+            "aria-pressed": String(value === current),
+            onclick: () => {
+              onPick(value);
+              // Update selection in place so keyboard focus stays on the chosen button.
+              for (const button of $(selector).querySelectorAll("button"))
+                button.setAttribute(
+                  "aria-pressed",
+                  String(button.dataset.value === value),
+                );
+            },
+            "data-value": value,
+          },
+          svg(icon),
+          label,
+        ),
+      ),
+    );
   }
 }
 
 async function manageLogs(clear = false) {
-  return settingsOperation("logs", ["#downloadLogsBtn", "#clearLogsBtn"], async (scope) => {
-    if (clear && !(await ask({
-      title: "Clear backend logs?",
-      message: "The current log and previous backup will be permanently removed. Logging will continue.",
-      okLabel: "Clear Logs", danger: true,
-    }))) return;
-    if (!scope.current()) return;
-    const feedback = $("#logsFeedback");
-    feedback.textContent = clear ? "Clearing logs…" : "Downloading logs…";
-    try {
-      const data = await settingsRequest(scope, clear ? "DELETE" : "GET", "/api/logs", clear ? {} : undefined, clear ? "json" : "blob");
-      if (!data || !scope.current()) {
-        if (scope.current()) feedback.textContent = "Not completed. Try again.";
+  return settingsOperation(
+    "logs",
+    ["#downloadLogsBtn", "#clearLogsBtn"],
+    async (scope) => {
+      if (
+        clear &&
+        !(await ask({
+          title: "Clear backend logs?",
+          message:
+            "The current log and previous backup will be permanently removed. Logging will continue.",
+          okLabel: "Clear Logs",
+          danger: true,
+        }))
+      )
         return;
+      if (!scope.current()) return;
+      const feedback = $("#logsFeedback");
+      feedback.textContent = clear ? "Clearing logs…" : "Downloading logs…";
+      try {
+        const data = await settingsRequest(
+          scope,
+          clear ? "DELETE" : "GET",
+          "/api/logs",
+          clear ? {} : undefined,
+          clear ? "json" : "blob",
+        );
+        if (!data || !scope.current()) {
+          if (scope.current())
+            feedback.textContent = "Not completed. Try again.";
+          return;
+        }
+        if (!clear) {
+          const url = URL.createObjectURL(data);
+          h("a", { href: url, download: "backend-logs.txt" }).click();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+        feedback.textContent = clear
+          ? "Logs cleared. Logging continues."
+          : "Logs downloaded.";
+        toast(feedback.textContent);
+        if (clear) showStorage();
+      } catch (err) {
+        if (scope.current())
+          feedback.textContent = err.message || "Dashboard server unreachable";
+        throw err;
       }
-      if (!clear) {
-        const url = URL.createObjectURL(data);
-        h("a", { href: url, download: "backend-logs.txt" }).click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-      }
-      feedback.textContent = clear ? "Logs cleared. Logging continues." : "Logs downloaded.";
-      toast(feedback.textContent);
-      if (clear) showStorage();
-    } catch (err) {
-      if (scope.current()) feedback.textContent = err.message || "Dashboard server unreachable";
-      throw err;
-    }
-  });
+    },
+  );
 }
 
 function pickAccent(color) {
@@ -161,26 +222,37 @@ function renderHiddenList() {
 async function showIconCache() {
   const info = $("#iconCacheInfo");
   info.textContent = "";
-  return settingsOperation("icons", ["#clearIconsBtn", '#storageList [data-clear="icons"]'], async (scope) => {
-    const data = await settingsRequest(scope, "GET", "/api/icons");
-    if (!data) return;
-    scope.release(false);
-    info.textContent = data.count ? `${plural(data.count, "icon")} · ${fmtBytes(data.bytes)}` : "Empty";
-  }, { loading: true });
+  return settingsOperation(
+    "icons",
+    ["#clearIconsBtn", '#storageList [data-clear="icons"]'],
+    async (scope) => {
+      const data = await settingsRequest(scope, "GET", "/api/icons");
+      if (!data) return;
+      scope.release(false);
+      info.textContent = data.count
+        ? `${plural(data.count, "icon")} · ${fmtBytes(data.bytes)}`
+        : "Empty";
+    },
+    { loading: true },
+  );
 }
 
 // ---------- Storage: size of the data folder, with a clear button for what can be emptied ----------
 
 async function clearIcons() {
-  return settingsOperation("icons", ["#clearIconsBtn", '#storageList [data-clear="icons"]'], async (scope) => {
-    const data = await settingsRequest(scope, "DELETE", "/api/icons", {});
-    if (!data) return;
-    resetIconCache();
-    render();
-    toast(`Cleared ${plural(data.removed, "icon")}`);
-    $("#iconCacheInfo").textContent = "Empty";
-    showStorage();
-  });
+  return settingsOperation(
+    "icons",
+    ["#clearIconsBtn", '#storageList [data-clear="icons"]'],
+    async (scope) => {
+      const data = await settingsRequest(scope, "DELETE", "/api/icons", {});
+      if (!data) return;
+      resetIconCache();
+      render();
+      toast(`Cleared ${plural(data.removed, "icon")}`);
+      $("#iconCacheInfo").textContent = "Empty";
+      showStorage();
+    },
+  );
 }
 
 async function clearOutages() {
@@ -193,42 +265,95 @@ async function clearOutages() {
   });
 }
 
+async function clearActionHistory() {
+  return settingsOperation(
+    "activity",
+    ["#clearActivitySettingsBtn", '#storageList [data-clear="activity"]'],
+    async (scope) => {
+      if (
+        !(await ask({
+          title: "Clear action history?",
+          message:
+            "Finished action entries will be removed for every device. In-progress container actions are kept until they finish. This does not stop containers or clear their logs.",
+          okLabel: "Clear history",
+          danger: true,
+        })) ||
+        !scope.current()
+      )
+        return;
+      const feedback = $("#activityFeedback");
+      feedback.textContent = "Clearing action history…";
+      try {
+        const data = await settingsRequest(
+          scope,
+          "DELETE",
+          "/api/activity",
+          {},
+        );
+        if (!data || !scope.current()) {
+          if (scope.current())
+            feedback.textContent = "Not completed. Try again.";
+          return;
+        }
+        feedback.textContent = `Cleared ${plural(data.removed, "action")}.${data.entries.length ? " In-progress actions were kept." : ""}`;
+        toast(feedback.textContent);
+        refreshActivity({ fresh: true });
+        showStorage();
+      } catch (err) {
+        if (scope.current())
+          feedback.textContent =
+            err.message || "Could not clear action history";
+        throw err;
+      }
+    },
+  );
+}
+
 const STORAGE_CLEAR = {
   icons: clearIcons,
   clip: clearClipHistory,
   availability: clearOutages,
+  activity: clearActionHistory,
 };
 
 async function showStorage() {
-  return settingsOperation("storage", [], async (scope) => {
-    const data = await settingsRequest(scope, "GET", "/api/storage");
-    if (!data) return;
-    scope.release();
-    $("#storageTotal").textContent = `${fmtBytes(data.total)} in total`;
-    fill(
-      $("#storageList"),
-      data.items.map((item) =>
-        h(
-          "div",
-          { class: "storage-row" },
-          h("span", { class: "grow", title: item.file }, item.name),
-          h("span", { class: "size" }, fmtBytes(item.bytes)),
-          STORAGE_CLEAR[item.clear]
-            ? protectSettingsControl(item.clear, h(
-                "button",
-                {
-                  type: "button",
-                  class: "btn ghost",
-                  "data-clear": item.clear,
-                  onclick: () => STORAGE_CLEAR[item.clear](),
-                },
-                "Clear",
-              ))
-            : h("span"),
+  return settingsOperation(
+    "storage",
+    [],
+    async (scope) => {
+      const data = await settingsRequest(scope, "GET", "/api/storage");
+      if (!data) return;
+      scope.release();
+      $("#storageTotal").textContent = `${fmtBytes(data.total)} in total`;
+      fill(
+        $("#storageList"),
+        data.items.map((item) =>
+          h(
+            "div",
+            { class: "storage-row" },
+            h("span", { class: "grow", title: item.file }, item.name),
+            h("span", { class: "size" }, fmtBytes(item.bytes)),
+            STORAGE_CLEAR[item.clear]
+              ? protectSettingsControl(
+                  item.clear,
+                  h(
+                    "button",
+                    {
+                      type: "button",
+                      class: "btn ghost",
+                      "data-clear": item.clear,
+                      onclick: () => STORAGE_CLEAR[item.clear](),
+                    },
+                    "Clear",
+                  ),
+                )
+              : h("span"),
+          ),
         ),
-      ),
-    );
-  }, { replace: true });
+      );
+    },
+    { replace: true },
+  );
 }
 
 /** The settings dialog is split into tabs; only one panel shows at a time. */
@@ -246,9 +371,11 @@ export function openSettings() {
   const { settings } = state.config;
   form.reset();
   $("#settingsSaveBtn").textContent = "Save";
-  $("#settingsFeedback").textContent = "Save applies title, app name, accent, and hidden containers. Other preferences save automatically.";
+  $("#settingsFeedback").textContent =
+    "Save applies title, app name, accent, and hidden containers. Other preferences save automatically.";
   $("#settingsFeedback").classList.remove("error");
   $("#logsFeedback").textContent = "";
+  $("#activityFeedback").textContent = "";
   showTab("general");
   showIconCache();
   showStorage();
@@ -261,7 +388,7 @@ export function openSettings() {
   field(form, "title").value = settings.title;
   field(form, "appName").value = settings.appName || "";
   $("#appNameDefault").textContent = state.auth.lockView
-    ? 'Leave blank to use “Dashboard” while viewing is password-protected.'
+    ? "Leave blank to use “Dashboard” while viewing is password-protected."
     : "Leave blank to use your dashboard title.";
   draft.accent = isHexColor(settings.accent)
     ? settings.accent.toLowerCase()
@@ -275,8 +402,8 @@ export function openSettings() {
 
   const { passwordSet, lockView } = state.auth;
   $("#securityInfo").textContent = passwordSet
-    ? `On — ${lockView ? "the whole dashboard is locked" : "only editing is locked"}. Change it with DASHBOARD_PASSWORD / DASHBOARD_LOCK_VIEW in docker-compose.yml.`
-    : "Off — anyone who can reach this URL can view and edit. Set DASHBOARD_PASSWORD in docker-compose.yml to enable it.";
+    ? `On — ${lockView ? "the whole dashboard is locked" : "only editing is locked"}. DASHBOARD_PASSWORD stores a Base64-encoded password in docker-compose.yml; log in with the original password. DASHBOARD_LOCK_VIEW controls view locking.`
+    : "Off — anyone who can reach this URL can view and edit. Set DASHBOARD_PASSWORD to a Base64-encoded password in docker-compose.yml to enable protection. Base64 is not encryption.";
 
   const dialog = $("#settingsDialog");
   dialog.showModal();
@@ -295,40 +422,57 @@ function showClipInfo() {
 async function saveClipMax() {
   const select = $("#clipMax");
   const max = Number(select.value);
-  return settingsOperation("clip", ["#clipMax", "#clipClearSettingsBtn"], async (scope) => {
-    const data = await settingsRequest(scope, "PUT", "/api/clip/settings", { max });
-    if (!data) return;
-    scope.release();
-    state.clip = data;
-    showClipInfo();
-    toast("Clipboard limit saved");
-  });
+  return settingsOperation(
+    "clip",
+    ["#clipMax", "#clipClearSettingsBtn"],
+    async (scope) => {
+      const data = await settingsRequest(scope, "PUT", "/api/clip/settings", {
+        max,
+      });
+      if (!data) return;
+      scope.release();
+      state.clip = data;
+      showClipInfo();
+      toast("Clipboard limit saved");
+    },
+  );
 }
 
 async function clearClipHistory() {
-  return settingsOperation("clip", ["#clipMax", "#clipClearSettingsBtn", '#storageList [data-clear="clip"]'], async (scope) => {
-    const count = (state.clip.entries || []).length;
-    const ok = await ask({
-      title: "Clear clipboard history?",
-      message: `${count} ${count === 1 ? "entry" : "entries"} will be removed for every device.`,
-      okLabel: "Clear", danger: true,
-    });
-    if (!ok || !scope.current()) return;
-    const data = await settingsRequest(scope, "DELETE", "/api/clip", {});
-    if (!data) return;
-    scope.release();
-    state.clip = data;
-    showClipInfo();
-    refreshClip();
-    toast("Clipboard history cleared");
-    showStorage();
-  });
+  return settingsOperation(
+    "clip",
+    ["#clipMax", "#clipClearSettingsBtn", '#storageList [data-clear="clip"]'],
+    async (scope) => {
+      const count = (state.clip.entries || []).length;
+      const ok = await ask({
+        title: "Clear clipboard history?",
+        message: `${count} ${count === 1 ? "entry" : "entries"} will be removed for every device.`,
+        okLabel: "Clear",
+        danger: true,
+      });
+      if (!ok || !scope.current()) return;
+      const data = await settingsRequest(scope, "DELETE", "/api/clip", {});
+      if (!data) return;
+      scope.release();
+      state.clip = data;
+      showClipInfo();
+      refreshClip();
+      toast("Clipboard history cleared");
+      showStorage();
+    },
+  );
 }
 
 // ---------- Outage tracking (saved right away, in data/availability.json) ----------
 
 let avail = null;
-const AVAIL_CONTROLS = ["#availEnabled", "#availInterval", "#availThreshold", "#availClearBtn", '#storageList [data-clear="availability"]'];
+const AVAIL_CONTROLS = [
+  "#availEnabled",
+  "#availInterval",
+  "#availThreshold",
+  "#availClearBtn",
+  '#storageList [data-clear="availability"]',
+];
 
 function showAvailability(data) {
   avail = data;
@@ -344,12 +488,17 @@ function showAvailability(data) {
 }
 
 async function loadAvailability() {
-  return settingsOperation("availability", AVAIL_CONTROLS, async (scope) => {
-    const data = await settingsRequest(scope, "GET", "/api/availability");
-    if (!data) return;
-    scope.release(false);
-    showAvailability(data);
-  }, { loading: true });
+  return settingsOperation(
+    "availability",
+    AVAIL_CONTROLS,
+    async (scope) => {
+      const data = await settingsRequest(scope, "GET", "/api/availability");
+      if (!data) return;
+      scope.release(false);
+      showAvailability(data);
+    },
+    { loading: true },
+  );
 }
 
 async function saveAvailability() {
@@ -359,7 +508,12 @@ async function saveAvailability() {
     threshold: Number($("#availThreshold").value),
   };
   return settingsOperation("availability", AVAIL_CONTROLS, async (scope) => {
-    const data = await settingsRequest(scope, "PUT", "/api/availability/settings", body);
+    const data = await settingsRequest(
+      scope,
+      "PUT",
+      "/api/availability/settings",
+      body,
+    );
     if (!data) return;
     scope.release();
     showAvailability(data);
@@ -396,12 +550,17 @@ function showServerInfoSettings(data = serverInfoSettings) {
 }
 
 async function loadServerInfoSettings() {
-  return settingsOperation("info", INFO_CONTROLS, async (scope) => {
-    const data = await settingsRequest(scope, "GET", "/api/info/settings");
-    if (!data) return;
-    scope.release(false);
-    showServerInfoSettings(data);
-  }, { loading: true });
+  return settingsOperation(
+    "info",
+    INFO_CONTROLS,
+    async (scope) => {
+      const data = await settingsRequest(scope, "GET", "/api/info/settings");
+      if (!data) return;
+      scope.release(false);
+      showServerInfoSettings(data);
+    },
+    { loading: true },
+  );
 }
 
 async function saveServerInfoSettings() {
@@ -420,7 +579,10 @@ async function saveServerInfoSettings() {
   )
     return;
   return settingsOperation("info", INFO_CONTROLS, async (scope) => {
-    const data = await settingsRequest(scope, "PUT", "/api/info/settings", { mode, manualIp });
+    const data = await settingsRequest(scope, "PUT", "/api/info/settings", {
+      mode,
+      manualIp,
+    });
     if (!data) return;
     scope.release();
     showServerInfoSettings(data);
@@ -489,18 +651,26 @@ function showTunables(items = tunableItems) {
 }
 
 async function loadTunables() {
-  return settingsOperation("tunables", ["#tunableList input"], async (scope) => {
-    const items = await settingsRequest(scope, "GET", "/api/tunables");
-    if (!items) return;
-    scope.release();
-    showTunables(items);
-  }, { loading: true });
+  return settingsOperation(
+    "tunables",
+    ["#tunableList input"],
+    async (scope) => {
+      const items = await settingsRequest(scope, "GET", "/api/tunables");
+      if (!items) return;
+      scope.release();
+      showTunables(items);
+    },
+    { loading: true },
+  );
 }
 
 async function saveTunable(item, input, feedback) {
   if (input.disabled) return;
   const value = input.value.trim() === "" ? null : Number(input.value); // empty = back to the default
-  if (value !== null && (!Number.isInteger(value) || value < item.min || value > item.max)) {
+  if (
+    value !== null &&
+    (!Number.isInteger(value) || value < item.min || value > item.max)
+  ) {
     input.setAttribute("aria-invalid", "true");
     feedback.textContent = `Enter a whole number from ${item.min} to ${item.max}, or leave blank for the default.`;
     feedback.classList.add("error");
@@ -509,29 +679,35 @@ async function saveTunable(item, input, feedback) {
   input.removeAttribute("aria-invalid");
   feedback.classList.remove("error");
   feedback.textContent = "Saving…";
-  return settingsOperation("tunables", ["#tunableList input"], async (scope) => {
-    try {
-      const data = await settingsRequest(scope, "PUT", "/api/tunables", { values: { [item.key]: value } });
-      if (!data) {
-        if (scope.current()) feedback.textContent = "Not saved. Try again.";
-        return;
+  return settingsOperation(
+    "tunables",
+    ["#tunableList input"],
+    async (scope) => {
+      try {
+        const data = await settingsRequest(scope, "PUT", "/api/tunables", {
+          values: { [item.key]: value },
+        });
+        if (!data) {
+          if (scope.current()) feedback.textContent = "Not saved. Try again.";
+          return;
+        }
+        // Update only this field: retain focus, other drafts, and input identities.
+        const saved = data.items.find((entry) => entry.key === item.key);
+        if (saved) Object.assign(item, saved);
+        input.value = item.value;
+        feedback.textContent = "Saved";
+        state.tunables = { ...state.tunables, ...data.client };
+        document.dispatchEvent(new CustomEvent("tunables-changed"));
+        toast(`${item.label} saved`);
+      } catch (err) {
+        if (scope.current()) {
+          feedback.textContent = err.message || "Not saved. Try again.";
+          feedback.classList.add("error");
+        }
+        throw err;
       }
-      // Update only this field: retain focus, other drafts, and input identities.
-      const saved = data.items.find((entry) => entry.key === item.key);
-      if (saved) Object.assign(item, saved);
-      input.value = item.value;
-      feedback.textContent = "Saved";
-      state.tunables = { ...state.tunables, ...data.client };
-      document.dispatchEvent(new CustomEvent("tunables-changed"));
-      toast(`${item.label} saved`);
-    } catch (err) {
-      if (scope.current()) {
-        feedback.textContent = err.message || "Not saved. Try again.";
-        feedback.classList.add("error");
-      }
-      throw err;
-    }
-  });
+    },
+  );
 }
 
 // ---------- Remote dashboards: update interval (saved right away, in data/remotes.json) ----------
@@ -540,7 +716,9 @@ async function saveRemoteInterval() {
   const select = $("#remoteInterval");
   const interval = Number(select.value);
   return settingsOperation("sharing", SHARING_CONTROLS, async (scope) => {
-    const data = await settingsRequest(scope, "PUT", "/api/remotes/interval", { interval });
+    const data = await settingsRequest(scope, "PUT", "/api/remotes/interval", {
+      interval,
+    });
     if (!data) return;
     scope.release();
     showSharing(data);
@@ -553,15 +731,30 @@ async function saveRemoteInterval() {
 // ---------- Sharing and remote dashboards (saved right away, outside config.json) ----------
 
 let sharing = { shareToken: "", refreshInterval: 10, remotes: [] }; // remotes: [{ id, name, url }] - tokens stay on the server
-const SHARING_CONTROLS = ["#remoteInterval", "#shareCopyBtn", "#shareNewBtn", "#shareOffBtn", "#remoteAddBtn", "#remoteName", "#remoteUrl", "#remoteToken", "#remoteList button"];
+const SHARING_CONTROLS = [
+  "#remoteInterval",
+  "#shareCopyBtn",
+  "#shareNewBtn",
+  "#shareOffBtn",
+  "#remoteAddBtn",
+  "#remoteName",
+  "#remoteUrl",
+  "#remoteToken",
+  "#remoteList button",
+];
 
 async function loadSharing() {
-  return settingsOperation("sharing", SHARING_CONTROLS, async (scope) => {
-    const data = await settingsRequest(scope, "GET", "/api/remotes/settings");
-    if (!data) return;
-    scope.release(false);
-    showSharing(data);
-  }, { loading: true });
+  return settingsOperation(
+    "sharing",
+    SHARING_CONTROLS,
+    async (scope) => {
+      const data = await settingsRequest(scope, "GET", "/api/remotes/settings");
+      if (!data) return;
+      scope.release(false);
+      showSharing(data);
+    },
+    { loading: true },
+  );
 }
 
 function showSharing(data = sharing) {
@@ -648,11 +841,13 @@ async function addRemote() {
   if (!url || !token)
     return toast("Enter the other dashboard's URL and share token", true);
   return settingsOperation("sharing", SHARING_CONTROLS, async (scope) => {
-    if (await saveRemotes(
-      scope,
-      [...sharing.remotes, { name, url, token }],
-      "Remote dashboard added",
-    )) {
+    if (
+      await saveRemotes(
+        scope,
+        [...sharing.remotes, { name, url, token }],
+        "Remote dashboard added",
+      )
+    ) {
       for (const id of ["#remoteName", "#remoteUrl", "#remoteToken"])
         $(id).value = "";
     }
@@ -664,13 +859,15 @@ async function removeRemote(r) {
     const ok = await ask({
       title: "Remove remote dashboard?",
       message: `The servers of “${r.name}” will no longer show here.`,
-      okLabel: "Remove", danger: true,
+      okLabel: "Remove",
+      danger: true,
     });
-    if (ok && scope.current()) await saveRemotes(
-      scope,
-      sharing.remotes.filter((x) => x.id !== r.id),
-      "Remote dashboard removed",
-    );
+    if (ok && scope.current())
+      await saveRemotes(
+        scope,
+        sharing.remotes.filter((x) => x.id !== r.id),
+        "Remote dashboard removed",
+      );
   });
 }
 
@@ -679,8 +876,10 @@ async function setSharing(enabled) {
     if (sharing.shareToken) {
       const ok = await ask({
         title: enabled ? "Create a new token?" : "Turn sharing off?",
-        message: "Dashboards using the current token will stop showing this one until they get a new token.",
-        okLabel: enabled ? "New token" : "Turn off", danger: true,
+        message:
+          "Dashboards using the current token will stop showing this one until they get a new token.",
+        okLabel: enabled ? "New token" : "Turn off",
+        danger: true,
       });
       if (!ok || !scope.current()) return;
     }
@@ -749,6 +948,7 @@ export function initSettingsForm() {
     e.target.blur();
   });
   $("#clipClearSettingsBtn").addEventListener("click", clearClipHistory);
+  $("#clearActivitySettingsBtn").addEventListener("click", clearActionHistory);
   $("#clipMax").addEventListener("change", saveClipMax);
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
