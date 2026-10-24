@@ -257,6 +257,7 @@ test("equal card markup receives fresh notes and QR service objects", () => {
     serviceStatus: () => null,
     containerFor: () => null,
     usageNode: () => null,
+    cardMenuButton: () => null,
     iconBtn: (name, label, onclick) =>
       dom.h("button", { title: label, onclick }),
     openNote: (svc, anchor) => opened.push([svc.notes, anchor]),
@@ -296,6 +297,7 @@ test("card links retain real destinations, accessible icon labels and note/QR ac
     serviceStatus: () => null,
     containerFor: () => null,
     usageNode: () => null,
+    cardMenuButton: () => null,
     iconBtn: (name, label, onclick) =>
       dom.h("button", { "aria-label": label, onclick }, dom.svg(name)),
     openNote: (svc, anchor) => opened.push(["note", svc, anchor]),
@@ -333,6 +335,7 @@ test("canonical cards and favorites open primary and render every safe label as 
   const helpers = urlHelpers("dashboard.example.com");
   const globals = { ...dom, ...helpers, state: { editing: false }, isFavorite: () => false,
     serviceStatus: () => null, containerFor: () => null, usageNode: () => null,
+    cardMenuButton: () => null,
     hostPort: () => "", iconBtn: () => null };
   const { serviceCard } = browserModule("view/cards.js", ["serviceCard"], globals);
   const { favoriteTile } = browserModule("view/favorites.js", ["favoriteTile"], globals);

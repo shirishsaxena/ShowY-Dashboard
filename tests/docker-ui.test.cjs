@@ -303,7 +303,7 @@ test("card menu handles tap, keyboard navigation, viewport bounds and focus afte
   assert.equal(menu.containerLogItem({ id: "short" }).disabled, true);
 });
 
-test("only local Docker service cards get log/preview menus, including missing containers", async () => {
+test("all service card types get Preview, while Docker actions stay local", async () => {
   const dom = domFixture();
   const menus = [];
   const edits = [];
@@ -311,7 +311,7 @@ test("only local Docker service cards get log/preview menus, including missing c
   const { serviceCard } = browserModule("view/cards.js", ["serviceCard"], {
     ...dom, state: { editing: false }, isFavorite: () => false,
     serviceUrls: () => [], primaryUrl: () => "", monitoringUrl: () => "", hostPort: () => "",
-    containerFor: (svc) => svc.type === "web" ? undefined : container,
+    containerFor: (svc) => ["web", "bookmark"].includes(svc.type) ? undefined : container,
     serviceStatus: () => null, statusNode: () => null, iconNode: () => null,
     usageNode: () => null, external: {},
     actions: {},
@@ -332,46 +332,64 @@ test("only local Docker service cards get log/preview menus, including missing c
   serviceCard(svc, { ...local, remote: "peer" });
   serviceCard(svc, { ...local, local: false });
   serviceCard({ ...svc, type: "web" }, local);
-  assert.equal(menus.length, 1);
+  serviceCard({ ...svc, type: "bookmark" }, local);
+  assert.equal(menus.length, 5);
+  for (const menu of menus.slice(1)) assert.deepEqual(Array.from(menu.items, (item) => item.label), ["Preview"]);
   container = null;
   serviceCard(svc, local);
-  assert.equal(menus.length, 2);
-  assert.equal(menus[1].items[0].disabled, true);
-  assert.equal(menus[1].items[1].label, "Preview");
+  assert.equal(menus.length, 6);
+  assert.equal(menus[5].items[0].disabled, true);
+  assert.equal(menus[5].items[1].label, "Preview");
 });
 
-function previewFixture() {
+function previewFixture({ defer = false, type = "docker", remote = false, local = true } = {}) {
   const dom = domFixture();
-  const service = { id: "svc", name: "Long service", type: "docker", container: "app", group: "Media",
+  const service = { id: "svc", name: "Long service", type, container: "app", group: "Media",
     description: "A long description\n".repeat(50) + "<script>literal text</script>", notes: "First note\nSecond note" };
-  const server = { id: "host", local: true, name: "This machine", services: [service] };
-  const state = { locked: false };
+  const server = { id: "host", local, remote: remote ? "peer" : "", name: "This machine", services: [service] };
+  const container = { id: ID, name: "app", image: "app:latest", state: "running", ports: [8080] };
+  const state = { locked: false, docker: { available: true, containers: [container] }, health: { svc: { state: "up", code: 200, ms: 12 } } };
   const edits = [];
   const messages = [];
+  const requests = [];
+  const data = (changes = {}) => ({ container: { ...container, ports: [], health: "healthy", networks: [], mounts: [] },
+    usage: { cpu: 12, mem: 1024, memLimit: 4096, memoryPercent: 25, rx: 100, tx: 200, blockRead: 300, blockWrite: 400, pids: 3 },
+    usageError: "", fetchedAt: Date.now(), ...changes });
+  const { containerDetailsNode } = browserModule("view/container-details.js", ["containerDetailsNode"], {
+    ...dom, fmtBytes: (bytes) => `${bytes} B`, fmtUptime: (seconds) => `${seconds} sec`,
+  });
   let access = Promise.resolve(true);
-  const preview = browserModule("dialogs/service-preview.js", ["openServicePreview", "initServicePreview"], {
-    ...dom, state, findServer: (id) => id === server.id ? server : null,
-    containerFor: () => ({ id: ID, name: "app", image: "app:latest", state: "running", ports: [8080] }),
+  const preview = browserModule("dialogs/service-preview.js", ["openServicePreview", "openContainerPreview", "initServicePreview"], {
+    ...dom, state, AbortController, allServers: () => [server], sourceOf: () => state,
+    containerFor: (svc, host) => host.local && !["web", "bookmark"].includes(svc.type) ? container : undefined,
     serviceStatus: () => ({ label: "Running" }), statusNode: (status) => dom.h("span", {}, status.label),
     serviceUrls: () => [{ label: "Admin", url: "https://example.test/admin" }],
+    hostOf: () => "localhost", location: { hostname: "localhost" },
     usageNode: () => null, iconNode: () => dom.h("span"), external: { target: "_blank", rel: "noopener noreferrer" },
     ensureCanEdit: () => access, openServiceEditor: (...args) => edits.push(args),
     toast: (...args) => messages.push(args),
+    containerDetailsNode,
+    editApi: (method, url, body, options) => {
+      const job = deferred();
+      requests.push({ method, url, options, ...job });
+      return defer ? job.promise : Promise.resolve({ res: { ok: true }, data: data() });
+    },
   });
   preview.initServicePreview();
-  return { ...dom, ...preview, service, server, state, edits, messages,
+  return { ...dom, ...preview, service, server, container, state, edits, messages, requests,
+    reply: (index, changes = {}) => requests[index].resolve({ res: { ok: true }, data: data(changes) }),
     setAccess: (value) => { access = value; } };
 }
 
 test("service preview displays full descriptions, notes and container details, and edits with authentication", async () => {
   const h = previewFixture();
-  h.openServicePreview("host", "svc");
+  await h.openServicePreview("host", "svc");
   assert.equal(h.$("#servicePreviewDialog").open, true);
   assert.equal(h.$("#servicePreviewTitle").textContent, h.service.name);
   const text = h.$("#servicePreviewBody").textContent;
   assert.ok(text.includes(h.service.description));
   assert.ok(text.includes(h.service.notes));
-  assert.ok(text.includes("app:latest"));
+  assert.ok(h.$("#servicePreviewDocker").textContent.includes("app:latest"));
   assert.ok(text.includes("https://example.test/admin"));
   h.setAccess(Promise.resolve(false));
   await h.$("#servicePreviewEdit").emit("click");
@@ -398,12 +416,80 @@ test("preview edit cannot act on a closed, replaced or deleted service after log
   h.server.services = [];
   await h.$("#servicePreviewEdit").emit("click");
   assert.equal(h.edits.length, 0);
-  assert.match(h.messages.at(-1)[0], /no longer exists/);
+  assert.match(h.messages.at(-1)[0], /no longer editable/);
   h.$("#servicePreviewDialog").close();
   h.server.services = [h.service];
   h.server.remote = "peer";
   h.openServicePreview("host", "svc");
-  assert.equal(h.$("#servicePreviewDialog").open, false);
+  assert.equal(h.$("#servicePreviewDialog").open, true);
+  assert.equal(h.$("#servicePreviewEdit").hidden, true);
+});
+
+test("Docker preview refresh reads only its container and never rewrites shared usage", async () => {
+  const h = previewFixture({ defer: true });
+  h.state.usage = { stats: { other: { cpu: 7 } } };
+  const initial = h.openServicePreview("host", "svc");
+  assert.equal(h.requests.length, 1);
+  assert.equal(h.requests[0].method, "GET");
+  assert.equal(h.requests[0].url, `/api/docker/details?id=${ID}`);
+  assert.equal(h.$("#servicePreviewRefresh").disabled, true);
+  await h.$("#servicePreviewRefresh").emit("click");
+  assert.equal(h.requests.length, 1);
+  h.reply(0);
+  await initial;
+  assert.equal(h.$("#servicePreviewRefresh").disabled, false);
+  assert.match(h.$("#servicePreviewDocker").textContent, /CPU.*12%.*RAM.*1024 B/);
+  assert.match(h.$("#servicePreviewDocker").textContent, /Network received.*100 B/);
+  const refresh = h.$("#servicePreviewRefresh").emit("click");
+  assert.equal(h.requests.length, 2);
+  h.reply(1, { usage: { cpu: 37, mem: 2048, rx: 500, tx: 900 } });
+  await refresh;
+  assert.match(h.$("#servicePreviewDocker").textContent, /37%.*2048 B/);
+  assert.deepEqual(h.state.usage, { stats: { other: { cpu: 7 } } });
+  assert.match(h.$("#servicePreviewFeedback").textContent, /This container only/);
+});
+
+test("Web, Bookmark, non-local and remote previews never query the local Docker endpoint", async () => {
+  for (const options of [{ type: "web", local: false }, { type: "bookmark" }, { remote: true }, { local: false }]) {
+    const h = previewFixture(options);
+    await h.openServicePreview("host", "svc");
+    assert.equal(h.requests.length, 0);
+    assert.equal(h.$("#servicePreviewRefresh").hidden, true);
+    assert.equal(h.$("#servicePreviewEdit").hidden, Boolean(options.remote));
+    if (options.type === "bookmark") assert.match(h.$("#servicePreviewBody").textContent, /Not monitored/);
+    if (options.remote) assert.match(h.$("#servicePreviewFeedback").textContent, /originating dashboard/);
+  }
+});
+
+test("closing or replacing a preview cancels reads and drops late container data", async () => {
+  const h = previewFixture({ defer: true });
+  const first = h.openServicePreview("host", "svc");
+  h.$("#servicePreviewDialog").close();
+  assert.equal(h.requests[0].options.signal.aborted, true);
+  h.service.type = "web";
+  await h.openServicePreview("host", "svc");
+  h.reply(0);
+  await first;
+  assert.equal(h.$("#servicePreviewDocker").hidden, true);
+  assert.equal(h.$("#servicePreviewDocker").textContent, "");
+  assert.equal(h.requests.length, 1);
+});
+
+test("preview refresh failures label retained data as stale and discovered containers can be previewed", async () => {
+  const h = previewFixture({ defer: true });
+  const first = h.openContainerPreview("host", h.container);
+  h.reply(0);
+  await first;
+  assert.equal(h.$("#servicePreviewEdit").textContent, "Add to dashboard");
+  const prior = h.$("#servicePreviewDocker").textContent;
+  const refresh = h.$("#servicePreviewRefresh").emit("click");
+  h.requests[1].resolve({ res: { ok: false }, data: { error: "Docker unavailable" } });
+  await refresh;
+  assert.equal(h.$("#servicePreviewDocker").textContent, prior);
+  assert.match(h.$("#servicePreviewFeedback").textContent, /Docker unavailable.*Showing snapshot/);
+  await h.$("#servicePreviewEdit").emit("click");
+  assert.equal(h.edits[0][1], null);
+  assert.equal(h.edits[0][2].container, "app");
 });
 
 function controlFixture() {

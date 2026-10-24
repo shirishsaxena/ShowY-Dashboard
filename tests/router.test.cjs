@@ -95,6 +95,7 @@ test("registry retains the complete API inventory and explicit policy", () => {
       "GET /api/tunables",
       "GET /api/docker",
       "GET /api/docker/stats",
+      "GET /api/docker/details",
       "GET /api/stats",
       "GET /api/health",
       "GET /api/storage",

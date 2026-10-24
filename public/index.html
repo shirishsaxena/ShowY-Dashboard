@@ -1047,11 +1047,18 @@
             <h2 id="servicePreviewTitle">Service preview</h2>
             <p id="servicePreviewServer"></p>
           </div>
+          <button type="button" id="servicePreviewRefresh" class="icon-btn" title="Refresh this container only" aria-label="Refresh this container only" hidden>
+            <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" /></svg>
+          </button>
           <button type="button" class="icon-btn" data-close aria-label="Close">
             <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" /></svg>
           </button>
         </header>
-        <div id="servicePreviewBody" class="dialog-body"></div>
+        <div class="dialog-body">
+          <div id="servicePreviewBody" class="preview-service-details"></div>
+          <small id="servicePreviewFeedback" class="muted" role="status" aria-live="polite"></small>
+          <div id="servicePreviewDocker" class="preview-docker-details" aria-busy="false" hidden></div>
+        </div>
         <footer class="dialog-foot">
           <button type="button" id="servicePreviewEdit" class="btn primary">
             <svg viewBox="0 0 24 24"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>

@@ -18,14 +18,21 @@ test("authenticated lifecycle action and persistent notifications work through r
   let mutations = 0;
   let held;
   let startedAt = "before";
+  const engineReads = [];
   let child;
   const engine = http.createServer((req, res) => {
+    if (req.method === "GET") engineReads.push(req.url);
     const json = (value) => { res.setHeader("content-type", "application/json"); res.end(JSON.stringify(value)); };
     if (req.url === "/containers/json?all=1")
       return json([{ Id: id, Names: ["/web"], Image: "web:test", State: "running", Status: "Up", Ports: [], Labels: {} }]);
     if (req.url === `/containers/${id}/json`)
-      return json({ Id: id, Name: "/web", Config: { Hostname: "web-test", Tty: false },
+      return json({ Id: id, Name: "/web", Config: { Image: "web:test", Hostname: "web-test", Tty: false, Env: ["PRIVATE=preview-secret"] },
         State: { Status: "running", StartedAt: startedAt } });
+    if (req.url === `/containers/${id}/stats?stream=false`)
+      return json({ cpu_stats: { cpu_usage: { total_usage: 200 }, system_cpu_usage: 2000 },
+        precpu_stats: { cpu_usage: { total_usage: 100 }, system_cpu_usage: 1000 },
+        memory_stats: { usage: 1024, limit: 4096, stats: { inactive_file: 256 } },
+        networks: { eth0: { rx_bytes: 120, tx_bytes: 240 } }, pids_stats: { current: 3 } });
     if (req.method === "POST" && req.url === `/containers/${id}/restart?t=10`) {
       mutations++;
       held = res;
@@ -59,7 +66,7 @@ test("authenticated lifecycle action and persistent notifications work through r
       env: { ...process.env, DATA_DIR: directory, LOG_DIR: path.join(directory, "logs"),
         DOCKER_SOCKET: socket, DOCKER_CONTROL: "true", DASHBOARD_PASSWORD: "test-password",
         DASHBOARD_LOCK_VIEW: "false", TRUST_PROXY: "false", DOCKER_PROTECTED_CONTAINERS: "",
-        SHARE_TOKEN: "test-read-only-sharing-token", LOG_LEVEL: "ERROR" },
+        SHARE_TOKEN: "test-read-only-sharing-token", LOG_LEVEL: "ERROR", CONTAINER_STATS_INTERVAL: "0" },
       stdio: ["ignore", "pipe", "pipe"],
     });
     const port = await new Promise((resolve, reject) => {
@@ -92,6 +99,17 @@ test("authenticated lifecycle action and persistent notifications work through r
   assert.equal((await call("/api/docker/action", { method: "POST", body, source: "http://other.test" })).status, 403);
   assert.equal((await call("/api/activity", { method: "DELETE", body: {}, source: "http://other.test" })).status, 403);
   assert.equal(mutations, 0);
+
+  const beforeDetails = engineReads.length;
+  const preview = await call(`/api/docker/details?id=${id}`, { auth: false });
+  assert.equal(preview.status, 200); // Sanitized details share the existing view policy.
+  assert.equal(preview.headers.get("cache-control"), "no-store");
+  const details = await preview.json();
+  assert.equal(details.usage.cpu, 10);
+  assert.equal(details.usage.mem, 768);
+  assert.equal(details.container.image, "web:test");
+  assert.doesNotMatch(JSON.stringify(details), /PRIVATE|preview-secret/);
+  assert.deepEqual(engineReads.slice(beforeDetails), [`/containers/${id}/json`, `/containers/${id}/stats?stream=false`]);
 
   const accepted = await call("/api/docker/action", { method: "POST", body });
   assert.equal(accepted.status, 202);

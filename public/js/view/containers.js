@@ -6,6 +6,7 @@ import { hostOf, plural } from "../utils.js";
 import { containerFor, containerStatus, statusNode } from "../status.js";
 import * as actions from "../actions.js";
 import { openServiceEditor } from "../dialogs/service.js";
+import { openContainerPreview } from "../dialogs/service-preview.js";
 import { usageNode, groupUsageNode } from "./usage.js";
 import { cardMenuButton, containerLogItem } from "./card-menu.js";
 import { containerControlItems, containerOperationNode } from "../docker-control.js";
@@ -121,6 +122,7 @@ function containerCard(c, server, host, isHidden) {
       statusNode(containerStatus(c)),
       cardMenuButton(c.name, `container:${c.id || c.name}`, () => [
         containerLogItem(c),
+        { label: "Preview", icon: "eye", run: () => openContainerPreview(server.id, c) },
         { label: "Add to dashboard", icon: "plus", run: add },
         ...containerControlItems(c),
       ]),

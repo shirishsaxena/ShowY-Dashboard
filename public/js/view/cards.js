@@ -86,12 +86,12 @@ export function serviceCard(
 ) {
   const editing = state.editing && !server.remote; // remote servers are read-only
   const container = containerFor(svc, server);
-  const dockerMenu = !server.remote && server.local && (svc.type === "docker" || container)
-    ? cardMenuButton(svc.name, `service:${svc.id}`, () => [
-        containerLogItem(container),
+  const localDocker = !server.remote && server.local && (svc.type === "docker" || container);
+  const menu = cardMenuButton(svc.name, `service:${server.id}:${svc.id}`, () => [
+        ...(localDocker ? [containerLogItem(container)] : []),
         { label: "Preview", icon: "eye", run: () => openServicePreview(server.id, svc.id) },
-        ...containerControlItems(container),
-      ]) : null;
+        ...(localDocker ? containerControlItems(container) : []),
+      ]);
   const href = primaryUrl(svc);
   const st = editing ? null : serviceStatus(svc, server);
   let cover = null;
@@ -132,7 +132,7 @@ export function serviceCard(
         st ? statusNode(st) : null,
       ),
       editing ? editTools(svc, server) : null,
-      dockerMenu,
+      menu,
     ),
     !server.remote && server.local ? containerOperationNode(container) : null,
     editing ? null : usageNode(container, server),

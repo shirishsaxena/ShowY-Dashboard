@@ -436,6 +436,41 @@ dialog.service-preview-dialog {
 }
 .service-preview-links a:hover { background: var(--card-hover); }
 .service-preview-links a span { color: var(--muted); }
+.preview-service-details, .preview-docker-details {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.preview-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.preview-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.preview-metric span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.preview-metric strong {
+  font-size: 0.95rem;
+}
+.preview-detail-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
 
 /* ---------- Notification history ---------- */
 #activityBtn {

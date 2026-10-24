@@ -4,6 +4,7 @@ const { readJson } = require("../lib/http");
 const { getStats } = require("../lib/system");
 const { getContainers, getContainerStats } = require("../lib/docker");
 const { getContainerLogs } = require("../lib/docker-logs");
+const { getContainerDetails } = require("../lib/docker-details");
 const { controlState, protectedTarget } = require("../lib/docker-control");
 const { getHealth } = require("../lib/health");
 const { getStorage } = require("../lib/storage");
@@ -39,6 +40,21 @@ module.exports = {
           tail: query.has("tail") ? Number(query.get("tail")) : 250,
           signal: controller.signal,
         });
+      } finally {
+        res.removeListener("close", abort);
+      }
+    },
+  },
+  "GET /api/docker/details": {
+    // Only explicitly whitelisted metadata, consistent with viewable Docker usage.
+    access: "view",
+    body: "none",
+    handler: async (req, res, { query }) => {
+      const controller = new AbortController();
+      const abort = () => controller.abort();
+      res.once("close", abort);
+      try {
+        return await getContainerDetails(query.get("id"), { signal: controller.signal });
       } finally {
         res.removeListener("close", abort);
       }
