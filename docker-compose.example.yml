@@ -19,8 +19,10 @@ services:
       # Trusted LAN only. Behind a host HTTPS proxy use 127.0.0.1:8011:8080.
       - "8011:8080"
     environment:
-      # Empty = anyone who can reach the dashboard can view and edit.
-      # Set a strong password for public access; write literal $ as $$.
+      # BASE64-ENCODED UTF-8 password. Empty = anyone can view and edit.
+      # Generate: printf '%s' 'your-password' | base64 | tr -d '\r\n'
+      # Paste the output below; log in with the original password, not Base64.
+      # Invalid Base64 prevents startup. Encoding is NOT encryption.
       DASHBOARD_PASSWORD: ""
       # Optional local Start/Restart/Stop. Requires a nonempty password and login.
       DOCKER_CONTROL: false

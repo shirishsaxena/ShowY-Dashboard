@@ -64,7 +64,7 @@ test("authenticated lifecycle action and persistent notifications work through r
     `], {
       cwd: path.join(__dirname, ".."),
       env: { ...process.env, DATA_DIR: directory, LOG_DIR: path.join(directory, "logs"),
-        DOCKER_SOCKET: socket, DOCKER_CONTROL: "true", DASHBOARD_PASSWORD: "test-password",
+        DOCKER_SOCKET: socket, DOCKER_CONTROL: "true", DASHBOARD_PASSWORD: Buffer.from("test-password").toString("base64"),
         DASHBOARD_LOCK_VIEW: "false", TRUST_PROXY: "false", DOCKER_PROTECTED_CONTAINERS: "",
         SHARE_TOKEN: "test-read-only-sharing-token", LOG_LEVEL: "ERROR", CONTAINER_STATS_INTERVAL: "0" },
       stdio: ["ignore", "pipe", "pipe"],

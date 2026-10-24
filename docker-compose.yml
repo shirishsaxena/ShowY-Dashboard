@@ -16,10 +16,10 @@ services:
       # 127.0.0.1:8080:8080 instead; see README hardened deployment guidance.
       - "8080:8080"
     environment:
-      # Optional password. Empty = no password (fine on a trusted LAN).
-      # Put it here, DASHBOARD_PASSWORD: "your-password-here"
-      # DASHBOARD_PASSWORD: ""
-      # (in this file write a literal $ as $$).
+      # Optional BASE64-ENCODED UTF-8 password. Empty = password protection off.
+      # Generate: printf '%s' 'your-password' | base64 | tr -d '\r\n'
+      # Paste the output below; log in with the original password, not Base64.
+      # Invalid Base64 prevents startup. Encoding is NOT encryption.
       DASHBOARD_PASSWORD: ""
       # Optional local Start/Restart/Stop. Requires a nonempty password and login.
       DOCKER_CONTROL: false

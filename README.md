@@ -29,7 +29,7 @@ Node.js backend, plain HTML/CSS/JavaScript frontend, local JSON storage. **No da
 **Recommended:** Linux, Docker, and Docker Compose.
 
 1. Save [docker-compose.example.yml](docker-compose.example.yml) as `compose.yaml` in a new deployment directory.
-2. Set `DASHBOARD_PASSWORD` and adjust ports or mounts as needed. The example publishes **8011 → 8080**, persists data in `./data`, and limits the container to **128 MiB RAM / 0.5 CPU**.
+2. Set `DASHBOARD_PASSWORD` to your **Base64-encoded password** (see below) and adjust ports or mounts as needed. The example publishes **8011 → 8080**, persists data in `./data`, and limits the container to **128 MiB RAM / 0.5 CPU**.
 3. Start it:
 
    ```sh
@@ -70,7 +70,7 @@ Most preferences are available in **Settings**. Set deployment overrides in the 
 
 | Variable | Default | Purpose |
 | --- | --- | --- |
-| `DASHBOARD_PASSWORD` | Empty | Passwordless viewing/editing when unset |
+| `DASHBOARD_PASSWORD` | Empty | Base64-encoded UTF-8 password; empty disables protection. Login uses the decoded password |
 | `DASHBOARD_LOCK_VIEW` | `true` | With a password, require login to view; `false` allows public viewing but protects edits, logs, and action history |
 | `DOCKER_CONTROL` | `false` | Enable local container lifecycle actions; also requires a password and login |
 | `DOCKER_PROTECTED_CONTAINERS` | Empty | Additional protected names or full container IDs, comma-separated |
@@ -84,6 +84,16 @@ Most preferences are available in **Settings**. Set deployment overrides in the 
 Valid timing overrides take precedence over saved Settings and lock the corresponding controls. The annotated [Compose example](docker-compose.example.yml), [environment settings](lib/env.js), and [monitoring tunables](lib/tunables.js) list advanced options, including timeouts, parallelism, login limits, and log retention.
 
 Compose examples use literal environment values. To use a private `.env`, explicitly reference its variables in the Compose file; exporting a host variable does not override an existing literal. Never commit credentials or persistent data.
+
+### Password encoding
+
+Encode your password, then paste the single-line output into `DASHBOARD_PASSWORD`:
+
+```sh
+printf '%s' 'your-password' | base64 | tr -d '\r\n'
+```
+
+Use standard Base64 with its required padding and no whitespace; **log in with the original password**, not the encoded value. Raw passwords are no longer supported. Invalid Base64 or invalid decoded UTF-8 stops startup with a configuration error, without logging the supplied value. An empty value still disables protection. **Base64 is encoding, not encryption**—protect the encoded value like the original password, and avoid exposing real passwords in shell history.
 
 ## Service types & Docker
 
@@ -104,7 +114,7 @@ Inspection excludes environment variables, commands, arbitrary labels, host moun
 
 ### Enable Start / Restart / Stop
 
-Set `DOCKER_CONTROL: true`, configure a nonempty `DASHBOARD_PASSWORD`, recreate the dashboard container, and log in. Actions operate on **existing local containers only**—not Compose stacks, images, deletion, or terminal commands.
+Set `DOCKER_CONTROL: true`, configure a nonempty Base64-encoded `DASHBOARD_PASSWORD`, recreate the dashboard container, and log in with the original password. Actions operate on **existing local containers only**—not Compose stacks, images, deletion, or terminal commands.
 
 - Stop/Restart require confirmation and allow **10 seconds** for graceful shutdown before Docker forces the stop.
 - Controls stay disabled while an action is in progress; server-side locks prevent overlapping operations.

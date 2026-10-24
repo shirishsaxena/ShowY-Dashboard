@@ -77,7 +77,7 @@ test("isolated real startup serves assets, manifest, API and web edge cases", as
 module.exports = { start };
 
 test("branded manifest and all icon formats are public, versioned and correctly served", async (t) => {
-  const app = await start(t, { DASHBOARD_PASSWORD: "test-password" });
+  const app = await start(t, { DASHBOARD_PASSWORD: Buffer.from("test-password").toString("base64") });
   assert.equal((await app.request("/api/config")).status, 401);
   const manifest = await (await app.request("/manifest.webmanifest")).json();
   assert.equal(manifest.icons.length, 3);
@@ -108,7 +108,7 @@ test("password modes preserve login, logout, view and edit policies", async (t) 
   for (const lockView of ["true", "false"]) {
     await t.test(`view lock ${lockView}`, async (t) => {
       const app = await start(t, {
-        DASHBOARD_PASSWORD: "test-password",
+        DASHBOARD_PASSWORD: Buffer.from("test-password").toString("base64"),
         DASHBOARD_LOCK_VIEW: lockView,
       });
       const json = { "content-type": "application/json" };
@@ -161,10 +161,27 @@ test("password modes preserve login, logout, view and edit policies", async (t) 
   }
 });
 
+test("Base64-configured UTF-8 passwords authenticate with the decoded password, not its encoding", async (t) => {
+  const password = "  café-密码-🔐-$  ";
+  const encoded = Buffer.from(password, "utf8").toString("base64");
+  const app = await start(t, { DASHBOARD_PASSWORD: encoded });
+  const login = (value) => app.request("/api/login", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ password: value }),
+  });
+  assert.equal((await app.request("/api/config")).status, 401);
+  assert.equal((await login(encoded)).status, 401);
+  assert.equal((await login(password.trim())).status, 401);
+  const response = await login(password);
+  assert.equal(response.status, 200);
+  const cookie = response.headers.get("set-cookie").split(";")[0];
+  assert.equal((await app.request("/api/config", { headers: { cookie } })).status, 200);
+});
+
 test("public install names persist without exposing locked titles or changing app identity", async (t) => {
   for (const lockView of ["true", "false"]) {
     await t.test(`view lock ${lockView}`, async (t) => {
-      const app = await start(t, { DASHBOARD_PASSWORD: "test-password", DASHBOARD_LOCK_VIEW: lockView });
+      const app = await start(t, { DASHBOARD_PASSWORD: Buffer.from("test-password").toString("base64"), DASHBOARD_LOCK_VIEW: lockView });
       const json = { "content-type": "application/json" };
       const login = await app.request("/api/login", {
         method: "POST", headers: json, body: JSON.stringify({ password: "test-password" }),

@@ -304,8 +304,8 @@ export function openSettings() {
 
   const { passwordSet, lockView } = state.auth;
   $("#securityInfo").textContent = passwordSet
-    ? `On — ${lockView ? "the whole dashboard is locked" : "only editing is locked"}. Change it with DASHBOARD_PASSWORD / DASHBOARD_LOCK_VIEW in docker-compose.yml.`
-    : "Off — anyone who can reach this URL can view and edit. Set DASHBOARD_PASSWORD in docker-compose.yml to enable it.";
+    ? `On — ${lockView ? "the whole dashboard is locked" : "only editing is locked"}. DASHBOARD_PASSWORD stores a Base64-encoded password in docker-compose.yml; log in with the original password. DASHBOARD_LOCK_VIEW controls view locking.`
+    : "Off — anyone who can reach this URL can view and edit. Set DASHBOARD_PASSWORD to a Base64-encoded password in docker-compose.yml to enable protection. Base64 is not encryption.";
 
   const dialog = $("#settingsDialog");
   dialog.showModal();

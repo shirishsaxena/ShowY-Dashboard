@@ -62,7 +62,7 @@ test("authentication initialization failure exits nonzero without accepting traf
   fs.writeFileSync(file, "occupied");
   const result = await run(t, ["server.js"], {
     DATA_DIR: file,
-    DASHBOARD_PASSWORD: "test-password",
+    DASHBOARD_PASSWORD: Buffer.from("test-password").toString("base64"),
   });
   assert.equal(result.code, 1);
   assert.match(result.output, /ERROR \[Lifecycle\] Fatal startup error/);
@@ -80,4 +80,27 @@ test("listen failure is reported as a fatal startup error", async (t) => {
   assert.match(result.output, /ERROR \[Lifecycle\] Fatal startup error/);
   assert.match(result.output, /EADDRINUSE/);
   assert.doesNotMatch(result.output, /listening on port/);
+});
+
+test("invalid Base64 passwords fail startup and are never included in console or persistent logs", async (t) => {
+  for (const [name, value] of [
+    ["raw password", "sensitive-raw-password!!"],
+    ["noncanonical padding", "c2VjcmV0="],
+    ["invalid UTF-8", "/w=="],
+    ["whitespace", "c2VjcmV0\n"],
+  ]) {
+    await t.test(name, async (t) => {
+      const result = await run(t, ["server.js"], {
+        DASHBOARD_PASSWORD: value, DASHBOARD_LOCK_VIEW: "false", LOG_LEVEL: "ERROR", LOG_FILE: "backend.log",
+      });
+      assert.equal(result.code, 1);
+      assert.match(result.output, /ERROR \[Lifecycle\] Fatal startup error/);
+      assert.match(result.output, /DASHBOARD_PASSWORD must be canonical Base64/);
+      assert.doesNotMatch(result.output, /listening on port/);
+      assert.ok(!result.output.includes(value));
+      const log = fs.readFileSync(path.join(result.dir, "logs", "backend.log"), "utf8");
+      assert.match(log, /DASHBOARD_PASSWORD must be canonical Base64/);
+      assert.ok(!log.includes(value));
+    });
+  }
 });
