@@ -802,7 +802,7 @@ test("tunables serialize partial updates and recover after persistence failure",
 });
 
 function remoteFixture(writeAtomic, extra = {}) {
-  return loadLib("remotes", {
+  const mocks = {
     "./env": {
       SHARE_TOKEN: "",
       REMOTE_DASHBOARDS: "",
@@ -817,8 +817,164 @@ function remoteFixture(writeAtomic, extra = {}) {
     "./serverinfo": { sanitizeInfo: (data) => data },
     "./tunables": { get: () => 8 },
     ...extra,
+  };
+  return loadLib("remotes", {
+    ...mocks,
+    // Preserve the same sanitizer stubs across the extracted module boundary.
+    "./peer-validation": loadLib("peer-validation", mocks),
   });
 }
+
+test("remote directory exposes only allowed metadata, honors fixed precedence/filter/interval and never fetches peers", async (t) => {
+  let fetches = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    fetches++;
+    throw new Error("directory must not contact a peer");
+  });
+  const remotes = remoteFixture(async () => {}, {
+    "./env": {
+      SHARE_TOKEN: "private-share-token",
+      REMOTE_DASHBOARDS: "Fixed | https://fixed.test | fixed-private-token",
+      REMOTE_REFRESH_INTERVAL: 15,
+    },
+    fs: {
+      promises: {
+        readFile: async () =>
+          JSON.stringify({
+            shareToken: "saved-share-token",
+            refreshInterval: 30,
+            remotes: [
+              {
+                id: "duplicate",
+                name: "Duplicate",
+                url: "https://fixed.test",
+                token: "duplicate-private-token",
+              },
+              {
+                id: "saved",
+                name: "Saved",
+                url: "https://saved.test",
+                token: "saved-private-token",
+                secret: "private",
+              },
+            ],
+          }),
+      },
+    },
+  });
+  const directory = await remotes.getRemotes({
+    directory: true,
+    fresh: "saved",
+  });
+  assert.equal(directory.interval, 15);
+  assert.equal(directory.remotes.length, 2);
+  assert.match(directory.remotes[0].id, /^env-/);
+  assert.equal(directory.remotes[0].name, "Fixed");
+  assert.equal(directory.remotes[0].url, "https://fixed.test");
+  for (const remote of directory.remotes)
+    assert.deepEqual(Object.keys(remote).sort(), ["id", "name", "url"]);
+  assert.deepEqual(Object.keys(directory).sort(), ["interval", "remotes"]);
+  assert.doesNotMatch(
+    JSON.stringify(directory),
+    /token|private|share|fixed":/i,
+  );
+  assert.deepEqual(
+    await remotes.getRemotes({ directory: true, only: "saved" }),
+    {
+      interval: 15,
+      remotes: [{ id: "saved", name: "Saved", url: "https://saved.test" }],
+    },
+  );
+  assert.deepEqual(
+    (await remotes.getRemotes({ directory: true, only: "missing" })).remotes,
+    [],
+  );
+  assert.equal(fetches, 0);
+});
+
+test("directory resolves before a slow bulk peer while default and explicit directory=false retain snapshots", async (t) => {
+  const slow = deferred();
+  const calls = [];
+  t.mock.method(Date, "now", () => 50000);
+  t.mock.method(globalThis, "fetch", (url, options) => {
+    calls.push({ url, options });
+    return url.startsWith("https://slow.test")
+      ? slow.promise
+      : Promise.resolve(new Response(JSON.stringify(validPeerSnapshot())));
+  });
+  const remotes = remoteFixture(async () => {});
+  const saved = await remotes.saveRemotes({
+    remotes: [
+      { name: "Slow", url: "https://slow.test", token: "slow-private-token" },
+      { name: "Fast", url: "https://fast.test", token: "fast-private-token" },
+    ],
+  });
+  let bulkDone = false;
+  const bulk = remotes.getRemotes().then((result) => {
+    bulkDone = true;
+    return result;
+  });
+  await new Promise(setImmediate);
+  assert.equal(calls.length, 2);
+  let directoryDone = false;
+  const directory = remotes.getRemotes({ directory: true }).then((result) => {
+    directoryDone = true;
+    return result;
+  });
+  await new Promise(setImmediate);
+  try {
+    assert.equal(directoryDone, true);
+    assert.equal(bulkDone, false);
+    assert.equal(calls.length, 2);
+  } finally {
+    slow.resolve(new Response(JSON.stringify(validPeerSnapshot())));
+  }
+  const metadata = await directory;
+  assert.equal(metadata.interval, 10);
+  assert.deepEqual(
+    metadata.remotes,
+    saved.remotes.map(({ id, name, url }) => ({ id, name, url })),
+  );
+  const snapshots = await bulk;
+  assert.ok(snapshots.remotes.every((r) => r.ok && r.servers.length === 1));
+  assert.deepEqual(await remotes.getRemotes({ directory: false }), snapshots);
+  const only = await remotes.getRemotes({ only: saved.remotes[1].id });
+  assert.deepEqual(only.remotes, [snapshots.remotes[1]]);
+  assert.equal(calls.length, 2);
+  assert.equal(
+    calls[0].options.headers.Authorization,
+    "Bearer slow-private-token",
+  );
+  assert.doesNotMatch(JSON.stringify(snapshots), /private-token/);
+});
+
+test("existing view-authorized remotes route forwards directory=1 only, without adding an endpoint", async () => {
+  const options = [];
+  const routes = loadLib("../routes/remotes", {
+    "../lib/remotes": {
+      getRemotes: async (value) => {
+        options.push(value);
+        return value;
+      },
+    },
+  });
+  const route = routes["GET /api/remotes"];
+  assert.equal(route.access, "view");
+  assert.equal(route.body, "none");
+  for (const query of [
+    "directory=1&id=a%2Fb&fresh=a%2Fb",
+    "",
+    "directory=0",
+    "directory=true",
+  ])
+    await route.handler({}, {}, { query: new URLSearchParams(query) });
+  assert.deepEqual(options, [
+    { directory: true, only: "a/b", fresh: "a/b" },
+    { directory: false, only: "", fresh: "" },
+    { directory: false, only: "", fresh: "" },
+    { directory: false, only: "", fresh: "" },
+  ]);
+});
 
 function validPeerSnapshot() {
   const window = {

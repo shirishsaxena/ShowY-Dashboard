@@ -1,5 +1,5 @@
 "use strict";
-// Homelab dashboard server - zero dependencies (Node 18+).
+// Homelab dashboard server - zero dependencies (Node 24 LTS).
 
 const http = require("http");
 const { handleRequest } = require("./http/handler");

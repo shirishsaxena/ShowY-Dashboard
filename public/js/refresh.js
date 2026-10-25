@@ -38,7 +38,7 @@ function refreshBusy(change) {
   else btn.removeAttribute("aria-busy");
 }
 
-/** Remote dashboards: their servers, statuses and stats in one request. */
+/** Remote directory first, then independent peer snapshots. */
 function refreshRemotes() {
   if (pendingRemotes) {
     if (pendingRemotesConfig !== state.config)
@@ -63,7 +63,7 @@ async function performRemotesRefresh() {
   const had = state.remotes.length;
   const first = !state.remotesReady;
   const previous = new Map(state.remotes.map((r) => [r.id, r]));
-  const ok = await loadRemotes();
+  const ok = await loadRemotes("", rerender);
   if (state.locked || state.config !== config) return null;
   state.remotesError = ok
     ? ""

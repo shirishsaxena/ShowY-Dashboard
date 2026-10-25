@@ -86,16 +86,31 @@ function initTopbar() {
 /** Position a popover menu under its button, aligned to the button's left or right edge,
  *  and kept inside the screen (on a phone the button is not at the screen edge, so a wide menu would run off the left). */
 function anchorMenu(menu, btn, side) {
-  menu.addEventListener("toggle", (e) => {
-    btn.setAttribute("aria-expanded", String(e.newState === "open"));
-    if (e.newState !== "open") return;
+  const position = () => {
     const r = btn.getBoundingClientRect();
     const top = r.bottom + 8;
     const left = side === "right" ? r.right - menu.offsetWidth : r.left;
     menu.style.top = `${top}px`;
     menu.style.left = `${Math.max(8, Math.min(left, innerWidth - menu.offsetWidth - 8))}px`;
-    menu.style.maxHeight = `${Math.max(160, innerHeight - top - 8)}px`; // scrolls instead of running off the bottom
+    menu.style.maxHeight = `${Math.max(0, innerHeight - top - 8)}px`;
+  };
+  menu.addEventListener("toggle", (e) => {
+    btn.setAttribute("aria-expanded", String(e.newState === "open"));
+    if (e.newState !== "open") return;
+    position();
+    if (menu.id === "serverMenu") {
+      const active = menu.querySelector(
+        '.server-item[aria-current="true"]:not(:disabled)',
+      );
+      (active || menu.querySelector(".server-item:not(:disabled)"))?.focus({
+        preventScroll: true,
+      });
+    }
   });
+  window.addEventListener(
+    "resize",
+    () => menu.matches(":popover-open") && position(),
+  );
 }
 
 function initEditDock() {
@@ -246,11 +261,9 @@ function showBoot(error = "") {
 }
 
 function revealDashboard() {
-  if (
-    state.locked ||
-    (state.loading?.blocking && state.loading.stage !== "failed")
-  )
-    return;
+  // The page already has a per-server loading panel; keep navigation available
+  // even when a saved remote selection has not answered yet.
+  if (state.locked) return;
   $("#appShell").hidden = false;
   $("#appShell").inert = false;
   $("#bootScreen").hidden = true;

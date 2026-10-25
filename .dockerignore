@@ -1,4 +1,20 @@
-data
-.env
-.git
-.tmp*
+# Only the explicit runtime inputs belong in the production build context.
+# This also excludes local data, secrets, Git metadata, tests and reports.
+**
+!Dockerfile
+!server.js
+!VERSION
+!lib/
+!lib/**
+!http/
+!http/**
+!web/
+!web/**
+!routes/
+!routes/**
+!public/
+!public/**
+**/.env
+**/.env.*
+**/*.log
+**/.DS_Store

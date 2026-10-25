@@ -27,6 +27,7 @@ module.exports = {
       return remotes.getRemotes({
         fresh: query.get("fresh") || "",
         only: query.get("id") || "",
+        directory: query.get("directory") === "1",
       });
     },
   },
@@ -38,18 +39,44 @@ module.exports = {
   "PUT /api/remotes/settings": {
     access: "edit",
     body: "json",
-    handler: async (req) => remotes.saveRemotes(await readJson(req)),
+    handler: async (req, res, context) => {
+      const result = await remotes.saveRemotes(await readJson(req));
+      context.activity = {
+        title: "Remote dashboard connections saved",
+        message: `${result.remotes.length} dashboard connections configured. URLs and tokens are not recorded in history.`,
+      };
+      return result;
+    },
   },
   "PUT /api/share": {
     access: "edit",
     body: "json",
-    handler: async (req) =>
-      remotes.setSharing(Boolean((await readJson(req)).enabled)),
+    handler: async (req, res, context) => {
+      const result = await remotes.setSharing(
+        Boolean((await readJson(req)).enabled),
+      );
+      context.activity = {
+        title: result.shareToken
+          ? "Remote sharing enabled"
+          : "Remote sharing disabled",
+        message: result.shareToken
+          ? "A new share token was generated. Token not recorded in history."
+          : "Peer dashboards can no longer read using this dashboard's saved share token.",
+      };
+      return result;
+    },
   },
   "PUT /api/remotes/interval": {
     access: "edit",
     body: "json",
-    handler: async (req) => remotes.setRefreshInterval(await readJson(req)),
+    handler: async (req, res, context) => {
+      const result = await remotes.setRefreshInterval(await readJson(req));
+      context.activity = {
+        title: "Remote refresh interval updated",
+        message: `Refresh remote dashboards every ${result.refreshInterval} seconds.`,
+      };
+      return result;
+    },
   },
   // Other dashboards, with this one's share token.
   "GET /api/peer": {

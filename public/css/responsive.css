@@ -7,8 +7,22 @@
     padding-top: max(10px, env(safe-area-inset-top));
   }
   .brand {
-    flex: 0 1 auto;
-    margin-right: auto;
+    flex: 1 1 100%;
+    width: 100%;
+    margin: 0;
+  }
+  .brand-text {
+    flex: 1;
+  }
+  .brand-chevron {
+    margin-left: auto;
+  }
+  .topbar .actions {
+    flex: 1 1 100%;
+    justify-content: flex-end;
+  }
+  .menu.server-menu {
+    width: calc(100vw - 28px);
   }
   .search {
     order: 3;

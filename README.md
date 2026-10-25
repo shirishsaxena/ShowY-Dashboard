@@ -2,7 +2,7 @@
 
 **A lightweight, self-hosted dashboard for your homelab.** Organize services, inspect Docker containers, and monitor multiple machines from one interface.
 
-![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=nodedotjs&logoColor=white) [![Docker image](https://img.shields.io/badge/GHCR-ShowY%20Dashboard-2496ED?logo=docker&logoColor=white)](https://github.com/shirishsaxena/ShowY-Dashboard/pkgs/container/showy-dashboard) ![Zero dependencies](https://img.shields.io/badge/runtime_dependencies-0-brightgreen)
+![Node.js](https://img.shields.io/badge/Node.js-24_LTS-339933?logo=nodedotjs&logoColor=white) [![Docker image](https://img.shields.io/badge/GHCR-ShowY%20Dashboard-2496ED?logo=docker&logoColor=white)](https://github.com/shirishsaxena/ShowY-Dashboard/pkgs/container/showy-dashboard) ![Zero dependencies](https://img.shields.io/badge/runtime_dependencies-0-brightgreen)
 
 Node.js backend, plain HTML/CSS/JavaScript frontend, local JSON storage. **No database, package installation, or frontend build step.**
 
@@ -137,7 +137,7 @@ Connections are server-to-server: the remote URL must be reachable from the dash
 
 - **Full backup:** stop the dashboard and copy the entire data directory, plus any separate log volume. Run only one backend process per data directory.
 - **Configuration only:** Settings → Data → Export/Import JSON. This does not include tokens, remote connections, clipboard/history, or separate monitoring preferences.
-- **Action history:** the bell opens a clipboard-style popover containing the latest **200 actions**. Settings → Data can clear finished entries; pending actions remain. Minimal request receipts are retained to prevent duplicate container operations.
+- **Action history:** the bell opens a popover containing the latest **200 actions**. Configuration edits identify affected services, servers, groups, favorites, and quick actions, with changed field names rather than private contents. URLs, notes, copy text, IP addresses, and sharing tokens are not copied into history; display names are recorded. Large edits have bounded detail summaries. Existing older entries remain as originally recorded. Settings → Data can clear finished entries; pending actions remain. Minimal request receipts are retained to prevent duplicate container operations.
 - **Backend logs:** rotating files persist in the data volume; download/clear them in Settings → Data. Docker console-log retention is configured separately in Compose.
 - **Browser preferences:** theme/layout and unread markers are device-local, not part of the server backup.
 
@@ -161,7 +161,7 @@ docker compose up -d --build
 
 The repository's [docker-compose.yml](docker-compose.yml) builds locally and publishes **8080**, unlike the prebuilt example's **8011**.
 
-Alternatively, with **Node.js 18+**:
+Alternatively, with **Node.js 24 LTS** (the production image uses Node 24 Alpine):
 
 ```sh
 node server.js                  # http://localhost:8080; no npm install needed
@@ -172,8 +172,10 @@ Pass overrides through the process environment. The application itself does not 
 Run the test suite separately:
 
 ```sh
-node --test tests/*.test.cjs
+node scripts/test.cjs
 ```
+
+Use `node scripts/test.cjs --list` for the recursively sorted test inventory, or `node scripts/test.cjs --test-reporter=tap` for a machine-readable report. No package installation is needed.
 
 ## Troubleshooting
 

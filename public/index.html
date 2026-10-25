@@ -118,7 +118,8 @@
           class="brand"
           type="button"
           popovertarget="serverMenu"
-          aria-haspopup="true"
+          aria-haspopup="dialog"
+          aria-controls="serverMenu"
           aria-expanded="false"
           disabled
         >
@@ -218,8 +219,24 @@
       </header>
 
       <!-- Server switcher -->
-      <div id="serverMenu" class="menu server-menu" popover>
-        <div class="menu-label">Servers</div>
+      <div
+        id="serverMenu"
+        class="menu server-menu"
+        popover
+        role="dialog"
+        aria-labelledby="serverMenuTitle"
+      >
+        <div class="server-menu-head">
+          <span id="serverMenuTitle" class="server-menu-title"
+            >Switch server</span
+          >
+          <span
+            id="serverMenuStatus"
+            class="server-menu-status"
+            role="status"
+            aria-live="polite"
+          ></span>
+        </div>
         <div id="serverList" class="server-list"></div>
         <p id="serverHint" class="menu-hint" hidden>
           Drag <b>⠿</b> to reorder.

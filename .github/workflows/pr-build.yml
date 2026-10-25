@@ -25,10 +25,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up latest Node.js
+      - name: Set up Node.js 24 LTS
         uses: actions/setup-node@v7
         with:
-          node-version: latest
+          node-version: '24'
           check-latest: true
           package-manager-cache: false
 
@@ -47,8 +47,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          find server.js lib http web routes public/js public/sw.js \
-            -type f -name '*.js' -print0 |
+          find server.js lib http web routes public/js public/sw.js scripts tests \
+            -type f \( -name '*.js' -o -name '*.cjs' \) -print0 |
             xargs -0 -r -n 1 node --check
 
           echo "JavaScript syntax check passed."
@@ -57,4 +57,45 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node --test --test-reporter=spec tests/*.test.cjs
+          node scripts/test.cjs --list
+          status=0
+          node scripts/test.cjs --test-reporter=tap > test-results.tap || status=$?
+          cat test-results.tap
+          exit "$status"
+
+      - name: Retain test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-node24
+          path: test-results.tap
+          if-no-files-found: warn
+
+      - name: Build and smoke-test production image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --tag showy-dashboard:pr .
+          data=$(mktemp -d)
+          cleanup() {
+            docker logs showy-smoke || true
+            docker rm -f showy-smoke || true
+          }
+          trap cleanup EXIT
+          docker run -d --name showy-smoke \
+            -p 127.0.0.1:18080:8080 -v "$data:/data" showy-dashboard:pr
+          for attempt in {1..30}; do
+            if curl --fail --silent --max-time 2 http://127.0.0.1:18080/api/auth > /tmp/auth.json; then
+              break
+            fi
+            sleep 1
+          done
+          node -e 'const a=require("/tmp/auth.json"); if(a.passwordSet !== false) process.exit(1)'
+          curl --fail --silent --max-time 5 http://127.0.0.1:18080/ > /tmp/dashboard.html
+          curl --fail --silent --max-time 5 http://127.0.0.1:18080/api/config > /tmp/config.json
+          node -e 'const c=require("/tmp/config.json"); if(!Array.isArray(c.config.servers)) process.exit(1)'
+          docker exec showy-smoke node -e 'if(process.versions.node.split(".")[0] !== "24") process.exit(1)'
+          docker stop --time 15 showy-smoke
+          test "$(docker inspect --format '{{.State.ExitCode}}' showy-smoke)" = 0
+          sudo test -s "$data/availability.json"
+          sudo test -s "$data/logs/backend.log"

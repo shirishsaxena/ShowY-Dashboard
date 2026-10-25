@@ -33,6 +33,13 @@ module.exports = {
   "PUT /api/clip/settings": {
     access: "edit",
     body: "json",
-    handler: async (req) => saveClipSettings(await readJson(req)),
+    handler: async (req, res, context) => {
+      const result = await saveClipSettings(await readJson(req));
+      context.activity = {
+        title: "Clipboard history limit updated",
+        message: `Keep up to ${result.max} items.`,
+      };
+      return result;
+    },
   },
 };
