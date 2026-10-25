@@ -171,9 +171,7 @@ test("editor tabs and panels have matching accessible relationships", () => {
     assert.ok(match, `Expected dialog "${editor}Dialog" to exist`);
     const body = match[0];
 
-    const tabs = [
-      ...body.matchAll(/<button\b(?=[^>]*\brole="tab")[^>]*>/g),
-    ];
+    const tabs = [...body.matchAll(/<button\b(?=[^>]*\brole="tab")[^>]*>/g)];
 
     assert.equal(tabs.length, editor === "service" ? 3 : 2);
 
@@ -181,7 +179,10 @@ test("editor tabs and panels have matching accessible relationships", () => {
       const id = tab.match(/\bid="([^"]+)"/)?.[1];
       const panel = tab.match(/\baria-controls="([^"]+)"/)?.[1];
 
-      assert.ok(id, `Expected tab ${index + 1} in ${editor} dialog to have an id`);
+      assert.ok(
+        id,
+        `Expected tab ${index + 1} in ${editor} dialog to have an id`,
+      );
       assert.ok(
         panel,
         `Expected tab "${id}" in ${editor} dialog to have aria-controls`,
@@ -193,9 +194,7 @@ test("editor tabs and panels have matching accessible relationships", () => {
       );
 
       const panelMatch = body.match(
-        new RegExp(
-          String.raw`<fieldset\b(?=[^>]*\bid="${panel}")[^>]*>`,
-        ),
+        new RegExp(String.raw`<fieldset\b(?=[^>]*\bid="${panel}")[^>]*>`),
       );
 
       assert.ok(panelMatch, `Expected panel "${panel}" to exist`);
@@ -203,10 +202,7 @@ test("editor tabs and panels have matching accessible relationships", () => {
       const markup = panelMatch[0];
 
       assert.match(markup, /\brole="tabpanel"/);
-      assert.match(
-        markup,
-        new RegExp(String.raw`\baria-labelledby="${id}"`),
-      );
+      assert.match(markup, new RegExp(String.raw`\baria-labelledby="${id}"`));
 
       const isHidden = /\bhidden(?:\s|=|>)/.test(markup);
       assert.equal(

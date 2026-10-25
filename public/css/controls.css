@@ -112,7 +112,24 @@
 }
 
 .menu.server-menu {
-  width: min(320px, calc(100vw - 16px));
+  width: min(380px, calc(100vw - 28px));
+}
+.server-menu-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 2px 4px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.server-menu-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+.server-menu-status {
+  color: var(--muted);
+  font-size: 0.75rem;
 }
 .server-list {
   display: flex;
@@ -124,7 +141,8 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  padding: 8px 10px;
+  min-height: 56px;
+  padding: 10px;
   border-radius: 11px;
   border: 1px solid transparent;
   background: none;
@@ -133,8 +151,41 @@
   text-align: left;
   cursor: pointer;
 }
-.server-item:hover {
+.server-item:hover:not(:disabled) {
   background: var(--card-hover);
+}
+.server-item-pending:disabled {
+  cursor: default;
+  color: var(--muted);
+}
+.server-item-pending[aria-busy="true"] {
+  cursor: wait;
+}
+.server-remote-icon {
+  background: var(--card);
+  color: var(--muted);
+}
+.server-remote-icon svg {
+  width: 20px;
+  height: 20px;
+}
+.server-item-spinner {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.server-discovery {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 10px;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 .server-item[aria-current="true"] {
   background: color-mix(in srgb, var(--accent) 16%, transparent);

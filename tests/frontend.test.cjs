@@ -1416,8 +1416,9 @@ test("only the initiating pointer can move or finish a drag", () => {
   assert.equal(sorts.length, 1);
 });
 
-function pollingHarness() {
+function pollingHarness({ timed = false } = {}) {
   const calls = [];
+  const timers = [];
   const state = {
     health: {},
     usage: {},
@@ -1441,20 +1442,35 @@ function pollingHarness() {
     {
       state,
       AbortController,
-      setTimeout,
-      clearTimeout,
+      setTimeout: timed
+        ? (fn, ms) => {
+            const timer = { fn, ms, cleared: false };
+            timers.push(timer);
+            return timer;
+          }
+        : setTimeout,
+      clearTimeout: timed
+        ? (timer) => {
+            timer.cleared = true;
+          }
+        : clearTimeout,
       Date: { now: () => ++clock },
       normalizeConfig: (config) => config,
-      fetch: (url) => {
+      fetch: (url, { signal }) => {
         const pending = deferred();
-        calls.push({ url, ...pending });
+        signal?.addEventListener(
+          "abort",
+          () => pending.reject(new Error("aborted")),
+          { once: true },
+        );
+        calls.push({ url, signal, ...pending });
         return pending.promise;
       },
     },
   );
   const respond = (index, data, ok = true) =>
     calls[index].resolve({ ok, json: async () => data });
-  return { ...module, state, calls, respond };
+  return { ...module, state, calls, timers, respond };
 }
 
 function refreshHarness() {
@@ -1722,12 +1738,20 @@ test("queued fresh remotes use their actual fetch start when choosing newer data
     servers: [{ id: "server" }],
   });
   harness.respond(0, { remotes: [remote("old")] });
-  await normal;
   await flush();
   assert.equal(harness.calls.length, 2);
-  assert.equal(harness.calls[1].url, "/api/remotes?fresh=remote");
+  assert.equal(harness.calls[1].url, "/api/remotes?id=remote");
+  harness.respond(1, { remotes: [remote("old")] });
+  await normal;
+  await flush();
+  assert.equal(harness.calls.length, 3);
+  assert.equal(harness.calls[2].url, "/api/remotes?directory=1&fresh=remote");
   assert.equal(harness.state.remotes[0].name, "old");
-  harness.respond(1, { remotes: [remote("fresh")] });
+  harness.respond(2, { remotes: [remote("fresh")] });
+  await flush();
+  assert.equal(harness.calls.length, 4);
+  assert.equal(harness.calls[3].url, "/api/remotes?id=remote&fresh=remote");
+  harness.respond(3, { remotes: [remote("fresh")] });
   await fresh;
   assert.equal(harness.state.remotes[0].name, "fresh");
 });
@@ -1748,6 +1772,317 @@ test("a slow bulk remote poll still preserves newer individually loaded data", a
   harness.respond(0, { remotes: [remote("older bulk")] });
   await bulk;
   assert.equal(harness.state.remotes[0].name, "newer individual");
+});
+
+const remoteMetadata = (id) => ({
+  id,
+  name: `Peer ${id}`,
+  url: `https://${id}.test`,
+});
+const remoteSnapshot = (metadata, extra = {}) => ({
+  ...metadata,
+  ok: true,
+  age: 0,
+  lastOk: 100,
+  servers: [{ id: "host", name: "Host", services: [], groups: [] }],
+  stats: { cpu: 1 },
+  ...extra,
+});
+
+test("remote directory publishes named empty placeholders before slow peers and notifies shared callers independently", async () => {
+  const h = pollingHarness();
+  const directory = [remoteMetadata("slow"), remoteMetadata("fast")];
+  const progress = [];
+  let duplicateProgress = 0;
+  const cycle = h.loadRemotes("", () =>
+    progress.push(
+      h.state.remotes.map((r) => ({ id: r.id, loading: r.loading })),
+    ),
+  );
+  const duplicate = h.loadRemotes("", () => duplicateProgress++);
+  assert.equal(cycle, duplicate);
+  assert.equal(h.calls.length, 1);
+  assert.equal(h.calls[0].url, "/api/remotes?directory=1");
+  h.respond(0, { interval: 15, remotes: directory });
+  await flush();
+  assert.equal(h.calls.length, 3);
+  assert.equal(progress.length, 1);
+  assert.equal(duplicateProgress, 1);
+  assert.equal(h.state.remotesInterval, 15);
+  for (const [index, entry] of h.state.remotes.entries()) {
+    assert.equal(entry.name, directory[index].name);
+    assert.equal(entry.url, directory[index].url);
+    assert.equal(entry.loading, true);
+    assert.equal(entry.servers.length, 0);
+  }
+  let settled = false;
+  cycle.then(() => {
+    settled = true;
+  });
+  h.respond(2, { remotes: [remoteSnapshot(directory[1])] });
+  await flush();
+  assert.equal(settled, false);
+  assert.equal(h.state.remotes[0].loading, true);
+  assert.equal(h.state.remotes[1].loading, false);
+  assert.equal(h.state.remotes[1].servers[0].id, "fast:host");
+  assert.equal(progress.length, 2);
+  h.respond(1, { remotes: [remoteSnapshot(directory[0])] });
+  assert.equal(await cycle, true);
+  assert.equal(progress.length, 3);
+  assert.equal(duplicateProgress, 3);
+  assert.ok(h.state.remotes.every((r) => !r.loading));
+});
+
+test("remote collection limits concurrency to four and refills on any completion", async () => {
+  const h = pollingHarness();
+  const directory = Array.from({ length: 7 }, (_, i) =>
+    remoteMetadata(`r${i}`),
+  );
+  const cycle = h.loadRemotes();
+  h.respond(0, { remotes: directory });
+  await flush();
+  assert.equal(h.calls.length, 5);
+  assert.ok(h.state.remotes.every((r) => r.loading));
+  h.respond(3, { remotes: [remoteSnapshot(directory[2])] });
+  await flush();
+  assert.equal(h.calls.length, 6);
+  assert.equal(h.calls[5].url, "/api/remotes?id=r4");
+  h.respond(5, { remotes: [remoteSnapshot(directory[4])] });
+  await flush();
+  assert.equal(h.calls.length, 7);
+  h.respond(6, { remotes: [remoteSnapshot(directory[5])] });
+  await flush();
+  assert.equal(h.calls.length, 8);
+  for (const index of [1, 2, 4, 7]) {
+    const id = new URL(
+      h.calls[index].url,
+      "http://dashboard.test",
+    ).searchParams.get("id");
+    h.respond(index, { remotes: [remoteSnapshot(remoteMetadata(id))] });
+  }
+  assert.equal(await cycle, true);
+  assert.ok(h.state.remotes.every((r) => !r.loading && r.ok));
+});
+
+test("remote polling preserves known snapshots while pending and known servers on peer failure", async () => {
+  const h = pollingHarness();
+  const meta = remoteMetadata("known");
+  const initial = h.loadRemote(meta.id);
+  h.respond(0, { remotes: [remoteSnapshot(meta)] });
+  const previous = await initial;
+  const cycle = h.loadRemotes();
+  h.respond(1, { remotes: [meta] });
+  await flush();
+  assert.equal(h.state.remotes[0].servers, previous.servers);
+  assert.equal(h.state.remotes[0].stats, previous.stats);
+  assert.equal(h.state.remotes[0].lastOk, previous.lastOk);
+  assert.equal(h.state.remotes[0].ok, true);
+  assert.equal(h.state.remotes[0].loading, true);
+  h.respond(2, {
+    remotes: [
+      {
+        ...meta,
+        ok: false,
+        error: "Timed out",
+        servers: [],
+        age: 5,
+        lastOk: 100,
+      },
+    ],
+  });
+  assert.equal(await cycle, true);
+  assert.equal(h.state.remotes[0].ok, false);
+  assert.equal(h.state.remotes[0].error, "Timed out");
+  assert.equal(h.state.remotes[0].loading, false);
+  assert.equal(h.state.remotes[0].servers, previous.servers);
+  assert.equal(h.state.remotes[0].lastOk, previous.lastOk);
+});
+
+test("remote HTTP, missing-entry, network and timeout failures settle entries and release every timer", async () => {
+  const h = pollingHarness({ timed: true });
+  const directory = Array.from({ length: 4 }, (_, i) =>
+    remoteMetadata(`r${i}`),
+  );
+  let progress = 0;
+  const cycle = h.loadRemotes("r3", () => progress++);
+  h.respond(0, { remotes: directory });
+  await flush();
+  assert.equal(h.timers[0].ms, 125000);
+  assert.equal(h.timers[1].ms, 65000);
+  assert.equal(h.timers[4].ms, 125000);
+  h.respond(1, {}, false);
+  h.respond(2, { remotes: [] });
+  h.calls[3].reject(new Error("offline"));
+  h.timers[4].fn();
+  assert.equal(await cycle, true);
+  assert.equal(progress, 5);
+  assert.ok(
+    h.state.remotes.every((r) => !r.loading && !r.ok && r.error && r.pollError),
+  );
+  assert.ok(h.timers.every((timer) => timer.cleared));
+  assert.equal(h.calls[4].signal.aborted, true);
+  assert.equal(h.calls[1].signal.aborted, false);
+  const previous = h.state.remotes[0];
+  const failure = h.loadRemotes();
+  h.calls[5].reject(new Error("directory offline"));
+  assert.equal(await failure, false);
+  assert.equal(h.state.remotes[0], previous);
+  const retry = h.loadRemotes();
+  h.respond(6, { interval: 30, remotes: [] });
+  assert.equal(await retry, true);
+  assert.equal(h.state.remotes.length, 0);
+});
+
+test("invalid remote directories fail without purging known data or notifying progress", async () => {
+  const h = pollingHarness();
+  const previous = { ...remoteMetadata("known"), servers: [], loading: false };
+  h.state.remotes = [previous];
+  let progress = 0;
+  const cycle = h.loadRemotes("", () => progress++);
+  h.respond(0, {});
+  assert.equal(await cycle, false);
+  assert.equal(h.state.remotes[0], previous);
+  assert.equal(progress, 0);
+  assert.equal(h.calls.length, 1);
+});
+
+test("later targeted remote completion wins over an already-running directory peer request", async () => {
+  const h = pollingHarness();
+  const meta = remoteMetadata("peer");
+  let progress = 0;
+  const cycle = h.loadRemotes("", () => progress++);
+  h.respond(0, { remotes: [meta] });
+  await flush();
+  const individual = h.loadRemote(meta.id, { fresh: true });
+  h.respond(2, { remotes: [remoteSnapshot(meta, { stats: { cpu: 99 } })] });
+  const latest = await individual;
+  h.respond(1, { remotes: [remoteSnapshot(meta)] });
+  assert.equal(await cycle, true);
+  assert.equal(h.state.remotes[0], latest);
+  assert.equal(h.state.remotes[0].stats.cpu, 99);
+  assert.equal(h.state.remotes[0].loading, false);
+  assert.equal(progress, 1); // Ignored stale results do not announce an update.
+});
+
+test("a slow directory cannot replace newer targeted metadata or start an older peer request", async () => {
+  const h = pollingHarness();
+  const oldMeta = remoteMetadata("peer");
+  const meta = { ...oldMeta, name: "New endpoint", url: "https://new.test" };
+  const cycle = h.loadRemotes();
+  const individual = h.loadRemote(meta.id);
+  h.respond(1, { remotes: [remoteSnapshot(meta)] });
+  const latest = await individual;
+  h.respond(0, { remotes: [oldMeta] });
+  assert.equal(await cycle, true);
+  assert.equal(h.state.remotes[0], latest);
+  assert.equal(h.state.remotes[0].url, meta.url);
+  assert.equal(h.calls.length, 2);
+});
+
+test("a targeted request begun after an old directory may discover newly configured metadata", async () => {
+  const h = pollingHarness();
+  const cycle = h.loadRemotes();
+  h.respond(0, { remotes: [] });
+  assert.equal(await cycle, true);
+  const meta = remoteMetadata("added");
+  const individual = h.loadRemote(meta.id);
+  h.respond(1, { remotes: [remoteSnapshot(meta)] });
+  const entry = await individual;
+  assert.equal(h.state.remotes[0], entry);
+  assert.equal(entry.url, meta.url);
+  assert.equal(entry.loading, false);
+});
+
+for (const change of ["config", "auth", "locked"]) {
+  for (const phase of ["directory", "peers"]) {
+    test(`remote ${phase} results are discarded after ${change} changes`, async () => {
+      const h = pollingHarness();
+      const directory = Array.from({ length: 5 }, (_, i) =>
+        remoteMetadata(`r${i}`),
+      );
+      let progress = 0;
+      const cycle = h.loadRemotes("", () => progress++);
+      const queued = h.loadRemotes("r0");
+      if (phase === "peers") {
+        h.respond(0, { remotes: directory });
+        await flush();
+        assert.equal(h.calls.length, 5);
+      }
+      h.state[change] = change === "locked" ? true : {};
+      if (phase === "directory") h.respond(0, { remotes: directory });
+      else
+        for (let i = 1; i <= 4; i++)
+          h.respond(i, { remotes: [remoteSnapshot(directory[i - 1])] });
+      assert.equal(await cycle, false);
+      assert.equal(await queued, false);
+      assert.equal(h.calls.length, phase === "directory" ? 1 : 5);
+      assert.equal(progress, phase === "directory" ? 0 : 1);
+      assert.ok(h.state.remotes.every((r) => !r.loading && !r.ok));
+    });
+  }
+}
+
+test("a new config starts a new directory without waiting for an invalid old cycle", async () => {
+  const h = pollingHarness();
+  const old = h.loadRemotes();
+  h.state.config = {};
+  const current = h.loadRemotes();
+  assert.equal(h.calls.length, 2);
+  h.respond(1, { remotes: [] });
+  assert.equal(await current, true);
+  h.respond(0, { remotes: [remoteMetadata("removed")] });
+  assert.equal(await old, false);
+  assert.equal(h.state.remotes.length, 0);
+  const next = h.loadRemotes();
+  h.respond(2, { remotes: [] });
+  assert.equal(await next, true);
+});
+
+for (const reconfigured of [false, true]) {
+  test(`late targeted remote response cannot resurrect a ${reconfigured ? "reconfigured" : "removed"} directory entry`, async () => {
+    const h = pollingHarness();
+    const oldMeta = remoteMetadata("peer");
+    const individual = h.loadRemote(oldMeta.id);
+    const cycle = h.loadRemotes();
+    const meta = {
+      ...oldMeta,
+      name: "Replacement",
+      url: "https://replacement.test",
+    };
+    h.respond(1, { remotes: reconfigured ? [meta] : [] });
+    await flush();
+    if (reconfigured) h.respond(2, { remotes: [remoteSnapshot(meta)] });
+    assert.equal(await cycle, true);
+    h.respond(0, { remotes: [remoteSnapshot(oldMeta)] });
+    assert.equal(await individual, null);
+    assert.equal(h.state.remotes.length, reconfigured ? 1 : 0);
+    if (reconfigured) assert.equal(h.state.remotes[0].url, meta.url);
+  });
+}
+
+test("loadRemote retains HTTP, network, abort, empty-result and stale-auth behavior", async () => {
+  const h = pollingHarness();
+  const http = assert.rejects(h.loadRemote("peer"), /HTTP 503/);
+  h.calls[0].resolve({ ok: false, status: 503, json: async () => ({}) });
+  await http;
+  const network = assert.rejects(h.loadRemote("peer"), /offline/);
+  h.calls[1].reject(new Error("offline"));
+  await network;
+  const controller = new AbortController();
+  const aborted = assert.rejects(
+    h.loadRemote("peer", { signal: controller.signal }),
+    /aborted/,
+  );
+  controller.abort();
+  await aborted;
+  const empty = h.loadRemote("peer");
+  h.respond(3, { remotes: [] });
+  assert.equal(await empty, null);
+  const stale = assert.rejects(h.loadRemote("peer"), /cancelled/);
+  h.state.auth = {};
+  h.respond(4, { remotes: [remoteSnapshot(remoteMetadata("peer"))] });
+  await stale;
+  assert.equal(h.state.remotes.length, 0);
 });
 
 function editingHarness() {

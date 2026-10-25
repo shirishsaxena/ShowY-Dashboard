@@ -312,3 +312,40 @@ test("CSS scopes boot hiding and supplies focus, touch, and quiet freshness styl
   assert.match(css, /@media \(pointer: coarse\)/);
   assert.match(css, /\.chip\.age\s*\{[^}]*color: var\(--muted\)/);
 });
+
+test("mobile server selector owns a full-width row above actions and search", () => {
+  const mobile = source("css/responsive.css").split("@keyframes sheet")[0];
+  assert.match(mobile, /@media \(max-width: 720px\)/);
+  assert.match(mobile, /\.topbar\s*\{[^}]*flex-wrap: wrap/);
+  assert.match(
+    mobile,
+    /\.brand\s*\{[^}]*flex: 1 1 100%;[^}]*width: 100%;[^}]*margin: 0;/,
+  );
+  assert.match(mobile, /\.brand-text\s*\{[^}]*flex: 1;/);
+  assert.match(mobile, /\.brand-chevron\s*\{[^}]*margin-left: auto;/);
+  assert.match(
+    mobile,
+    /\.topbar \.actions\s*\{[^}]*flex: 1 1 100%;[^}]*justify-content: flex-end;/,
+  );
+  assert.match(mobile, /\.search\s*\{[^}]*order: 3;[^}]*flex-basis: 100%;/);
+});
+
+test("card menu has a smaller visible frame without shrinking its touch target", () => {
+  const css = source("css/popovers.css");
+  assert.match(
+    css,
+    /\.card \.card-menu-btn\s*\{[^}]*width: 24px;[^}]*height: 24px;[^}]*background: transparent;/,
+  );
+  assert.match(
+    css,
+    /\.card \.card-menu-btn::before\s*\{[^}]*width: 24px;[^}]*height: 24px;[^}]*pointer-events: none;/,
+  );
+  assert.match(
+    css,
+    /\.card \.card-menu-btn svg\s*\{[^}]*position: relative;[^}]*width: 12px;[^}]*height: 12px;/,
+  );
+  assert.match(
+    css,
+    /@media \(pointer: coarse\)\s*\{\s*\.card \.card-menu-btn\s*\{[^}]*min-width: 44px;[^}]*min-height: 44px;/,
+  );
+});

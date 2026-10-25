@@ -13,7 +13,16 @@ module.exports = {
   "PUT /api/availability/settings": {
     access: "edit",
     body: "json",
-    handler: async (req) => availability.saveSettings(await readJson(req)),
+    handler: async (req, res, context) => {
+      const result = await availability.saveSettings(await readJson(req));
+      context.activity = {
+        title: result.enabled
+          ? "Availability monitoring enabled"
+          : "Availability monitoring paused",
+        message: `Heartbeat interval: ${result.interval} minutes. Outage threshold: ${result.threshold} minutes.`,
+      };
+      return result;
+    },
   },
   "DELETE /api/availability": {
     access: "edit",

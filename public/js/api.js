@@ -158,30 +158,149 @@ export const loadHealth = (fresh = false) =>
     dashboardContext(),
   );
 
-/** Remote dashboards. Their live data only counts while they answer; otherwise just the last known servers show.
- *  fresh = id of a remote to fetch fresh (Refresh button while viewing it). */
-export async function loadRemotes(fresh = "") {
-  const version = ++remoteRequestVersion;
-  return load(
-    `/api/remotes${fresh ? `?fresh=${encodeURIComponent(fresh)}` : ""}`,
+const remoteContext = () => {
+  const config = state.config;
+  const auth = state.auth;
+  return () => !state.locked && state.config === config && state.auth === auth;
+};
+
+let pendingRemotes = null;
+let remoteDirectory = null;
+const sameRemote = (a, b) => a?.url === b?.url && a?.name === b?.name;
+
+/** Publish names first, then at most four independent peer snapshots.
+ *  Progress runs after directory publication and every applied completion (including errors).
+ *  false means the directory failed or the context expired; peer failures live on their entries.
+ *  Identical polls share work; fresh variants queue and get their version when they actually start. */
+export function loadRemotes(fresh = "", onProgress = () => {}) {
+  if (pendingRemotes?.current()) {
+    if (!fresh || fresh === pendingRemotes.fresh) {
+      pendingRemotes.listeners.add(onProgress);
+      return pendingRemotes.promise;
+    }
+    const current = remoteContext();
+    return pendingRemotes.promise.then(() =>
+      current() ? loadRemotes(fresh, onProgress) : false,
+    );
+  }
+  const cycle = {
+    fresh,
+    current: remoteContext(),
+    version: ++remoteRequestVersion,
+    listeners: new Set([onProgress]),
+    entries: new Set(),
+  };
+  pendingRemotes = cycle;
+  cycle.promise = performRemotesLoad(cycle).finally(() => {
+    // Only clean up placeholders still owned by this cycle, never a newer load.
+    state.remotes = state.remotes.map((r) =>
+      cycle.entries.has(r) && r.loading ? { ...r, loading: false } : r,
+    );
+    if (pendingRemotes === cycle) pendingRemotes = null;
+  });
+  return cycle.promise;
+}
+
+function remoteProgress(cycle) {
+  if (!cycle.current()) return;
+  for (const listener of cycle.listeners) {
+    // Rendering failures must not strand the remaining peer requests.
+    try {
+      listener();
+    } catch {}
+  }
+}
+
+async function performRemotesLoad(cycle) {
+  const { fresh, current, version } = cycle;
+  let directory;
+  const ok = await performLoad(
+    `/api/remotes?directory=1${fresh ? `&fresh=${encodeURIComponent(fresh)}` : ""}`,
     (data) => {
+      if (!Array.isArray(data.remotes)) return false;
+      directory = data.remotes;
       if (data.interval) state.remotesInterval = data.interval;
-      // Preserve later-started targeted loads even if this bulk response arrives last.
-      const current = new Map(state.remotes.map((r) => [r.id, r]));
-      state.remotes = (data.remotes || [])
-        .map((r) => remoteEntry(r, version, current.get(r.id)))
-        .map((r) =>
-          current.get(r.id)?.requestVersion > version ? current.get(r.id) : r,
-        );
+      const previous = new Map(state.remotes.map((r) => [r.id, r]));
+      remoteDirectory = {
+        current,
+        entries: new Map(directory.map((r) => [r.id, r])),
+      };
+      state.remotes = directory.map(({ id, name, url }) => {
+        let prior = previous.get(id);
+        // A later-started targeted request may already know newer metadata too.
+        if (prior?.requestVersion > version) return prior;
+        // A different dashboard at the same id must not inherit the old snapshot.
+        if (prior && prior.url !== url) prior = undefined;
+        const entry = {
+          servers: [],
+          ...prior,
+          id,
+          name,
+          url,
+          loading: true,
+          requestVersion: version,
+        };
+        cycle.entries.add(entry);
+        return entry;
+      });
+      remoteProgress(cycle);
     },
-    dashboardContext(),
+    current,
   );
+  if (!ok) return false;
+  let next = 0;
+  const worker = async () => {
+    while (current() && next < directory.length) {
+      const remote = directory[next++];
+      const before = state.remotes.find((r) => r.id === remote.id);
+      if (!before || before.requestVersion > version) continue;
+      let applied = false;
+      const loaded = await performLoad(
+        `/api/remotes?id=${encodeURIComponent(remote.id)}${remote.id === fresh ? `&fresh=${encodeURIComponent(fresh)}` : ""}`,
+        (data) => {
+          const index = state.remotes.findIndex((r) => r.id === remote.id);
+          const previous = state.remotes[index];
+          if (!previous || previous.requestVersion > version) return;
+          const result = data.remotes?.find((r) => r.id === remote.id);
+          if (!result || !sameRemote(remote, result)) return false;
+          const entry = remoteEntry(result, version, previous);
+          // Transport/peer failures must not erase servers already known in this tab.
+          if (!result.ok && previous.servers.length)
+            entry.servers = previous.servers;
+          state.remotes[index] = entry;
+          applied = true;
+        },
+        current,
+      );
+      if (!current()) return;
+      if (!loaded) {
+        const index = state.remotes.findIndex((r) => r.id === remote.id);
+        const previous = state.remotes[index];
+        if (previous && previous.requestVersion <= version) {
+          state.remotes[index] = {
+            ...previous,
+            ok: false,
+            error: "Dashboard server unreachable",
+            pollError: "Dashboard server unreachable",
+            loading: false,
+          };
+          applied = true;
+        }
+      }
+      if (applied) remoteProgress(cycle);
+    }
+  };
+  await Promise.all(
+    Array.from({ length: Math.min(4, directory.length) }, worker),
+  );
+  return current();
 }
 
 /** One remote dashboard, for switching to its servers. Returns null when it is no longer configured;
  *  a network failure throws (signal = cancel when another server was picked). */
 export async function loadRemote(id, { fresh = false, signal } = {}) {
-  const current = dashboardContext();
+  const current = remoteContext();
+  const directory = remoteDirectory;
   const version = ++remoteRequestVersion;
   const { res, data } = await api(
     "GET",
@@ -193,6 +312,12 @@ export async function loadRemote(id, { fresh = false, signal } = {}) {
   if (signal?.aborted || !current())
     throw new Error("Dashboard load cancelled");
   if (!data.remotes?.[0]) return null;
+  // A directory received while this request waited may remove/reconfigure its id.
+  // Do not let a late targeted response resurrect that old dashboard.
+  if (remoteDirectory !== directory && remoteDirectory?.current()) {
+    const configured = remoteDirectory.entries.get(id);
+    if (!configured || !sameRemote(configured, data.remotes[0])) return null;
+  }
   if (data.interval) state.remotesInterval = data.interval;
   const i = state.remotes.findIndex((r) => r.id === id);
   if (i >= 0 && state.remotes[i].requestVersion > version)
@@ -231,6 +356,7 @@ function remoteEntry(r, requestVersion, previous) {
     url: r.url,
     ok: r.ok,
     error: r.error,
+    loading: false,
     // The server says how old the data is; our own clock is used from there (the two clocks may differ).
     // Identical cached snapshots keep exactly the same age anchor. The backend
     // stamp is compared for identity only, never interpreted using our clock.

@@ -43,7 +43,8 @@ export const state = {
   usage: { interval: 0, stats: {} }, // container name -> { cpu, mem, memLimit, rx, tx }
   stats: null,
   clip: { text: "", updatedAt: 0, entries: [], max: 10 }, // shared clipboard (text/updatedAt = newest entry)
-  // Other dashboards: { id, name, url, ok, error, servers, docker, usage, stats, health } (read-only)
+  // Other dashboards: { id, name, url, loading, ok, error, servers, docker, usage, stats, health } (read-only).
+  // Directory placeholders have servers: []; pending polls retain the last known snapshot.
   remotes: [],
   remotesReady: false, // the first remotes request ended (until then the server switcher shows a loading bar)
   remotesInterval: 10, // seconds between remote updates (the server tells us: Settings / REMOTE_REFRESH_INTERVAL)

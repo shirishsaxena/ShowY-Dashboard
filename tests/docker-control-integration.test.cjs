@@ -291,7 +291,9 @@ test(
     history = await (await call("/api/activity")).json();
     assert.ok(
       history.entries.some(
-        (item) => item.title === "Dashboard configuration updated",
+        (item) =>
+          item.title === "Dashboard settings updated" &&
+          item.message === "Changed: dashboard title.",
       ),
     );
     assert.doesNotMatch(

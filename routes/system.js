@@ -96,6 +96,18 @@ module.exports = {
   "PUT /api/info/settings": {
     access: "edit",
     body: "json",
-    handler: async (req) => serverinfo.saveSettings(await readJson(req)),
+    handler: async (req, res, context) => {
+      const result = await serverinfo.saveSettings(await readJson(req));
+      context.activity = {
+        title: "Public IP settings updated",
+        message: {
+          off: "Public IP display disabled.",
+          lookup: "Public IP lookup enabled.",
+          manual:
+            "Manual public IP configured. Address not recorded in history.",
+        }[result.mode],
+      };
+      return result;
+    },
   },
 };

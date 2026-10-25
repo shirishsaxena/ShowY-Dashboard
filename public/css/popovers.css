@@ -238,13 +238,34 @@ button.clip-entry-text:hover {
   position: relative;
   z-index: 2; /* Above the card-wide link. */
   flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+}
+/* Keep the visible frame compact even when touch targets expand to 44px. */
+.card .card-menu-btn::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 24px;
+  height: 24px;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--border);
+  border-radius: inherit;
+  background: var(--card);
+  pointer-events: none;
+}
+.card .card-menu-btn:hover::before {
+  background: var(--card-hover);
+  border-color: var(--border-strong);
 }
 .card .card-menu-btn svg {
-  width: 14px;
-  height: 14px;
+  position: relative;
+  width: 12px;
+  height: 12px;
 }
 .card-menu {
   width: min(210px, calc(100vw - 16px));
@@ -522,9 +543,13 @@ dialog.service-preview-dialog {
 .activity-entry-head {
   font-size: 0.85rem;
 }
+.activity-entry-head strong {
+  min-width: 0;
+}
 .activity-entry-head svg {
   width: 15px;
   height: 15px;
+  flex-shrink: 0;
 }
 .activity-entry-meta {
   justify-content: space-between;

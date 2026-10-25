@@ -41,7 +41,11 @@ async function handleApi(context) {
     await recordRequest(`${req.method} ${pathname}`, err.status || 500);
     throw err;
   }
-  await recordRequest(`${req.method} ${pathname}`, res.statusCode || 200);
+  await recordRequest(
+    `${req.method} ${pathname}`,
+    res.statusCode || 200,
+    context.activity,
+  );
   if (!res.headersSent && result !== undefined) {
     return send(res, 200, result);
   }
