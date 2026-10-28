@@ -147,6 +147,8 @@
 
   dialog,
   dialog.editor-dialog,
+  dialog.docker-logs-dialog,
+  dialog.service-preview-dialog,
   #settingsDialog,
   .info-dialog,
   .qr-dialog,

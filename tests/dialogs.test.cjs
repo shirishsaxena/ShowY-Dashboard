@@ -101,6 +101,24 @@ test("shared dialogs contain scrolling and use interaction-aware validation", ()
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
 
+test("mobile logs and preview dialogs share the full-width editor bottom sheet", () => {
+  const responsive = read("public/css/responsive.css");
+  const mobile = responsive.split("@keyframes sheet")[0];
+  assert.match(mobile, /@media \(max-width: 720px\)/);
+  const sheet = mobile.match(/([^{}]+)\{([^{}]*width: 100vw;[^{}]*)\}/);
+  assert.ok(sheet, "Expected a full-width mobile dialog rule");
+  const selectors = sheet[1].split(",").map((selector) => selector.trim());
+  for (const name of ["editor", "docker-logs", "service-preview"]) {
+    assert.ok(
+      selectors.includes(`dialog.${name}-dialog`),
+      `Expected ${name} to override its desktop width with matching specificity`,
+    );
+  }
+  assert.match(sheet[2], /max-width: 100vw;/);
+  assert.match(sheet[2], /margin: auto 0 0;/);
+  assert.match(sheet[2], /border-radius: 20px 20px 0 0;/);
+});
+
 function promptFixture() {
   let focused;
   let close;
